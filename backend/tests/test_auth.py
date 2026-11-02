@@ -2,6 +2,7 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.auth import hash_pin
@@ -17,7 +18,11 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
     monkeypatch.setenv("AUTH_COOKIE_SECURE", "false")
     get_settings.cache_clear()
 
-    engine = create_engine("sqlite://")
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     SQLModel.metadata.create_all(engine)
 
     def override_session() -> Generator[Session, None, None]:
