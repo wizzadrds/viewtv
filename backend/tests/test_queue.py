@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.models import Perfil, Solicitud
-from app.queue import claim_next_request, complete_request, fail_request, renew_lease
+from app.queue import (\n    claim_next_request,\n    complete_request,\n    fail_request,\n    get_queue_counts,\n    renew_lease,\n)
 
 
 def make_session():
@@ -128,3 +128,21 @@ def test_failure_uses_exponential_backoff_and_eventually_stops():
         assert saved.estado == "fallida"
         assert saved.locked_by is None
         assert saved.ultimo_error == "fallo definitivo"
+
+
+
+def test_queue_counts_report_all_states_without_mutating_requests():
+    with make_session() as session:
+        request = add_request(session)
+        counts = get_queue_counts(session)
+
+        assert counts["pendiente"] == 1
+        assert counts["procesando"] == 0
+        assert counts["completada"] == 0
+        assert counts["fallida"] == 0
+        assert counts["cancelada"] == 0
+        assert counts["vigilando"] == 0
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "pendiente"
