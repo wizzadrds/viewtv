@@ -40,7 +40,7 @@ def test_claim_is_exclusive_and_increments_attempts():
         assert claimed.estado == "procesando"
         assert claimed.intentos == 1
         assert claimed.locked_by == "worker-a"
-        assert claimed.locked_until == now + timedelta(seconds=120)
+        assert claimed.locked_until == (now + timedelta(seconds=120)).replace(tzinfo=None)
         assert claim_next_request(session, "worker-b", now=now) is None
 
 
@@ -102,7 +102,7 @@ def test_failure_uses_exponential_backoff_and_eventually_stops():
         saved = session.get(Solicitud, request.id)
         assert saved is not None
         assert saved.estado == "pendiente"
-        assert saved.disponible_desde == now + timedelta(seconds=30)
+        assert saved.disponible_desde == (now + timedelta(seconds=30)).replace(tzinfo=None)
 
         second = claim_next_request(
             session,
