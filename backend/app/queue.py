@@ -7,7 +7,7 @@ Las funciones requieren una Session sin una transacción previa activa.
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import case, func, update
+from sqlalchemy import case, func, text, update
 from sqlmodel import Session, select
 
 from app.models import Solicitud
@@ -19,14 +19,21 @@ ERROR_MAX_LENGTH = 4000
 
 
 def _now(value: datetime | None) -> datetime:
-    return value or datetime.now(UTC)
+    current = value or datetime.now(UTC)
+    if current.tzinfo is None:
+        raise ValueError("Las fechas de la cola deben incluir zona horaria")
+    return current.astimezone(UTC)
 
 
 def _begin_write(session: Session) -> None:
-    """Abre una transacción de escritura SQLite con bloqueo reservado inmediato."""
+    """Abre una transacción SQLite inmediata sin descartar cambios del llamador."""
     if session.in_transaction():
-        raise RuntimeError("Las operaciones de cola requieren una Session sin transacción activa")
-    session.exec("BEGIN IMMEDIATE")
+        if session.new or session.dirty or session.deleted:
+            raise RuntimeError("Confirma o revierte los cambios pendientes antes de usar la cola")
+        # Una lectura ORM puede dejar una transacción lógica abierta. Se cierra
+        # únicamente si no contiene cambios pendientes del llamador.
+        session.rollback()
+    session.exec(text("BEGIN IMMEDIATE"))
 
 
 def _clear_lease_values() -> dict:
