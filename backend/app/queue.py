@@ -249,3 +249,21 @@ def fail_request(
     except Exception:
         session.rollback()
         raise
+
+
+
+def get_queue_counts(session: Session) -> dict[str, int]:
+    """Devuelve el número de solicitudes por estado sin modificar la cola."""
+    rows = session.exec(
+        select(Solicitud.estado, func.count(Solicitud.id)).group_by(Solicitud.estado)
+    ).all()
+    counts = {
+        "pendiente": 0,
+        "procesando": 0,
+        "completada": 0,
+        "fallida": 0,
+        "cancelada": 0,
+        "vigilando": 0,
+    }
+    counts.update({estado: total for estado, total in rows})
+    return counts
