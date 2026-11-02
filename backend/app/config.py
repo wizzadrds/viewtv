@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     cache_dir: Path = Path("/cache")
     cache_quota_gb: int = 80
     timezone: str = "Europe/Madrid"
+    jwt_secret: str = ""
+    jwt_expire_minutes: int = 720
+    auth_cookie_name: str = "viewtv_session"
+    auth_cookie_secure: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",
