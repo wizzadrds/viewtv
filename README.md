@@ -31,7 +31,24 @@ La base de datos y sus volúmenes persistentes no deben estar dentro del directo
 
 El entorno de desarrollo objetivo es Windows 11 con WSL2 (Ubuntu 24.04) y Docker Desktop con integración WSL habilitada. Trabaja desde el sistema de archivos Linux de WSL (por ejemplo, `~/projects/viewtv`) para evitar penalizaciones de rendimiento de montajes bajo `/mnt/c`.
 
-Los pasos de instalación se documentarán conforme se incorporen los servicios ejecutables. Consulta [docs/arquitectura.md](docs/arquitectura.md) para las decisiones iniciales.
+### Arranque del entorno base
+
+Desde Ubuntu (WSL), en la raíz del repositorio:
+
+```bash
+cp .env.example .env
+docker compose config
+docker compose up --build -d
+docker compose ps
+```
+
+La API quedará disponible inicialmente solo en el propio equipo: `http://localhost:8000/health`. La primera ejecución aplica las migraciones de SQLite automáticamente. Los servicios `api` y `worker` se ejecutan por separado y comparten volúmenes distintos para datos persistentes y caché. El worker es todavía un esqueleto APScheduler; el procesamiento real de la cola se añadirá en la fase correspondiente.
+
+Para ver los registros: `docker compose logs -f api worker`. Para detener los servicios: `docker compose down`. No uses `docker compose down -v`, porque eliminaría los volúmenes persistentes.
+
+Si más adelante se desea acceder desde el televisor por la LAN, habrá que cambiar `API_BIND_ADDRESS` por la IP LAN del equipo y configurar el cortafuegos de Windows para permitir solo la red doméstica. No abras el puerto en el router ni publiques el servicio en Internet.
+
+Consulta [docs/arquitectura.md](docs/arquitectura.md) para las decisiones iniciales.
 
 ## Configuración y secretos
 
