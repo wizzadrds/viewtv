@@ -22,6 +22,9 @@ def add_request(session: Session, *, max_attempts: int = 5) -> Solicitud:
         jellyfin_item_id="jf-test",
         titulo="Solicitud de prueba",
         max_intentos=max_attempts,
+        # Las pruebas usan un reloj fijo; la solicitud debe estar disponible
+        # antes de ese instante, no a la hora real de ejecución del test.
+        disponible_desde=datetime(2026, 11, 2, 19, 0, tzinfo=UTC),
     )
     session.add(request)
     session.commit()
