@@ -3,7 +3,13 @@ from datetime import UTC, datetime, timedelta
 from sqlmodel import Session, SQLModel, create_engine
 
 from app.models import Perfil, Solicitud
-from app.queue import (\n    claim_next_request,\n    complete_request,\n    fail_request,\n    get_queue_counts,\n    renew_lease,\n)
+from app.queue import (
+    claim_next_request,
+    complete_request,
+    fail_request,
+    get_queue_counts,
+    renew_lease,
+)
 
 
 def make_session():
