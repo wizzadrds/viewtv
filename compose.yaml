@@ -1,0 +1,55 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: viewtv:local
+    command: ["uvicorn", "app.main:app", "--app-dir", "/opt/viewtv/backend", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////data/viewtv.db
+      DATA_DIR: /data
+      CACHE_DIR: /cache
+    ports:
+      - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000"
+    volumes:
+      - viewtv_data:/data
+      - viewtv_cache:/cache
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: viewtv:local
+    command: ["python", "-m", "worker.main"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////data/viewtv.db
+      DATA_DIR: /data
+      CACHE_DIR: /cache
+    volumes:
+      - viewtv_data:/data
+      - viewtv_cache:/cache
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Datos persistentes: SQLite y metadatos, nunca se purgan al limpiar la caché.
+  viewtv_data:
+  # Caché temporal: volumen independiente sujeto a cuota y política de evicción.
+  viewtv_cache:
