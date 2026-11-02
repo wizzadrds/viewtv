@@ -60,7 +60,10 @@ def _recover_expired_leases(session: Session, now: datetime) -> None:
             ),
             disponible_desde=now,
             actualizado_en=now,
-            ultimo_error=func.coalesce(Solicitud.ultimo_error, "Lease caducado; trabajo recuperado"),
+            ultimo_error=func.coalesce(
+                Solicitud.ultimo_error,
+                "Lease caducado; trabajo recuperado",
+            ),
             **_clear_lease_values(),
         )
     )
