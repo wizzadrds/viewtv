@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.auth import limiter, router as auth_router
+from app.auth import limiter
+from app.auth import router as auth_router
 from app.config import get_settings
 
 settings = get_settings()
