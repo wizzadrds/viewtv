@@ -132,6 +132,8 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [x] SQLite sigue en el volumen `viewtv_viewtv_data`; archivo `viewtv.db` comprobado y migración `0001_initial (head)` confirmada.
 - [x] `docker inspect` confirmó que API y worker comparten el bind mount de `C:\\VIEWTV\\cache` en `/cache` y el volumen persistente `viewtv_viewtv_data` en `/data`.
 - [x] Volumen antiguo `viewtv_viewtv_cache` eliminado después de verificar que ningún contenedor lo utilizaba; `docker volume ls` confirmó que solo queda `viewtv_viewtv_data`.
+- [x] Reinicio limpio comprobado con `docker compose down` y `docker compose up -d` (sin `-v`): API `healthy` y worker arrancado.
+- [x] Persistencia tras el reinicio comprobada: Alembic `0001_initial (head)`, 2 perfiles conservados en SQLite y `/health` HTTP 200.
 - [x] Commit `922b4c00157772207d6656af24231affd8e550af` publicado en `feature/fase-1-backend-base`; GitHub Actions Backend CI finalizó con `success` (run 11).
 
 ### En curso o parcial
@@ -145,7 +147,7 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 #### A. Cerrar fase 1
 1. Verificar que el commit y la rama remota contienen los últimos cambios.
 2. Revisar el resultado de GitHub Actions.
-3. Ejecutar prueba de arranque limpio siguiendo README, sin borrar volúmenes existentes.
+3. [x] Ejecutar reinicio limpio de los servicios sin borrar volúmenes; comprobar API, migración y persistencia de perfiles.
 4. Revisar variables de entorno, secretos, límites de red y migraciones.
 5. Añadir pruebas de recuperación al arrancar, expiración de lease, backoff y límites de intentos.
 6. Actualizar README y documentación con el estado real.
