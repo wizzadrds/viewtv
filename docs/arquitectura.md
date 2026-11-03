@@ -38,6 +38,15 @@ La reclamación y actualización del lease deberán implementarse con operacione
 
 Jellyfin será la fuente de reproducción y biblioteca. TMDB podrá aportar metadatos. Los adaptadores de indexadores y cliente de torrents, si se habilitan, se limitarán a contenido propio, autorizado o de dominio público.
 
+## Almacenamiento del entorno actual
+
+En el equipo de desarrollo Windows 11 + WSL2, el SSD es la unidad `C:`. Las carpetas anfitrionas creadas son `C:\\VIEWTV\\media`, `C:\\VIEWTV\\cache`, `C:\\VIEWTV\\data` y `C:\\VIEWTV\\backups` (accesibles desde WSL como `/mnt/c/VIEWTV/...`).
+
+- `api` y `worker` montan `/mnt/c/VIEWTV/cache` en `/cache`; la escritura se ha probado desde ambos contenedores.
+- SQLite permanece en el volumen Docker `viewtv_data` montado en `/data`. No mover ni borrar este volumen al cambiar la caché.
+- `media` queda reservado para compartir contenido con Jellyfin nativo de Windows. La conexión y los permisos se configurarán al crear las bibliotecas.
+- `data` y `backups` están creados, pero todavía no están montados en los contenedores.
+
 ## Entorno de desarrollo
 
 El objetivo inicial es Windows 11 + WSL2 (Ubuntu 24.04) + Docker Desktop. Se recomienda clonar y ejecutar el proyecto desde el sistema de archivos Linux de WSL. La aceleración Intel Quick Sync se investigará más adelante y no se dará por disponible hasta verificar el hardware, los controladores y el acceso desde contenedores.
