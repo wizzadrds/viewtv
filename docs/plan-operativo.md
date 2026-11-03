@@ -30,6 +30,16 @@ No pedir ni pegar en el chat PIN, contraseñas, claves API, cookies, tokens ni e
 
 ## 1. Equipo, almacenamiento y disponibilidad
 
+### Almacenamiento confirmado (3 de noviembre de 2026)
+
+- SSD anfitrión: unidad Windows `C:` (SSD de 1 TB).
+- Carpetas creadas y verificadas desde Windows y WSL: `C:\\VIEWTV\\media`, `C:\\VIEWTV\\cache`, `C:\\VIEWTV\\data` y `C:\\VIEWTV\\backups`; en WSL están bajo `/mnt/c/VIEWTV/`.
+- Jellyfin permanece instalado de forma nativa en Windows. La carpeta prevista para sus bibliotecas es `C:\\VIEWTV\\media`; todavía no hay bibliotecas ni archivos multimedia.
+- Compose monta `C:\\VIEWTV\\cache` en `/cache` para los servicios `api` y `worker` mediante `/mnt/c/VIEWTV/cache`. Se verificó escritura desde ambos contenedores.
+- La base de datos permanece en el volumen Docker `viewtv_viewtv_data`, montado en `/data`; `viewtv.db` existe y Alembic informa `0001_initial (head)`. No se ha movido a `C:\\VIEWTV\\data`.
+- El volumen antiguo `viewtv_viewtv_cache` aún no se ha eliminado. No borrarlo hasta confirmar el estado del repositorio local y que ningún contenedor lo usa.
+- La API quedó `healthy`, `/health` devolvió HTTP 200 y el worker permaneció en ejecución tras aplicar el nuevo montaje.
+
 1. Confirmar el espacio real del SSD. Mantener 80 GB de caché para 1 TB; si el disco real fuese de 256 GB, usar 40 GB.
 2. Elegir y documentar una ruta persistente de caché. No usar la raíz del SSD ni `/tmp`.
 3. Separar estrictamente la caché temporal de SQLite, perfiles y metadatos persistentes.
