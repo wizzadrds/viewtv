@@ -120,8 +120,9 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [x] Autenticación con PIN hasheado con Argon2, JWT en cookie HttpOnly, logout, endpoint de perfil y límite inicial de intentos.
 - [x] Perfiles Adultos e Infantil creados.
 - [x] Login probado correctamente para ambos perfiles.
-- [x] Suite backend: 11 pruebas superadas en la última ejecución registrada.
-- [x] Ruff: All checks passed! en la última ejecución registrada.
+- [x] Suite backend: 13 pruebas superadas en la ejecución local del 3 de noviembre de 2026 (`pytest`: 13 passed).
+- [x] Ruff: `ruff check app tests` devolvió `All checks passed!` en la misma ejecución.
+- [x] GitHub Actions Backend CI: runs 17 y 18 completados con `success`, incluidos los nuevos tests de leases.
 - [x] Docker Compose levantado; API healthy y worker Up. /health responde y /auth/me sin sesión devuelve 401.
 - [x] docs/plan-operativo.md creado en la rama de trabajo.
 - [x] Jellyfin instalado como servidor en Windows y accesible en http://localhost:8096.
@@ -145,12 +146,12 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 ### Pendiente, por orden recomendado
 
 #### A. Cerrar fase 1
-1. Verificar que el commit y la rama remota contienen los últimos cambios.
-2. Revisar el resultado de GitHub Actions.
+1. [x] Verificar que el commit y la rama remota contienen los últimos cambios; la copia local se actualizó con `git pull --ff-only` hasta el commit `2be846a`.
+2. [x] Revisar GitHub Actions: runs 17 y 18 completados con `success`.
 3. [x] Ejecutar reinicio limpio de los servicios sin borrar volúmenes; comprobar API, migración y persistencia de perfiles.
-4. Revisar variables de entorno, secretos, límites de red y migraciones.
+4. Revisar variables de entorno, secretos, límites de red y migraciones (pendiente).
 5. [x] Las pruebas unitarias existentes cubren recuperación de leases caducados al reclamar, backoff exponencial y agotamiento de intentos; se añadieron casos para lease caducado en el límite de intentos y para impedir que un worker antiguo renueve o complete su lease. Pendiente: decidir e implementar recuperación/watchdog periódico al arrancar cuando exista un procesador real; el worker actual solo informa del estado.
-6. Actualizar README y documentación con el estado real.
+6. [x] Actualizar README y documentación con el estado real; registrar también la ejecución local de 13 pruebas y Ruff.
 7. Solo entonces declarar fase 1 terminada.
 
 #### B. Jellyfin y fase 2
