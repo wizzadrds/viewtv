@@ -15,7 +15,7 @@ services:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000"
     volumes:
       - viewtv_data:/data
-      - viewtv_cache:/cache
+      - /mnt/c/VIEWTV/cache:/cache
     restart: unless-stopped
     healthcheck:
       test:
@@ -42,7 +42,7 @@ services:
       CACHE_DIR: /cache
     volumes:
       - viewtv_data:/data
-      - viewtv_cache:/cache
+      - /mnt/c/VIEWTV/cache:/cache
     depends_on:
       api:
         condition: service_healthy
@@ -51,5 +51,4 @@ services:
 volumes:
   # Datos persistentes: SQLite y metadatos, nunca se purgan al limpiar la caché.
   viewtv_data:
-  # Caché temporal: volumen independiente sujeto a cuota y política de evicción.
-  viewtv_cache:
+
