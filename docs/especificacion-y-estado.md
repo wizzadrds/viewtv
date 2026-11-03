@@ -99,6 +99,37 @@ Componentes:
 - Bazarr: posible integración futura para subtítulos.
 - Notificaciones dentro de la app; Telegram solo si se configura expresamente y de forma segura.
 
+## 5.1 Fuentes e indexers — diseño pendiente y límites
+
+Esta sección define una arquitectura futura para consultar catálogos Torznab compatibles, exclusivamente cuando las fuentes estén autorizadas para el contenido solicitado (por ejemplo, material propio, con licencia de distribución o de dominio público). No se configurarán ni documentarán listas de sitios cuyo propósito sea localizar copias no autorizadas de obras protegidas.
+
+### Adaptador
+
+- Mantener una única implementación de cliente/adaptador **Torznab genérico**, reutilizable para servicios compatibles como Prowlarr o Jackett.
+- La URL base, ruta Torznab, credencial API y categorías serán configuración del servidor; no se codificarán credenciales ni URLs concretas en el frontend.
+- La API y el worker consultan el adaptador desde el backend. La PWA nunca se conecta directamente a Prowlarr/Jackett ni recibe sus claves.
+- No asumir que un indexer existe por aparecer en una guía o en otra instalación. Durante la implementación se comprobará el catálogo real expuesto por cada instancia y se documentarán únicamente los indexers que estén presentes y habilitados, junto con su tipo y resultado de prueba.
+- La compatibilidad Torznab no implica que una fuente sea legal, fiable ni adecuada: cada fuente requiere revisión de autorización, términos y alcance del contenido.
+
+### Normalización y filtros
+
+- La aplicación consumirá la respuesta estructurada Torznab; **no parseará HTML ni automatizará páginas web**.
+- Normalizar resultados a un modelo interno común antes de mostrarlos.
+- Los filtros posteriores a la respuesta podrán incluir número de seeders, idioma/pista de audio declarada, perfil de calidad y tamaño máximo. Los valores ausentes o no verificables se mostrarán como desconocidos, no se inferirán.
+- Los filtros son criterios de selección, no una verificación de derechos. Antes de crear una solicitud o iniciar una transferencia deberá existir una fuente y un elemento autorizados.
+
+### Resiliencia y administración
+
+- Un error HTTP 429/503 o un timeout marcará temporalmente la fuente como no disponible durante 30 minutos (valor inicial configurable).
+- El fallo de una fuente no abortará la búsqueda global: se devolverán los resultados parciales y el estado de las fuentes fallidas.
+- Panel de administración con estado por fuente, última comprobación, último error y un interruptor para habilitar/deshabilitar cada fuente.
+- Aplicar límites de tiempo, concurrencia y reintentos; no repetir inmediatamente una fuente en periodo de enfriamiento.
+- No se considerará implementado hasta disponer de pruebas para respuestas válidas, resultados parciales, rate limit, servicio no disponible, timeout, interruptor y recuperación tras el periodo de enfriamiento.
+
+### Estado
+
+Diseño documentado; **no implementado ni validado**. Prowlarr y Jackett no están instalados/configurados en el entorno actual. La futura verificación de catálogo se hará solo con fuentes autorizadas y no se presupone ningún nombre de indexer.
+
 ## 6. Diseño visual
 
 Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable desde 1920×1080, tarjetas redondeadas, transiciones breves, foco de mando muy visible, navegación por flechas/Enter/Atrás, respeto a prefers-reduced-motion y contraste legible.
