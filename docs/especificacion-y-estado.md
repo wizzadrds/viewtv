@@ -126,11 +126,15 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [x] docs/plan-operativo.md creado en la rama de trabajo.
 - [x] Jellyfin instalado como servidor en Windows y accesible en http://localhost:8096.
 - [x] Confirmado que todavía no hay archivos multimedia ni bibliotecas Jellyfin.
+- [x] Carpetas `C:\\VIEWTV\\media`, `cache`, `data` y `backups` creadas y accesibles desde Windows y WSL (`/mnt/c/VIEWTV`).
+- [x] Caché de Docker trasladada del volumen nombrado al directorio `C:\\VIEWTV\\cache`, montado en `/cache` para API y worker; escritura comprobada en ambos contenedores.
+- [x] API saludable tras el cambio; `/health` respondió HTTP 200.
+- [x] SQLite sigue en el volumen `viewtv_viewtv_data`; archivo `viewtv.db` comprobado y migración `0001_initial (head)` confirmada.
 
 ### En curso o parcial
 - [ ] Fase 1: API, modelos, migración, cola inicial, autenticación, Compose y CI están en el repositorio. Falta revisar el resultado real de GitHub Actions, comprobar un arranque limpio siguiendo README y completar revisión de seguridad/configuración y recuperación. No marcar fase completa aún.
 - [ ] Jellyfin: servidor instalado y accesible, pero no hay usuario de servicio, API key, carpetas, bibliotecas ni conexión desde la API VIEWTV.
-- [ ] Almacenamiento: cuota de 80 GB configurada en VIEWTV; falta verificar capacidad libre real, definir ruta física definitiva y confirmar montaje compartido entre Windows/Jellyfin/WSL/Docker.
+- [ ] Almacenamiento: caché ya montada en `C:\\VIEWTV\\cache`; falta implementar la cuota/evicción y confirmar la ruta compartida de `media` con Jellyfin. El volumen antiguo `viewtv_viewtv_cache` está pendiente de retirada segura.
 - [ ] Documentación: existe el plan operativo; falta enlazar esta especificación y el plan desde README.
 
 ### Pendiente, por orden recomendado
