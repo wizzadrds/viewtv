@@ -130,11 +130,14 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [x] Caché de Docker trasladada del volumen nombrado al directorio `C:\\VIEWTV\\cache`, montado en `/cache` para API y worker; escritura comprobada en ambos contenedores.
 - [x] API saludable tras el cambio; `/health` respondió HTTP 200.
 - [x] SQLite sigue en el volumen `viewtv_viewtv_data`; archivo `viewtv.db` comprobado y migración `0001_initial (head)` confirmada.
+- [x] `docker inspect` confirmó que API y worker comparten el bind mount de `C:\\VIEWTV\\cache` en `/cache` y el volumen persistente `viewtv_viewtv_data` en `/data`.
+- [x] Volumen antiguo `viewtv_viewtv_cache` eliminado después de verificar que ningún contenedor lo utilizaba; `docker volume ls` confirmó que solo queda `viewtv_viewtv_data`.
+- [x] Commit `922b4c00157772207d6656af24231affd8e550af` publicado en `feature/fase-1-backend-base`; GitHub Actions Backend CI finalizó con `success` (run 11).
 
 ### En curso o parcial
-- [ ] Fase 1: API, modelos, migración, cola inicial, autenticación, Compose y CI están en el repositorio. Falta revisar el resultado real de GitHub Actions, comprobar un arranque limpio siguiendo README y completar revisión de seguridad/configuración y recuperación. No marcar fase completa aún.
+- [ ] Fase 1: API, modelos, migración, cola inicial, autenticación, Compose y CI están en el repositorio; GitHub Actions Backend CI del commit `922b4c0` terminó correctamente. Falta comprobar un arranque limpio siguiendo README y completar revisión de seguridad/configuración y recuperación. No marcar fase completa aún.
 - [ ] Jellyfin: servidor instalado y accesible, pero no hay usuario de servicio, API key, carpetas, bibliotecas ni conexión desde la API VIEWTV.
-- [ ] Almacenamiento: caché ya montada en `C:\\VIEWTV\\cache`; falta implementar la cuota/evicción y confirmar la ruta compartida de `media` con Jellyfin. El volumen antiguo `viewtv_viewtv_cache` está pendiente de retirada segura.
+- [ ] Almacenamiento: caché ya montada en `C:\\VIEWTV\\cache` para API y worker; falta implementar la cuota/evicción y confirmar la ruta compartida de `media` con Jellyfin. El volumen Docker antiguo de caché ya fue eliminado.
 - [ ] Documentación: existe el plan operativo; falta enlazar esta especificación y el plan desde README.
 
 ### Pendiente, por orden recomendado
