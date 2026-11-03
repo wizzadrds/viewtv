@@ -72,6 +72,9 @@ No pedir ni pegar en el chat PIN, contraseñas, claves API, cookies, tokens ni e
 - TMDB puede aportar metadatos; no proporciona los archivos de vídeo.
 - Prowlarr puede actuar como gestor de fuentes configurables y qBittorrent como cliente de transferencias.
 - Estas integraciones se implementarán únicamente para contenido propio, autorizado o de dominio público, respetando las condiciones de cada fuente.
+- Para fuentes compatibles, la arquitectura prevista usa un único adaptador Torznab genérico, con credenciales solo en backend, normalización de resultados y sin parseo HTML. La lista real de fuentes se verificará en cada instancia; no se presupone el catálogo de Prowlarr/Jackett.
+- Errores 429/503/timeout: enfriamiento inicial de 30 minutos por fuente, sin cancelar la búsqueda global; panel con estado y habilitación individual. Este comportamiento está especificado, pero aún no implementado.
+- Filtros previstos sobre resultados estructurados: seeders, idioma/pista declarada, perfil de calidad y tamaño máximo. Estos filtros no sustituyen la comprobación de que el contenido está autorizado.
 - No configurar fuentes cuyo propósito sea obtener obras protegidas sin autorización ni automatizar ese flujo.
 - Prowlarr y qBittorrent aún no están instalados/configurados.
 - Si se habilita qBittorrent para transferencias autorizadas: WebUI con credenciales fuertes, acceso LAN restringido, carpeta temporal definida y límites razonables de transferencia.
