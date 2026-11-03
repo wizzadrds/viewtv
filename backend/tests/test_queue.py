@@ -152,3 +152,59 @@ def test_queue_counts_report_all_states_without_mutating_requests():
         saved = session.get(Solicitud, request.id)
         assert saved is not None
         assert saved.estado == "pendiente"
+
+def test_expired_lease_at_attempt_limit_becomes_failed():
+    start = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+    with make_session() as session:
+        request = add_request(session, max_attempts=1)
+        claimed = claim_next_request(
+            session,
+            "worker-a",
+            lease_seconds=10,
+            now=start,
+        )
+        assert claimed is not None
+        assert claimed.intentos == 1
+
+        # El siguiente ciclo de reclamación detecta que el lease venció.
+        assert claim_next_request(
+            session,
+            "worker-b",
+            now=start + timedelta(seconds=11),
+        ) is None
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "fallida"
+        assert saved.locked_by is None
+        assert saved.locked_until is None
+        assert saved.heartbeat is None
+        assert saved.ultimo_error == "Lease caducado; trabajo recuperado"
+
+
+def test_expired_lease_cannot_be_renewed_or_completed_by_old_worker():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+    expired_at = now + timedelta(seconds=121)
+    with make_session() as session:
+        request = add_request(session)
+        claimed = claim_next_request(
+            session,
+            "worker-a",
+            lease_seconds=120,
+            now=now,
+        )
+        assert claimed is not None
+
+        assert not renew_lease(
+            session,
+            request.id,
+            "worker-a",
+            now=expired_at,
+        )
+        assert not complete_request(
+            session,
+            request.id,
+            "worker-a",
+            now=expired_at,
+        )
+
