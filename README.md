@@ -2,7 +2,7 @@
 
 Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada para Android TV y Fire TV.
 
-> **Estado:** inicio de la fase 1. La estructura y las decisiones de arquitectura se irán incorporando por fases; este repositorio todavía no representa una instalación funcional.
+> **Estado actual:** base de backend y entorno local levantados; perfiles creados y autenticación probada. Jellyfin está instalado en Windows, pero aún no conectado a VIEWTV. Consulta el estado detallado en la documentación del proyecto.
 
 ## Objetivos
 
@@ -13,6 +13,14 @@ Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada par
 - API con FastAPI, SQLModel y SQLite.
 - Trabajador separado para tareas asíncronas y una cola duradera con concesiones temporales (leases).
 - PWA instalable y adaptable a pantallas de televisión.
+
+## Documentación principal
+
+- [Plan operativo y decisiones del entorno](docs/plan-operativo.md)
+- [Especificación funcional, progreso y tareas pendientes](docs/especificacion-y-estado.md)
+- [Arquitectura técnica](docs/arquitectura.md)
+
+Antes de continuar una tarea, revisar estos documentos para conocer las decisiones ya tomadas y el estado real. Actualizarlos al completar hitos.
 
 ## Arquitectura prevista
 
@@ -29,7 +37,7 @@ La base de datos y sus volúmenes persistentes no deben estar dentro del directo
 
 ## Desarrollo local
 
-El entorno de desarrollo objetivo es Windows 11 con WSL2 (Ubuntu 24.04) y Docker Desktop con integración WSL habilitada. Trabaja desde el sistema de archivos Linux de WSL (por ejemplo, `~/projects/viewtv`) para evitar penalizaciones de rendimiento de montajes bajo `/mnt/c`.
+El entorno actual es Windows 11 con WSL2 (Ubuntu 24.04) y Docker Desktop con integración WSL habilitada. Trabaja desde el sistema de archivos Linux de WSL (por ejemplo, `~/projects/viewtv`) para evitar penalizaciones de rendimiento de montajes bajo `/mnt/c`.
 
 ### Arranque del entorno base
 
@@ -42,32 +50,28 @@ docker compose up --build -d
 docker compose ps
 ```
 
-La API quedará disponible inicialmente solo en el propio equipo: `http://localhost:8000/health`. La primera ejecución aplica las migraciones de SQLite automáticamente. Los servicios `api` y `worker` se ejecutan por separado y comparten volúmenes distintos para datos persistentes y caché. El worker es todavía un esqueleto APScheduler; el procesamiento real de la cola se añadirá en la fase correspondiente.
+La API queda disponible inicialmente solo en el propio equipo: `http://localhost:8000/health`. La primera ejecución aplica las migraciones de SQLite automáticamente. Los servicios `api` y `worker` se ejecutan por separado y comparten volúmenes distintos para datos persistentes y caché. El worker todavía no procesa solicitudes ni transferencias reales.
 
 Para ver los registros: `docker compose logs -f api worker`. Para detener los servicios: `docker compose down`. No uses `docker compose down -v`, porque eliminaría los volúmenes persistentes.
 
-Si más adelante se desea acceder desde el televisor por la LAN, habrá que cambiar `API_BIND_ADDRESS` por la IP LAN del equipo y configurar el cortafuegos de Windows para permitir solo la red doméstica. No abras el puerto en el router ni publiques el servicio en Internet.
-
-Consulta [docs/arquitectura.md](docs/arquitectura.md) para las decisiones iniciales.
+Si más adelante se desea acceder desde el televisor por la LAN, habrá que configurar el bind de la API y el cortafuegos de Windows para permitir solo la red doméstica. No abras el puerto en el router ni publiques el servicio en Internet.
 
 ## Configuración y secretos
 
-1. Copia `.env.example` a `.env` cuando exista una configuración ejecutable.
-2. Sustituye todos los valores de ejemplo por valores locales seguros.
-3. No subas nunca `.env`, contraseñas, PIN, tokens ni claves API al repositorio.
-
-El servicio se diseñará para uso doméstico en red local. No se debe publicar directamente en Internet ni abrir puertos del router como parte de la configuración inicial.
+1. Copia `.env.example` a `.env` cuando prepares un entorno nuevo.
+2. Sustituye los valores de ejemplo por valores locales seguros.
+3. No subas nunca `.env`, contraseñas, PIN, tokens ni claves API al repositorio ni los compartas por chat.
 
 ## Fuentes y derechos
 
-Los adaptadores de búsqueda/descarga deberán utilizarse únicamente con contenido propio, autorizado o de dominio público. No se incluirán flujos orientados a localizar u obtener obras protegidas sin autorización.
+Los adaptadores de búsqueda/transferencia se utilizarán únicamente con contenido propio, autorizado o de dominio público. TMDB aporta metadatos, no archivos de vídeo.
 
 ## Fases
 
-1. Estructura del repositorio, configuración, persistencia y CI.
+1. Estructura del repositorio, configuración, persistencia, cola inicial, autenticación y CI.
 2. Integración con Jellyfin y catálogo de solo lectura.
-3. Solicitudes y cola duradera de tareas.
-4. Ciclo de vida de la caché, cuotas y lista de espera.
+3. Solicitudes y procesamiento de cola para fuentes autorizadas, con reproducción.
+4. Ciclo de vida de caché, cuotas y lista de espera.
 5. Asistente conversacional con confirmación explícita.
 6. PWA instalable, navegación con mando y pulido.
 
