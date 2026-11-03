@@ -37,8 +37,8 @@ No pedir ni pegar en el chat PIN, contraseñas, claves API, cookies, tokens ni e
 - Jellyfin permanece instalado de forma nativa en Windows. La carpeta prevista para sus bibliotecas es `C:\\VIEWTV\\media`; todavía no hay bibliotecas ni archivos multimedia.
 - Compose monta `C:\\VIEWTV\\cache` en `/cache` para los servicios `api` y `worker` mediante `/mnt/c/VIEWTV/cache`. Se verificó escritura desde ambos contenedores.
 - La base de datos permanece en el volumen Docker `viewtv_viewtv_data`, montado en `/data`; `viewtv.db` existe y Alembic informa `0001_initial (head)`. No se ha movido a `C:\\VIEWTV\\data`.
-- El volumen antiguo `viewtv_viewtv_cache` aún no se ha eliminado. No borrarlo hasta confirmar el estado del repositorio local y que ningún contenedor lo usa.
-- La API quedó `healthy`, `/health` devolvió HTTP 200 y el worker permaneció en ejecución tras aplicar el nuevo montaje.
+- El volumen antiguo `viewtv_viewtv_cache` se eliminó el 3 de noviembre de 2026 tras comprobar que ningún contenedor lo utilizaba. Solo permanece `viewtv_viewtv_data`.
+- La API quedó `healthy`, `/health` devolvió HTTP 200 y el worker permaneció en ejecución tras aplicar el nuevo montaje. `docker inspect` confirmó que API y worker comparten el mismo bind mount de caché y el volumen `viewtv_viewtv_data`.
 
 1. Confirmar el espacio real del SSD. Mantener 80 GB de caché para 1 TB; si el disco real fuese de 256 GB, usar 40 GB.
 2. Elegir y documentar una ruta persistente de caché. No usar la raíz del SSD ni `/tmp`.
