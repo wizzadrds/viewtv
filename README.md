@@ -2,7 +2,7 @@
 
 Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada para Android TV y Fire TV.
 
-> **Estado actual:** API y worker levantados; perfiles creados y autenticación probada. La caché está montada en `C:\\VIEWTV\\cache` y SQLite permanece en un volumen Docker independiente. Jellyfin está instalado en Windows, pero aún no conectado a VIEWTV. Consulta el estado detallado en la documentación del proyecto.
+> **Estado actual:** API y worker levantados; perfiles creados y autenticación probada. El reinicio limpio con `docker compose down` y `docker compose up -d` se ha validado: la API vuelve a `healthy`, la migración `0001_initial` sigue aplicada y los dos perfiles persisten. La caché está montada en `C:\\VIEWTV\\cache` y SQLite permanece en un volumen Docker independiente. Jellyfin está instalado en Windows, pero aún no conectado a VIEWTV. La fase 1 sigue abierta hasta completar las pruebas de recuperación y la revisión de seguridad/configuración. Consulta el estado detallado en la documentación del proyecto.
 
 ## Objetivos
 
