@@ -149,7 +149,7 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 2. Revisar el resultado de GitHub Actions.
 3. [x] Ejecutar reinicio limpio de los servicios sin borrar volúmenes; comprobar API, migración y persistencia de perfiles.
 4. Revisar variables de entorno, secretos, límites de red y migraciones.
-5. Añadir pruebas de recuperación al arrancar, expiración de lease, backoff y límites de intentos.
+5. [x] Las pruebas unitarias existentes cubren recuperación de leases caducados al reclamar, backoff exponencial y agotamiento de intentos; se añadieron casos para lease caducado en el límite de intentos y para impedir que un worker antiguo renueve o complete su lease. Pendiente: decidir e implementar recuperación/watchdog periódico al arrancar cuando exista un procesador real; el worker actual solo informa del estado.
 6. Actualizar README y documentación con el estado real.
 7. Solo entonces declarar fase 1 terminada.
 
