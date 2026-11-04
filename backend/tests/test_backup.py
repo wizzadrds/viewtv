@@ -1,6 +1,6 @@
-from datetime import UTC, datetime, timedelta
 import os
 import sqlite3
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
