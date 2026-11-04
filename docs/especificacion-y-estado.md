@@ -338,3 +338,12 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - [x] Conectividad autenticada desde el contenedor API al servidor Jellyfin nativo Windows: `LAPTOP-VIEWTV`, versión `12.4.0`.
 - El resultado de cero elementos es esperado: las bibliotecas `Películas` y `Series` están creadas, pero sus carpetas todavía no contienen archivos.
 - Alcance de la validación: autenticación, conexión y ejecución del endpoint de sincronización verificadas. Quedan pendientes la importación con medios reales, paginación de un catálogo poblado, servicio de imágenes/carátulas y reproducción.
+
+
+### Proxy de carátulas y fondos Jellyfin — implementación inicial
+
+- Se añade el endpoint autenticado `GET /jellyfin/media/{media_id}/images/{image_kind}` (`primary` o `backdrop`). El cliente web solicita la imagen a VIEWTV; el backend consulta Jellyfin con su clave API privada y retransmite el contenido.
+- El endpoint solo sirve imágenes asociadas a registros existentes en el catálogo y con imagen declarada en la sincronización. No funciona como proxy de URLs arbitrarias.
+- Controles iniciales: máximo 10 MiB, MIME permitido JPEG/PNG/WebP/GIF, rechazo de formatos no permitidos, `nosniff` y caché privada de 1 hora.
+- Pruebas añadidas: autenticación VIEWTV obligatoria, respuesta de bytes de imagen, cabeceras de seguridad, imagen ausente, autenticación MediaBrowser al upstream y rechazo de contenido no-imagen.
+- Pendiente: ejecutar suite/Ruff/CI en el entorno del proyecto y probar con una película o serie real con carátula. No afirmar que la PWA ya muestra carátulas: el frontend todavía no está implementado.
