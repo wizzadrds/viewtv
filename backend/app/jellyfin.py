@@ -94,7 +94,7 @@ def _upsert_media(session: Session, item: dict, now: datetime) -> bool:
     media.anio = year if isinstance(year, int) and 1870 <= year <= 2200 else None
     media.generos = [genre for genre in item.get("Genres", []) if isinstance(genre, str)]
     media.imagen_portada = (
-        f"/Items/{jellyfin_id}/Images/Primary" if item.get("ImageTags", {}).get("Primary") else None
+        f"/Items/{jellyfin_id}/Images/Primary" if (item.get("ImageTags") or {}).get("Primary") else None
     )
     media.imagen_fondo = (
         f"/Items/{jellyfin_id}/Images/Backdrop/0"
