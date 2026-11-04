@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { apiPath, apiRequest } from "@/lib/api";
 import type { CatalogResponse, MediaItem, Profile } from "@/lib/api";
 
@@ -12,7 +12,7 @@ function useSpatialNavigation(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
       const target = event.target as HTMLElement | null;
       if (target?.matches("input, textarea, select, [contenteditable='true']")) return;
@@ -181,7 +181,7 @@ export default function ViewTVApp() {
     }
   }
 
-  function onPinKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onPinKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       const form = event.currentTarget.form;
       form?.requestSubmit();
@@ -261,7 +261,7 @@ export default function ViewTVApp() {
           <h1>Todo lo que te gusta,<br /><span>en un solo lugar.</span></h1>
           <p className="welcome-copy">Tu colección, lista para disfrutar.</p>
         </div>
-        <div className="server-status"><span className="status-dot" /> Biblioteca conectada a VIEWTV</div>
+        <div className="server-status"><span className="status-dot" /> Catálogo de tu biblioteca</div>
       </section>
 
       <section className="catalog-section" aria-labelledby="catalog-title">
