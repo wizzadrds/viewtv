@@ -42,6 +42,14 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
     get_settings.cache_clear()
 
 
+def test_profiles_endpoint_only_exposes_active_profile_names(client: TestClient) -> None:
+    response = client.get("/auth/profiles")
+
+    assert response.status_code == 200
+    assert response.json() == {"perfiles": [{"id": 1, "nombre": "Adultos"}]}
+    assert "pin_hash" not in response.text
+
+
 def test_login_sets_http_only_cookie_and_me_returns_profile(client: TestClient) -> None:
     response = client.post("/auth/login", json={"nombre": "Adultos", "pin": "1234"})
 
