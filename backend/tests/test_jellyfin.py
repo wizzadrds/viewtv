@@ -73,3 +73,34 @@ def test_upsert_ignores_non_movie_and_non_series_items():
         {"Id": "jf-1", "Type": "Episode", "Name": "Episodio"},
         datetime.now(UTC),
     )
+
+
+
+def test_jellyfin_client_downloads_only_allowed_image_types():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/Items/jf-movie-1/Images/Primary"
+        assert request.headers["Authorization"] == 'MediaBrowser Token="test-secret"'
+        assert "image/jpeg" in request.headers["Accept"]
+        return httpx.Response(
+            200,
+            content=b"jpeg-data",
+            headers={"Content-Type": "image/jpeg"},
+        )
+
+    client = JellyfinClient(make_settings(), httpx.MockTransport(handler))
+    assert client.get_image("jf-movie-1", "primary") == (b"jpeg-data", "image/jpeg")
+
+
+def test_jellyfin_client_rejects_non_image_content_type():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"<script>", headers={"Content-Type": "text/html"})
+
+    client = JellyfinClient(make_settings(), httpx.MockTransport(handler))
+    from app.jellyfin import JellyfinError
+
+    try:
+        client.get_image("jf-movie-1", "primary")
+    except JellyfinError as exc:
+        assert "formato de imagen" in str(exc)
+    else:
+        raise AssertionError("Se esperaba rechazar el tipo de contenido.")
