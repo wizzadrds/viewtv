@@ -243,3 +243,26 @@ Con contenido de prueba autorizado:
 - La respuesta incluye título, tipo, sinopsis, año y géneros. Las imágenes se exponen exclusivamente mediante rutas privadas VIEWTV; no se devuelve el ID Jellyfin ni URLs/credenciales del servidor.
 - Añadidas pruebas de paginación, filtro por tipo, ausencia de imágenes, parámetros inválidos y autenticación.
 - Estado: código y pruebas añadidos a la rama; pendiente CI y ejecución local tras actualizar el repositorio. El catálogo real seguirá vacío hasta añadir y sincronizar medios en Jellyfin.
+
+
+## 11. Estado real de Jellyfin y primera interfaz PWA (4 de noviembre de 2026)
+
+### Jellyfin — catálogo e imágenes comprobados con un medio real
+
+- El usuario añadió un vídeo a la biblioteca Jellyfin y confirmó que aparece en su interfaz.
+- Desde la API se ejecutó el inicio de sesión VIEWTV: HTTP 200.
+- `POST /jellyfin/catalog/sync`: HTTP 200, `elementos_procesados: 1`.
+- `GET /jellyfin/catalog?limit=20`: HTTP 200, total 1. El elemento se devolvió como película, con título `videoplayback` y carátula declarada.
+- Prueba autenticada del endpoint de imagen: HTTP 200, `image/jpeg`, 13.975 bytes.
+- Conclusión: autenticación, sincronización de catálogo poblado, persistencia de metadatos y proxy de imagen están validados de extremo a extremo. No equivale todavía a reproducción desde VIEWTV.
+
+### Primera iteración PWA — código publicado, validación local pendiente
+
+- Se ha creado la aplicación Next.js App Router, React y TypeScript en `frontend/`.
+- Se añadió `GET /auth/profiles`, que expone únicamente ID y nombre de perfiles activos; nunca hashes PIN. Incluye prueba automatizada.
+- El frontend usa proxy same-origin de Next.js hacia FastAPI (`/api/viewtv/*)) para que la cookie HttpOnly no dependa de CORS ni de cookies cross-site. Por defecto el destino es `http://127.0.0.1:8000`; se puede cambiar con `VIEWTV_API_INTERNAL_URL`.
+- Funciones incluidas: selección de perfil, PIN, restauración de sesión, cierre de sesión, catálogo, filtros por tipo, búsqueda local, sincronización manual, carátulas/fondos, ficha informativa y navegación inicial con flechas/Enter.
+- Se incluye manifest e icono SVG. El diseño usa español (España) y estilos adaptables a pantalla de televisión y móvil.
+- La ficha es informativa; la reproducción todavía no está conectada. Tampoco se ha implementado aún service worker/offline, paginación incremental, ni validación en TV.
+- **Pendiente de ejecutar por el usuario en WSL:** instalar Node.js 20.9+ si no está disponible; en `~/projects/viewtv/frontend`, ejecutar `npm install`, `npm run typecheck`, `npm run lint`, `npm run build`, después `npm run dev` y abrir `http://localhost:3000`.
+- Tras las pruebas de escritorio, validar foco, cruceta, Enter, Atrás y lectura de carátulas en Fire TV/TV Bro. No abrir el servicio a la LAN hasta configurar bind y firewall de forma restringida.
