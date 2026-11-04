@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
+from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import Session, select
 
 from app.auth import get_current_profile
@@ -11,6 +12,8 @@ from app.database import get_session
 from app.models import Medio, Perfil
 
 router = APIRouter(prefix="/jellyfin", tags=["Jellyfin"])
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 
 class JellyfinError(Exception):
@@ -31,15 +34,18 @@ class JellyfinClient:
         if not self.base_url or not self.api_key:
             raise JellyfinError("Jellyfin no está configurado.")
 
-    def _get(self, path: str, params: dict[str, str | int] | None = None) -> dict:
-        headers = {
+    @property
+    def _headers(self) -> dict[str, str]:
+        return {
             "Authorization": f'MediaBrowser Token="{self.api_key}"',
             "Accept": "application/json",
         }
+
+    def _get(self, path: str, params: dict[str, str | int] | None = None) -> dict:
         try:
             with httpx.Client(
                 base_url=self.base_url,
-                headers=headers,
+                headers=self._headers,
                 timeout=self.timeout,
                 transport=self.transport,
             ) as client:
@@ -66,6 +72,47 @@ class JellyfinClient:
                 "Limit": limit,
             },
         )
+
+    def get_image(
+        self,
+        jellyfin_id: str,
+        image_kind: Literal["primary", "backdrop"],
+    ) -> tuple[bytes, str]:
+        encoded_id = quote(jellyfin_id, safe="")
+        image_path = (
+            f"/Items/{encoded_id}/Images/Primary"
+            if image_kind == "primary"
+            else f"/Items/{encoded_id}/Images/Backdrop/0"
+        )
+        headers = {
+            "Authorization": f'MediaBrowser Token="{self.api_key}"',
+            "Accept": ", ".join(sorted(ALLOWED_IMAGE_TYPES)),
+        }
+        try:
+            with httpx.Client(
+                base_url=self.base_url,
+                headers=headers,
+                timeout=self.timeout,
+                transport=self.transport,
+            ) as client:
+                with client.stream("GET", image_path) as response:
+                    response.raise_for_status()
+                    content_type = response.headers.get("content-type", "").split(";")[0].lower()
+                    if content_type not in ALLOWED_IMAGE_TYPES:
+                        raise JellyfinError("Jellyfin devolvió un formato de imagen no permitido.")
+                    declared_size = response.headers.get("content-length")
+                    if declared_size is not None and int(declared_size) > MAX_IMAGE_BYTES:
+                        raise JellyfinError("La imagen supera el tamaño máximo permitido.")
+                    image = bytearray()
+                    for chunk in response.iter_bytes():
+                        image.extend(chunk)
+                        if len(image) > MAX_IMAGE_BYTES:
+                            raise JellyfinError("La imagen supera el tamaño máximo permitido.")
+        except JellyfinError:
+            raise
+        except (httpx.HTTPError, ValueError) as exc:
+            raise JellyfinError("No se pudo obtener la imagen de Jellyfin.") from exc
+        return bytes(image), content_type
 
 
 def _upsert_media(session: Session, item: dict, now: datetime) -> bool:
@@ -130,13 +177,13 @@ def sync_catalog(
     _profile: Annotated[Perfil, Depends(get_current_profile)],
     session: Annotated[Session, Depends(get_session)],
 ) -> dict[str, int | str]:
-    client = JellyfinClient()
     total_synced = 0
     start_index = 0
     page_size = 100
     now = datetime.now(UTC)
 
     try:
+        client = JellyfinClient()
         while True:
             page = client.get_items(start_index, page_size)
             items = page.get("Items", [])
@@ -163,3 +210,35 @@ def sync_catalog(
         raise
 
     return {"estado": "sincronizado", "elementos_procesados": total_synced}
+
+
+@router.get("/media/{media_id}/images/{image_kind}")
+def media_image(
+    media_id: int,
+    image_kind: Literal["primary", "backdrop"],
+    _profile: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> Response:
+    media = session.get(Medio, media_id)
+    if media is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Elemento no encontrado.")
+    image_path = media.imagen_portada if image_kind == "primary" else media.imagen_fondo
+    if not image_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Imagen no disponible.")
+
+    try:
+        image, content_type = JellyfinClient().get_image(media.jellyfin_id, image_kind)
+    except JellyfinError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from None
+
+    return Response(
+        content=image,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "private, max-age=3600",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
