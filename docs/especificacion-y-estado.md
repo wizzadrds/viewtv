@@ -347,3 +347,13 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - Controles iniciales: máximo 10 MiB, MIME permitido JPEG/PNG/WebP/GIF, rechazo de formatos no permitidos, `nosniff` y caché privada de 1 hora.
 - Pruebas añadidas: autenticación VIEWTV obligatoria, respuesta de bytes de imagen, cabeceras de seguridad, imagen ausente, autenticación MediaBrowser al upstream y rechazo de contenido no-imagen.
 - Pendiente: ejecutar suite/Ruff/CI en el entorno del proyecto y probar con una película o serie real con carátula. No afirmar que la PWA ya muestra carátulas: el frontend todavía no está implementado.
+
+
+### Validación local del proxy de imágenes (4 de noviembre de 2026)
+
+- [x] 28 pruebas locales superadas; Ruff sin errores; CI verde.
+- [x] API reconstruida y `/health` responde HTTP 200.
+- [x] Petición al proxy sin sesión rechazada con HTTP 401.
+- [x] Sesión Adultos válida; `/jellyfin/status` responde HTTP 200 y confirma servidor `LAPTOP-VIEWTV`, versión `12.4.0`.
+- [x] Petición autenticada de imagen devuelve HTTP 404 porque el catálogo aún no contiene el ID local solicitado (la sincronización procesó cero elementos). Es el resultado esperado con las bibliotecas vacías.
+- [ ] Descarga real de carátula/fondo desde Jellyfin pendiente de incorporar un medio propio o autorizado y sincronizarlo. El endpoint no está aún validado con bytes procedentes de un servidor Jellyfin real.
