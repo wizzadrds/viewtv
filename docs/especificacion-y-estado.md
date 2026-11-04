@@ -369,3 +369,31 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - [ ] Actualizar la rama local y ejecutar la suite/Ruff en WSL.
 - [ ] Verificación funcional con catálogo poblado pendiente de incorporar un medio propio o autorizado en Jellyfin y sincronizarlo.
 - [ ] Verificación funcional con catálogo poblado pendiente de incorporar un medio propio o autorizado en Jellyfin y sincronizarlo.
+
+
+## 5.3 Validación con contenido real y primera PWA (4 de noviembre de 2026)
+
+### Validación real del catálogo y la carátula
+
+- [x] Un vídeo propio/de prueba aparece en la biblioteca de Jellyfin.
+- [x] Inicio de sesión VIEWTV con perfil Adultos: HTTP 200.
+- [x] Sincronización autenticada: HTTP 200, 1 elemento procesado.
+- [x] Consulta de catálogo: HTTP 200, total 1, título `videoplayback`, tipo película, carátula disponible.
+- [x] Proxy autenticado de carátula: HTTP 200, MIME `image/jpeg`, 13.975 bytes.
+- Alcance: el backend ha validado el trayecto Jellyfin → sincronización → SQLite → API de catálogo → proxy de imagen. No se ha validado aún la reproducción de vídeo desde VIEWTV.
+
+### Primera iteración del frontend
+
+- [x] Creada aplicación Next.js App Router con React y TypeScript en `frontend/`.
+- [x] Añadido `GET /auth/profiles` para listar perfiles activos (ID y nombre solamente); prueba automatizada verifica que no se expone `pin_hash`.
+- [x] Proxy Next.js same-origin `/api/viewtv/*` hacia FastAPI, con destino configurable por `VIEWTV_API_INTERNAL_URL`.
+- [x] Pantalla de selección de perfil y PIN; comprobación/restauración de sesión con `/auth/me`; cierre de sesión.
+- [x] Vista inicial de catálogo, filtro películas/series, búsqueda por título/género, sincronización manual y fichas informativas.
+- [x] Carátulas y fondos consumidos desde las rutas protegidas de VIEWTV.
+- [x] Navegación espacial inicial mediante flechas entre elementos con `data-spatial`; Enter mantiene el comportamiento nativo de botones/formularios.
+- [x] Manifest e icono SVG incluidos.
+- [ ] Instalar dependencias Node y ejecutar typecheck, ESLint y build en el equipo WSL.
+- [ ] Probar autenticación y carátula desde el navegador real.
+- [ ] Validar mando/cruceta/Enter/Atrás y escalado en Fire TV/TV Bro.
+- [ ] Integrar reproducción con Jellyfin; esta iteración solo muestra detalles.
+- [ ] Implementar service worker, estrategia offline, reconexión y paginación incremental.
