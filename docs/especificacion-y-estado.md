@@ -308,3 +308,14 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - Resultado correcto al primer intento: la API estaba activa, se creó y verificó `/backups/viewtv-20261104-134904.db` (90.112 bytes) y PowerShell recibió `Backup VIEWTV completado correctamente.`.
 - [x] Lanzador PowerShell/Bash validado manualmente.
 - [ ] Tarea diaria del Programador de tareas de Windows aún no creada ni probada; registro y comportamiento tras suspensión/reinicio pendientes. Por tanto, no considerar todavía activo el backup diario automático.
+
+
+### Estado final de la programación diaria del backup (4 de noviembre de 2026)
+
+- [x] Tarea `VIEWTV - Backup diario` creada en la Biblioteca del Programador de tareas de Windows.
+- [x] Desencadenador diario configurado a las 03:00 (hora local de Madrid).
+- [x] Acción PowerShell apunta a `C:\\VIEWTV\\scripts\\backup-daily.ps1`; ejecución solo con la sesión del usuario iniciada.
+- [x] Prueba manual desde el Programador: última ejecución `04/11/2026 15:10:24`, resultado `0`.
+- [x] Archivo producido por esa ejecución: `C:\\VIEWTV\\backups\\viewtv-20261104-141027.db`, 90.112 bytes.
+- [x] Próxima ejecución informada por Windows: `05/11/2026 03:00:00`.
+- Resultado: la automatización diaria está configurada y una ejecución real desde el Programador ha generado el backup esperado. Pendiente de seguimiento: comprobar la ejecución de las 03:00 del día siguiente y realizar en otro momento una prueba completa de recuperación del host. Si el portátil está apagado no puede ejecutar la tarea; la recuperación de una ejecución omitida depende de que Windows vuelva a arrancar y procese la tarea pendiente.
