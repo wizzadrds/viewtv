@@ -182,3 +182,14 @@ Con contenido de prueba autorizado:
 - Ejecución real completada desde Ubuntu: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\\VIEWTV\\scripts\\backup-daily.ps1'`.
 - Resultado: intento 1 correcto, API disponible, backup creado y verificado como `/backups/viewtv-20261104-134904.db` (90.112 bytes), mensaje final `Backup VIEWTV completado correctamente.`.
 - Pendiente: crear y probar la tarea del Programador de tareas de Windows; comprobar que el log `C:\\VIEWTV\\logs\\backup-daily.log` se genera y definir alerta ante fallos. La programación diaria aún no está activa.
+
+
+### Programación diaria de backup verificada en Windows (4 de noviembre de 2026)
+
+- Creada en la Biblioteca del Programador de tareas la tarea `VIEWTV - Backup diario`, en la ruta raíz `\\`.
+- Desencadenador diario configurado a las 03:00, zona horaria local de Windows (Europe/Madrid).
+- Acción: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\\VIEWTV\\scripts\\backup-daily.ps1"`; directorio de inicio `C:\\VIEWTV\\scripts`.
+- Configuración: ejecutar solo cuando el usuario haya iniciado sesión; no requiere privilegios elevados. En Condiciones se permite funcionar con batería y se marca «Activar el equipo para ejecutar esta tarea». En Configuración se habilita la ejecución a petición y la ejecución lo antes posible si se omitió el inicio programado; si ya hay una instancia, no iniciar otra.
+- Prueba real desde el Programador: `LastRunTime=04/11/2026 15:10:24`, `LastTaskResult=0`. El archivo `C:\\VIEWTV\\backups\\viewtv-20261104-141027.db` apareció con 90.112 bytes y hora 15:10:27, coincidente con la ejecución.
+- Comprobación final del horario: `NextRunTime=05/11/2026 03:00:00`.
+- Conclusión: la tarea diaria está creada, el lanzador se ejecutó correctamente desde el Programador y se generó un archivo de backup real en el SSD. No equivale a una restauración completa del host. El portátil apagado no puede ejecutar la tarea; la reanudación desde suspensión depende de la configuración y capacidad del equipo. Conviene comprobar mañana que la ejecución programada dejó un nuevo archivo y que `LastTaskResult` sigue siendo 0.
