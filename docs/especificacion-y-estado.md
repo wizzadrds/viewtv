@@ -328,3 +328,13 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - La sincronización consulta páginas de `/Items` para `Movie,Series` y persiste metadatos en `medio`: ID Jellyfin, tipo, título, sinopsis, año, géneros y rutas relativas de imágenes. No descarga ni almacena archivos de vídeo ni copia la clave a la base de datos.
 - La implementación reutiliza el esquema existente, por lo que no añade migración en esta iteración. Se añadieron pruebas unitarias del cliente y del upsert.
 - **Pendiente de validar:** tests/Ruff/CI, reconstrucción de la API con la nueva dependencia, llamada autenticada a los endpoints VIEWTV y sincronización con biblioteca Jellyfin poblada. La instalación actual aún no tiene bibliotecas ni medios, así que no se debe interpretar una sincronización vacía como fallo de autenticación.
+
+
+### Validación real de la integración Jellyfin (4 de noviembre de 2026)
+
+- [x] Inicio de sesión VIEWTV con el perfil Adultos: HTTP 200.
+- [x] `POST /jellyfin/catalog/sync` con sesión autenticada: HTTP 200.
+- [x] Respuesta de la API: `{"estado":"sincronizado","elementos_procesados":0}`.
+- [x] Conectividad autenticada desde el contenedor API al servidor Jellyfin nativo Windows: `LAPTOP-VIEWTV`, versión `12.4.0`.
+- El resultado de cero elementos es esperado: las bibliotecas `Películas` y `Series` están creadas, pero sus carpetas todavía no contienen archivos.
+- Alcance de la validación: autenticación, conexión y ejecución del endpoint de sincronización verificadas. Quedan pendientes la importación con medios reales, paginación de un catálogo poblado, servicio de imágenes/carátulas y reproducción.
