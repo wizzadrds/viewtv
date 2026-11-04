@@ -141,5 +141,6 @@ Con contenido de prueba autorizado:
 - Se validó una copia online mediante `sqlite3.Connection.backup()` desde el contenedor API. No hace falta parar API/worker y no se debe copiar el archivo SQLite activo con un `cp` ordinario mientras está en uso.
 - La copia se guardó en `C:\\VIEWTV\\backups` (accesible desde WSL como `/mnt/c/VIEWTV/backups`).
 - Se volvió a copiar el archivo de backup a una ruta temporal del contenedor y se abrió como base independiente. `PRAGMA integrity_check` devolvió `ok`, se leyeron los dos perfiles y la versión Alembic fue `0001_initial`.
-- Esta prueba valida creación y lectura de la copia, no una restauración completa de la aplicación. No sobrescribir `/data/viewtv.db` para probar.
-- Pendiente: script de backup con nombre fechado, retención configurable, registro/alerta de errores y restauración aislada probando arranque de API y migraciones. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
+- Restauración aislada verificada el 4 de noviembre de 2026: el archivo se montó en solo lectura en un contenedor temporal independiente; la API arrancó y `/health` devolvió HTTP 200 en `127.0.0.1:8001`. La comprobación SQLite devolvió integridad `ok`, 2 perfiles y Alembic `0001_initial`. El contenedor temporal se eliminó. No se modificó el volumen ni la base activa.
+- Alcance: no se ha restaurado sobre producción ni ensayado la recuperación completa del host/servicios. No sobrescribir `/data/viewtv.db` para probar.
+- Pendiente: script de backup con nombre fechado, retención configurable, registro/alerta de errores y procedimiento de recuperación operativa. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
