@@ -233,3 +233,12 @@ Con contenido de prueba autorizado:
 - Con inicio de sesión del perfil Adultos, `GET /jellyfin/status` devuelve HTTP 200 y confirma Jellyfin `LAPTOP-VIEWTV`, versión `12.4.0`.
 - Con sesión autenticada, la petición de imagen de prueba devuelve HTTP 404 `Elemento no encontrado`, esperado porque la sincronización anterior registró cero medios y no existe aún el ID local 1. No demuestra todavía la descarga de una imagen real.
 - Pendiente: añadir un vídeo propio/autorizado a una biblioteca, ejecutar sincronización y probar una imagen primaria real (y fondo si existe).
+
+
+### API de lectura del catálogo para la PWA — implementación subida (4 de noviembre de 2026)
+
+- Añadido `GET /jellyfin/catalog`, protegido por sesión VIEWTV, para consultar los metadatos locales sincronizados desde Jellyfin.
+- Parámetros: `tipo=pelicula|serie` opcional, `limit` de 1 a 100 (por defecto 50) y `offset` desde 0. Devuelve elementos, total y datos de paginación ordenados por título.
+- La respuesta incluye título, tipo, sinopsis, año y géneros. Las imágenes se exponen exclusivamente mediante rutas privadas VIEWTV; no se devuelve el ID Jellyfin ni URLs/credenciales del servidor.
+- Añadidas pruebas de paginación, filtro por tipo, ausencia de imágenes, parámetros inválidos y autenticación.
+- Estado: código y pruebas añadidos a la rama; pendiente CI y ejecución local tras actualizar el repositorio. El catálogo real seguirá vacío hasta añadir y sincronizar medios en Jellyfin.
