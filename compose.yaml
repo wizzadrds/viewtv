@@ -12,7 +12,7 @@ services:
       DATA_DIR: /data
       CACHE_DIR: /cache
       BACKUP_DIR: /backups
-      BACKUP_RETENTION_DAYS: 30
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
     ports:
       - "${API_BIND_ADDRESS:-127.0.0.1}:${API_PORT:-8000}:8000"
     volumes:
