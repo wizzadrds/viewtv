@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from urllib.parse import quote
 
 import httpx
+from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import Session, select
 
@@ -269,7 +270,10 @@ def get_catalog(
     if tipo is not None:
         statement = statement.where(Medio.tipo == tipo)
 
-    total = len(session.exec(statement).all())
+    count_statement = select(func.count()).select_from(Medio)
+    if tipo is not None:
+        count_statement = count_statement.where(Medio.tipo == tipo)
+    total = session.exec(count_statement).one()
     medios = session.exec(
         statement.order_by(Medio.titulo, Medio.id).offset(offset).limit(limit)
     ).all()
