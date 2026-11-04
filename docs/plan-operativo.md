@@ -193,3 +193,14 @@ Con contenido de prueba autorizado:
 - Prueba real desde el Programador: `LastRunTime=04/11/2026 15:10:24`, `LastTaskResult=0`. El archivo `C:\\VIEWTV\\backups\\viewtv-20261104-141027.db` apareció con 90.112 bytes y hora 15:10:27, coincidente con la ejecución.
 - Comprobación final del horario: `NextRunTime=05/11/2026 03:00:00`.
 - Conclusión: la tarea diaria está creada, el lanzador se ejecutó correctamente desde el Programador y se generó un archivo de backup real en el SSD. No equivale a una restauración completa del host. El portátil apagado no puede ejecutar la tarea; la reanudación desde suspensión depende de la configuración y capacidad del equipo. Conviene comprobar mañana que la ejecución programada dejó un nuevo archivo y que `LastTaskResult` sigue siendo 0.
+
+
+### Integración Jellyfin — primera implementación (4 de noviembre de 2026)
+
+- Se creó una clave API con nombre VIEWTV en el panel de Jellyfin y se guardó únicamente en el `.env` local; nunca se incorpora al repositorio.
+- Prueba real desde el contenedor API contra `http://host.docker.internal:8096/System/Info`: HTTP 200, servidor `LAPTOP-VIEWTV`, versión `12.4.0`. Se verificó autenticación mediante `Authorization: MediaBrowser Token=...` sin imprimir la clave.
+- En la rama `feature/fase-1-backend-base` se incorporó configuración `JELLYFIN_BASE_URL`, `JELLYFIN_API_KEY` y `JELLYFIN_TIMEOUT_SECONDS`; el ejemplo usa `host.docker.internal` porque Jellyfin está instalado nativamente en Windows y la API corre en Docker Desktop.
+- Añadido cliente HTTP de solo lectura y rutas protegidas por sesión VIEWTV: `GET /jellyfin/status` y `POST /jellyfin/catalog/sync`. La sincronización pagina el endpoint `/Items`, limita los tipos a películas y series y hace upsert de título, sinopsis, año, géneros e identificadores de imágenes en `medio`. No descarga vídeos ni guarda la clave en los metadatos.
+- No se requiere migración de SQLite para esta primera integración: se reutilizan los campos existentes de `medio` y su identificador Jellyfin único.
+- Añadidas pruebas unitarias para autenticación MediaBrowser, parámetros de consulta y normalización/upsert de metadatos. Pendiente: ejecutar CI/pruebas en el entorno local, comprobar `/jellyfin/status` mediante sesión VIEWTV y probar sincronización con una biblioteca real. Actualmente Jellyfin todavía no tiene bibliotecas ni archivos multimedia, por lo que la primera sincronización real puede devolver cero elementos.
+- Estado: implementación subida a la rama, pero no dar por validada hasta pasar pruebas y comprobar los endpoints en el contenedor.
