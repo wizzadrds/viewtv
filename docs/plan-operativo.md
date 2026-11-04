@@ -164,3 +164,12 @@ Con contenido de prueba autorizado:
 - Verificación independiente del archivo recién creado: `PRAGMA integrity_check=ok`, 2 perfiles y versión Alembic `0001_initial`.
 - Se conserva también la copia anterior `viewtv-2026-11-04-141712.db`; ambas permanecen en la carpeta de backups.
 - Conclusión: montaje, escritura, creación de copia online, integridad y lectura de la copia real están comprobados. La ejecución sigue siendo manual; no existe todavía una tarea diaria programada ni alerta de fallo.
+
+
+### Lanzador para programación en Windows (4 de noviembre de 2026)
+
+- Añadido `scripts/backup-daily.ps1` para invocarlo desde el Programador de tareas de Windows.
+- El script llama a Ubuntu 24.04 en WSL como usuario `viewtv`, entra en `~/projects/viewtv`, levanta la API con Compose, espera hasta cinco minutos a que `/health` responda y ejecuta el script de backup dentro del contenedor API.
+- Si WSL/Docker/Compose falla, reintenta hasta 10 veces con pausas de 60 segundos. Escribe un registro acumulado en `C:\\VIEWTV\\logs\\backup-daily.log`.
+- El lanzador está añadido al repositorio, pero todavía no se ha ejecutado desde PowerShell ni se ha creado la tarea programada. Hay que validarlo manualmente antes de confiar en la programación.
+- Configuración propuesta de la tarea: diariamente a las 03:00; activar «Ejecutar la tarea lo antes posible si se omitió el inicio programado» y «Activar el equipo para ejecutar esta tarea» si Windows ofrece esa opción. Un equipo apagado no puede hacer la copia hasta que vuelva a arrancar; la opción de inicio omitido permite recuperarla después.
