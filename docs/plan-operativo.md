@@ -134,3 +134,12 @@ Con contenido de prueba autorizado:
 - Actualizar servicios y dependencias de forma controlada.
 - Hacer copias de seguridad de la base de datos y de la configuración secreta fuera del portátil, en un destino seguro.
 - No guardar secretos en el repositorio ni enviarlos por chat.
+
+### Backup SQLite — procedimiento validado inicialmente (4 de noviembre de 2026)
+
+- La base activa está en el volumen Docker `viewtv_viewtv_data`, ruta `/data/viewtv.db`; no está en `C:\\VIEWTV\\data`.
+- Se validó una copia online mediante `sqlite3.Connection.backup()` desde el contenedor API. No hace falta parar API/worker y no se debe copiar el archivo SQLite activo con un `cp` ordinario mientras está en uso.
+- La copia se guardó en `C:\\VIEWTV\\backups` (accesible desde WSL como `/mnt/c/VIEWTV/backups`).
+- Se volvió a copiar el archivo de backup a una ruta temporal del contenedor y se abrió como base independiente. `PRAGMA integrity_check` devolvió `ok`, se leyeron los dos perfiles y la versión Alembic fue `0001_initial`.
+- Esta prueba valida creación y lectura de la copia, no una restauración completa de la aplicación. No sobrescribir `/data/viewtv.db` para probar.
+- Pendiente: script de backup con nombre fechado, retención configurable, registro/alerta de errores y restauración aislada probando arranque de API y migraciones. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
