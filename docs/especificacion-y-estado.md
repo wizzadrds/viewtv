@@ -319,3 +319,12 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - [x] Archivo producido por esa ejecución: `C:\\VIEWTV\\backups\\viewtv-20261104-141027.db`, 90.112 bytes.
 - [x] Próxima ejecución informada por Windows: `05/11/2026 03:00:00`.
 - Resultado: la automatización diaria está configurada y una ejecución real desde el Programador ha generado el backup esperado. Pendiente de seguimiento: comprobar la ejecución de las 03:00 del día siguiente y realizar en otro momento una prueba completa de recuperación del host. Si el portátil está apagado no puede ejecutar la tarea; la recuperación de una ejecución omitida depende de que Windows vuelva a arrancar y procese la tarea pendiente.
+
+
+## 5.2 Integración Jellyfin — implementación inicial y validación pendiente
+
+- La API del contenedor se autenticó correctamente contra Jellyfin nativo en Windows: HTTP 200, servidor `LAPTOP-VIEWTV`, versión `12.4.0`, usando la cabecera `Authorization: MediaBrowser Token=...`. La clave se guarda solo en `.env` local.
+- Se añadieron ajustes de URL, clave y timeout, cliente HTTP de solo lectura y endpoints protegidos por sesión VIEWTV: `GET /jellyfin/status` y `POST /jellyfin/catalog/sync`.
+- La sincronización consulta páginas de `/Items` para `Movie,Series` y persiste metadatos en `medio`: ID Jellyfin, tipo, título, sinopsis, año, géneros y rutas relativas de imágenes. No descarga ni almacena archivos de vídeo ni copia la clave a la base de datos.
+- La implementación reutiliza el esquema existente, por lo que no añade migración en esta iteración. Se añadieron pruebas unitarias del cliente y del upsert.
+- **Pendiente de validar:** tests/Ruff/CI, reconstrucción de la API con la nueva dependencia, llamada autenticada a los endpoints VIEWTV y sincronización con biblioteca Jellyfin poblada. La instalación actual aún no tiene bibliotecas ni medios, así que no se debe interpretar una sincronización vacía como fallo de autenticación.
