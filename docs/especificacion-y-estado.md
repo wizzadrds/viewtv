@@ -357,3 +357,13 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - [x] Sesión Adultos válida; `/jellyfin/status` responde HTTP 200 y confirma servidor `LAPTOP-VIEWTV`, versión `12.4.0`.
 - [x] Petición autenticada de imagen devuelve HTTP 404 porque el catálogo aún no contiene el ID local solicitado (la sincronización procesó cero elementos). Es el resultado esperado con las bibliotecas vacías.
 - [ ] Descarga real de carátula/fondo desde Jellyfin pendiente de incorporar un medio propio o autorizado y sincronizarlo. El endpoint no está aún validado con bytes procedentes de un servidor Jellyfin real.
+
+
+### API de catálogo para la PWA (4 de noviembre de 2026)
+
+- [x] Implementado `GET /jellyfin/catalog` con autenticación de perfil.
+- [x] Filtro opcional por tipo (`pelicula` o `serie`), paginación (`limit` 1–100, `offset` >= 0), total y orden alfabético por título.
+- [x] Respuesta limitada a metadatos necesarios para la interfaz; las imágenes apuntan al proxy privado VIEWTV. No se filtran identificadores internos de Jellyfin ni claves API.
+- [x] Añadidas pruebas de paginación, filtro, campos de imagen ausentes, validación de parámetros y rechazo sin sesión.
+- [ ] CI y pruebas en el entorno local pendientes de actualización/ejecución.
+- [ ] Verificación funcional con catálogo poblado pendiente de incorporar un medio propio o autorizado en Jellyfin y sincronizarlo.
