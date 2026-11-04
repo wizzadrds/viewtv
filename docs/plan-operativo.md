@@ -143,7 +143,7 @@ Con contenido de prueba autorizado:
 - Se volvió a copiar el archivo de backup a una ruta temporal del contenedor y se abrió como base independiente. `PRAGMA integrity_check` devolvió `ok`, se leyeron los dos perfiles y la versión Alembic fue `0001_initial`.
 - Restauración aislada verificada el 4 de noviembre de 2026: el archivo se montó en solo lectura en un contenedor temporal independiente; la API arrancó y `/health` devolvió HTTP 200 en `127.0.0.1:8001`. La comprobación SQLite devolvió integridad `ok`, 2 perfiles y Alembic `0001_initial`. El contenedor temporal se eliminó. No se modificó el volumen ni la base activa.
 - Alcance: no se ha restaurado sobre producción ni ensayado la recuperación completa del host/servicios. No sobrescribir `/data/viewtv.db` para probar.
-- Pendiente: script de backup con nombre fechado, retención configurable, registro/alerta de errores y procedimiento de recuperación operativa. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
+- Pendiente: programación diaria, supervisión/alerta de errores y procedimiento de recuperación operativa. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
 
 
 ### Automatización de backup SQLite — primera implementación (4 de noviembre de 2026)
@@ -153,4 +153,14 @@ Con contenido de prueba autorizado:
 - Retención inicial configurable mediante `BACKUP_RETENTION_DAYS` (30 días por defecto). Solo elimina archivos que coincidan con `viewtv-*.db`, y la limpieza se ejecuta después de crear correctamente el nuevo backup.
 - Compose monta `C:\\VIEWTV\\backups` en `/backups` únicamente en el servicio API. No se monta sobre el volumen SQLite ni sobre la caché multimedia.
 - Ejecución manual prevista desde Ubuntu/WSL: `docker compose exec -T api python scripts/backup_db.py`.
-- Estado: código y pruebas añadidos; falta que el usuario sincronice, recree el contenedor API para aplicar el nuevo montaje, ejecute las pruebas y realice el primer backup automatizado manualmente. La programación diaria con el Programador de tareas de Windows se configurará después de validar esta ejecución. No se ha configurado todavía ninguna tarea programada.
+- Estado: código, pruebas y ejecución manual real verificados. El contenedor API tiene el montaje `/backups`; el primer backup generado por el script se verificó con SQLite. La programación diaria con el Programador de tareas de Windows sigue pendiente.
+
+
+### Validación del script de backup en el entorno real (4 de noviembre de 2026)
+
+- Se ejecutó desde Ubuntu/WSL, en el contenedor API: `cd /opt/viewtv/backend && python scripts/backup_db.py`.
+- Resultado del script: backup creado y verificado en `/backups/viewtv-20261104-133925.db`, tamaño 90.112 bytes; backups antiguos eliminados: 0.
+- El archivo apareció en el SSD anfitrión como `C:\\VIEWTV\\backups\\viewtv-20261104-133925.db` (aprox. 88 KB).
+- Verificación independiente del archivo recién creado: `PRAGMA integrity_check=ok`, 2 perfiles y versión Alembic `0001_initial`.
+- Se conserva también la copia anterior `viewtv-2026-11-04-141712.db`; ambas permanecen en la carpeta de backups.
+- Conclusión: montaje, escritura, creación de copia online, integridad y lectura de la copia real están comprobados. La ejecución sigue siendo manual; no existe todavía una tarea diaria programada ni alerta de fallo.
