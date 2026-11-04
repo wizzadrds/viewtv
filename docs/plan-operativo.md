@@ -204,3 +204,12 @@ Con contenido de prueba autorizado:
 - No se requiere migración de SQLite para esta primera integración: se reutilizan los campos existentes de `medio` y su identificador Jellyfin único.
 - Añadidas pruebas unitarias para autenticación MediaBrowser, parámetros de consulta y normalización/upsert de metadatos. Pendiente: ejecutar CI/pruebas en el entorno local, comprobar `/jellyfin/status` mediante sesión VIEWTV y probar sincronización con una biblioteca real. Actualmente Jellyfin todavía no tiene bibliotecas ni archivos multimedia, por lo que la primera sincronización real puede devolver cero elementos.
 - Estado: implementación subida a la rama, pero no dar por validada hasta pasar pruebas y comprobar los endpoints en el contenedor.
+
+
+### Integración Jellyfin — prueba local de catálogo superada (4 de noviembre de 2026)
+
+- La API VIEWTV respondió HTTP 200 al inicio de sesión del perfil Adultos.
+- La llamada autenticada `POST /jellyfin/catalog/sync` respondió HTTP 200 con `{"estado":"sincronizado","elementos_procesados":0}`.
+- La prueba confirma el recorrido de autenticación VIEWTV → endpoint de sincronización → cliente Jellyfin → respuesta correcta. La conectividad y autenticación de la API contra Jellyfin ya se habían verificado desde el contenedor: servidor `LAPTOP-VIEWTV`, versión `12.4.0`.
+- El recuento cero es coherente con el estado actual: las bibliotecas Jellyfin `Películas` y `Series` ya están creadas sobre `C:\\VIEWTV\\media\\Peliculas` y `C:\\VIEWTV\\media\\Series`, pero aún no contienen archivos multimedia.
+- Alcance: no se ha probado todavía la importación de elementos reales, la paginación con una biblioteca poblada, la entrega de imágenes/carátulas ni la reproducción desde VIEWTV. La sincronización no implica que las vistas PWA estén implementadas.
