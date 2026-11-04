@@ -1,6 +1,4 @@
 from collections.abc import Generator
-
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
