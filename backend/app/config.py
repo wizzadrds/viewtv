@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = Field(default=720, gt=0, le=10080)
     auth_cookie_name: str = "viewtv_session"
     auth_cookie_secure: bool = False
+    jellyfin_base_url: str = ""
+    jellyfin_api_key: str = ""
+    jellyfin_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
 
     model_config = SettingsConfigDict(
         env_file=".env",
