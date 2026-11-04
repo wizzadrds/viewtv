@@ -74,3 +74,18 @@ def test_pin_hash_is_not_plain_text() -> None:
 
     assert hashed != "4321"
     assert hashed.startswith("$argon2")
+
+
+
+def test_settings_read_documented_environment_variable_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VIEWTV_ENV", "test")
+    monkeypatch.setenv("VIEWTV_TIMEZONE", "Atlantic/Canary")
+    get_settings.cache_clear()
+
+    settings = get_settings()
+
+    assert settings.environment == "test"
+    assert settings.timezone == "Atlantic/Canary"
+    get_settings.cache_clear()
