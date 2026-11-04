@@ -176,6 +176,18 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 
 ### Pendiente, por orden recomendado
 
+#### Revisión de seguridad/configuración (en curso, 4 de noviembre de 2026)
+
+- [x] Corregir los alias de configuración para que `VIEWTV_ENV` y `VIEWTV_TIMEZONE` se lean realmente desde el entorno.
+- [x] Retirar de `.env.example` `API_HOST` y `VIEWTV_LOG_LEVEL`, que no tenían consumidor en el código.
+- [x] Limitar `JWT_EXPIRE_MINUTES` a valores entre 1 y 10.080 minutos (7 días).
+- [x] Añadir una prueba para los nombres documentados de las variables de entorno.
+- [ ] Ejecutar localmente la suite y Ruff con estos cambios; comprobar CI.
+- [ ] Revisar rate limit: actualmente el almacenamiento por defecto de SlowAPI es local al proceso; no equivale a un contador compartido entre varias réplicas ni persiste reinicios.
+- [ ] Confirmar que `AUTH_COOKIE_SECURE=false` solo se usa en HTTP local. Antes de acceso LAN con HTTPS debe activarse `true`.
+- [ ] Confirmar que la clave JWT local tiene al menos 32 caracteres aleatorios sin mostrarla ni copiarla al chat.
+- [ ] Revisar estrategia de backup y restauración de SQLite; no ejecutar pruebas destructivas sobre el volumen de datos real.
+
 #### A. Cerrar fase 1
 1. [x] Verificar que el commit y la rama remota contienen los últimos cambios; la copia local se actualizó con `git pull --ff-only` hasta el commit `2be846a`.
 2. [x] Revisar GitHub Actions: runs 17 y 18 completados con `success`.
