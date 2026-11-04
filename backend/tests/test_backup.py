@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+import os
 import sqlite3
 
 import pytest
@@ -36,8 +37,6 @@ def test_create_backup_prunes_only_old_viewtv_backups(tmp_path):
     unrelated.write_bytes(b"keep")
     old_time = (datetime.now(UTC) - timedelta(days=40)).timestamp()
     old_backup.touch()
-    import os
-
     os.utime(old_backup, (old_time, old_time))
 
     create_backup(f"sqlite:///{source}", destination, retention_days=30)
