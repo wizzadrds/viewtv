@@ -283,10 +283,18 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - Alcance: backup, copia, lectura y arranque de API aislada verificados. No se ha hecho una restauración sobre producción ni se ha probado el procedimiento completo de recuperación del host. Pendiente automatizar, definir retención y documentar/ensayar recuperación operativa.
 
 
-### Automatización de backup — implementación pendiente de validación local (4 de noviembre de 2026)
+### Automatización de backup — ejecución manual real validada; programación pendiente (4 de noviembre de 2026)
 
 - Se añadió `backend/scripts/backup_db.py` con SQLite Online Backup API, origen en solo lectura, comprobación de integridad y publicación atómica.
 - Retención configurable mediante `BACKUP_RETENTION_DAYS` (30 días por defecto); la limpieza solo afecta a nombres `viewtv-*.db` y solo se ejecuta tras crear correctamente una copia nueva.
 - Compose monta `/mnt/c/VIEWTV/backups` en `/backups` dentro de API. No se monta en worker y no se toca el volumen `viewtv_viewtv_data`.
 - Pruebas unitarias añadidas para copia, integridad, retención, rechazo de motores no SQLite y fallo de origen.
-- Pendiente: sincronizar cambios, recrear API para aplicar el bind mount, ejecutar pytest/Ruff, hacer una copia real y configurar la programación diaria en Windows. Hasta completar esas comprobaciones, no se considera automatización operativa.
+- [x] Cambios sincronizados; API recreada con el bind mount `/backups`; suite local: 19 pruebas superadas y Ruff limpio.
+- [x] Copia real generada por el script: `viewtv-20261104-133925.db` (90.112 bytes; aprox. 88 KB) en `C:\\VIEWTV\\backups`.
+- [x] Verificación independiente de esa copia: `PRAGMA integrity_check=ok`, 2 perfiles y migración `0001_initial`.
+- [ ] Configurar y probar la programación diaria en el Programador de tareas de Windows; revisar también reintentos/registro de fallos. Hasta entonces, la copia está implementada y probada manualmente, pero no automatizada por horario.
+
+
+### Resultado de la primera ejecución real del script (4 de noviembre de 2026)
+
+El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend && python scripts/backup_db.py'` desde Ubuntu/WSL. El script informó de la creación y verificación de `/backups/viewtv-20261104-133925.db` (90.112 bytes) y cero copias antiguas eliminadas. El archivo apareció en `/mnt/c/VIEWTV/backups/`. Una comprobación independiente sobre ese archivo devolvió integridad `ok`, 2 perfiles y versión `0001_initial`. La copia anterior también permanece intacta. Por tanto, el proceso de backup manual y la lectura de la copia están validados; la tarea diaria de Windows sigue pendiente.
