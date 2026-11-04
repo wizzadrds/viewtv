@@ -88,6 +88,15 @@ def get_current_profile(
     return profile
 
 
+@router.get("/profiles")
+def list_profiles(session: Annotated[Session, Depends(get_session)]) -> dict[str, list[dict[str, object]]]:
+    """Lista solo los perfiles activos; nunca expone hashes ni datos de autenticación."""
+    profiles = session.exec(
+        select(Perfil).where(Perfil.activo.is_(True)).order_by(Perfil.nombre)
+    ).all()
+    return {"perfiles": [{"id": profile.id, "nombre": profile.nombre} for profile in profiles]}
+
+
 @router.post("/login")
 @limiter.limit("5/minute")
 def login(
