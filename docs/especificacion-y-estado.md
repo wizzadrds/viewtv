@@ -365,5 +365,7 @@ El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend &&
 - [x] Filtro opcional por tipo (`pelicula` o `serie`), paginación (`limit` 1–100, `offset` >= 0), total y orden alfabético por título.
 - [x] Respuesta limitada a metadatos necesarios para la interfaz; las imágenes apuntan al proxy privado VIEWTV. No se filtran identificadores internos de Jellyfin ni claves API.
 - [x] Añadidas pruebas de paginación, filtro, campos de imagen ausentes, validación de parámetros y rechazo sin sesión.
-- [ ] CI y pruebas en el entorno local pendientes de actualización/ejecución.
+- [x] CI en GitHub Actions: 32 pruebas superadas y Ruff sin errores (commit `f024662864ba8833859e5e1049b882d06e22d896`).
+- [ ] Actualizar la rama local y ejecutar la suite/Ruff en WSL.
+- [ ] Verificación funcional con catálogo poblado pendiente de incorporar un medio propio o autorizado en Jellyfin y sincronizarlo.
 - [ ] Verificación funcional con catálogo poblado pendiente de incorporar un medio propio o autorizado en Jellyfin y sincronizarlo.
