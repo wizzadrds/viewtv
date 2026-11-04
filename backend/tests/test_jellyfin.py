@@ -1,10 +1,11 @@
 from datetime import UTC, datetime
 
 import httpx
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.config import Settings
-from app.jellyfin import JellyfinClient, _upsert_media
+from app.jellyfin import JellyfinClient, JellyfinError, _upsert_media
 from app.models import Medio
 
 
@@ -96,11 +97,5 @@ def test_jellyfin_client_rejects_non_image_content_type():
         return httpx.Response(200, content=b"<script>", headers={"Content-Type": "text/html"})
 
     client = JellyfinClient(make_settings(), httpx.MockTransport(handler))
-    from app.jellyfin import JellyfinError
-
-    try:
+    with pytest.raises(JellyfinError, match="formato de imagen"):
         client.get_image("jf-movie-1", "primary")
-    except JellyfinError as exc:
-        assert "formato de imagen" in str(exc)
-    else:
-        raise AssertionError("Se esperaba rechazar el tipo de contenido.")
