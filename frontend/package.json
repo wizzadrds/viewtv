@@ -18,12 +18,20 @@
     "react-dom": "19.1.10"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "3.3.1",
     "@types/node": "22.15.30",
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.6",
     "eslint": "9.28.0",
     "eslint-config-next": "15.5.28",
-    "typescript": "5.8.3",
-    "@eslint/eslintrc": "3.3.1"
+    "typescript": "5.8.3"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.23"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   }
 }
