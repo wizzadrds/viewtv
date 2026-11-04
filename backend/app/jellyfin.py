@@ -3,8 +3,8 @@ from typing import Annotated, Literal
 from urllib.parse import quote
 
 import httpx
-from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.auth import get_current_profile
@@ -257,7 +257,7 @@ def get_catalog(
     """Devuelve metadatos persistentes para la PWA, nunca rutas del servidor Jellyfin."""
     if not 1 <= limit <= 100:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="El límite debe estar entre 1 y 100.",
         )
     if offset < 0:
