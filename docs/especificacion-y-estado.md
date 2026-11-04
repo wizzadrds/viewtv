@@ -134,7 +134,7 @@ Diseño documentado; **no implementado ni validado**. Prowlarr y Jackett no est�
 
 Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable desde 1920×1080, tarjetas redondeadas, transiciones breves, foco de mando muy visible, navegación por flechas/Enter/Atrás, respeto a prefers-reduced-motion y contraste legible.
 
-## 7. Estado real a 3 de noviembre de 2026
+## 7. Estado real — actualizado el 4 de noviembre de 2026
 
 ### Hecho y comprobado
 - [x] Repositorio privado wizzadrds/viewtv creado y clonado.
@@ -151,9 +151,9 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [x] Autenticación con PIN hasheado con Argon2, JWT en cookie HttpOnly, logout, endpoint de perfil y límite inicial de intentos.
 - [x] Perfiles Adultos e Infantil creados.
 - [x] Login probado correctamente para ambos perfiles.
-- [x] Suite backend: 13 pruebas superadas en la ejecución local del 3 de noviembre de 2026 (`pytest`: 13 passed).
-- [x] Ruff: `ruff check app tests` devolvió `All checks passed!` en la misma ejecución.
-- [x] GitHub Actions Backend CI: runs 17 y 18 completados con `success`, incluidos los nuevos tests de leases.
+- [x] Suite backend: 14 pruebas superadas en la ejecución local del 4 de noviembre de 2026 (`pytest`: 14 passed; una advertencia deprecada de Starlette/httpx, no bloqueante).
+- [x] Ruff: `ruff check app tests` devolvió `All checks passed!` el 4 de noviembre de 2026.
+- [x] GitHub Actions Backend CI: run `41836114618` completado con `success` para el commit `5cf444f` (pruebas y Ruff).
 - [x] Docker Compose levantado; API healthy y worker Up. /health responde y /auth/me sin sesión devuelve 401.
 - [x] docs/plan-operativo.md creado en la rama de trabajo.
 - [x] Jellyfin instalado como servidor en Windows y accesible en http://localhost:8096.
@@ -176,17 +176,17 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 
 ### Pendiente, por orden recomendado
 
-#### Revisión de seguridad/configuración (en curso, 4 de noviembre de 2026)
+#### Revisión de seguridad/configuración (actualizada el 4 de noviembre de 2026)
 
 - [x] Corregir los alias de configuración para que `VIEWTV_ENV` y `VIEWTV_TIMEZONE` se lean realmente desde el entorno.
 - [x] Retirar de `.env.example` `API_HOST` y `VIEWTV_LOG_LEVEL`, que no tenían consumidor en el código.
 - [x] Limitar `JWT_EXPIRE_MINUTES` a valores entre 1 y 10.080 minutos (7 días).
 - [x] Añadir una prueba para los nombres documentados de las variables de entorno.
-- [ ] Ejecutar localmente la suite y Ruff con estos cambios; comprobar CI.
+- [x] Ejecutar localmente la suite y Ruff con estos cambios; comprobar CI: 14 pruebas superadas, Ruff limpio y GitHub Actions correcto para `5cf444f`.
 - [ ] Revisar rate limit: actualmente el almacenamiento por defecto de SlowAPI es local al proceso; no equivale a un contador compartido entre varias réplicas ni persiste reinicios.
-- [ ] Confirmar que `AUTH_COOKIE_SECURE=false` solo se usa en HTTP local. Antes de acceso LAN con HTTPS debe activarse `true`.
-- [ ] Confirmar que la clave JWT local tiene al menos 32 caracteres aleatorios sin mostrarla ni copiarla al chat.
-- [ ] Revisar estrategia de backup y restauración de SQLite; no ejecutar pruebas destructivas sobre el volumen de datos real.
+- [x] Comprobar la configuración efectiva: `AUTH_COOKIE_SECURE` no está definido y el valor por defecto del código es `false`; aceptable para HTTP local. Antes de acceso mediante HTTPS debe configurarse `true`.
+- [x] Comprobar sin revelar el secreto que `JWT_SECRET` tiene al menos 32 caracteres.
+- [x] Crear copia de SQLite con la API online backup, guardarla en `C:\\VIEWTV\\backups` y verificar el archivo copiado: `PRAGMA integrity_check=ok`, 2 perfiles y migración `0001_initial`. Pendiente automatizar copias y probar restauración completa en un entorno aislado.
 
 #### A. Cerrar fase 1
 1. [x] Verificar que el commit y la rama remota contienen los últimos cambios; la copia local se actualizó con `git pull --ff-only` hasta el commit `2be846a`.
@@ -268,3 +268,12 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 3. Acordar la ruta compartida de almacenamiento y el modo de instalación de Jellyfin.
 4. Crear usuario de servicio/API key de Jellyfin y comenzar el cliente de solo lectura de la fase 2.
 
+
+
+## 10. Validación de copia de seguridad (4 de noviembre de 2026)
+
+- Se creó una copia coherente de `/data/viewtv.db` usando `sqlite3.Connection.backup()` desde el contenedor API, sin detener servicios ni modificar la base activa.
+- Archivo guardado en `C:\\VIEWTV\\backups` (88 KB en la comprobación).
+- Se copió el archivo guardado de nuevo a una ruta temporal del contenedor y se abrió como base independiente.
+- Verificaciones: `PRAGMA integrity_check` devolvió `ok`; se leyeron los 2 perfiles; `alembic_version` devolvió `0001_initial`.
+- Alcance: verificada la creación, copia y lectura de la copia. No se ha sustituido la base activa ni se ha probado una restauración completa del servicio. Falta automatizar, definir retención y probar restauración aislada.
