@@ -18,6 +18,7 @@ dist/
 build/
 
 # Node / Next.js
+*.tsbuildinfo
 node_modules/
 .next/
 out/
