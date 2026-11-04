@@ -223,3 +223,13 @@ Con contenido de prueba autorizado:
 - Límite de tamaño: 10 MiB. Se aceptan JPEG, PNG, WebP y GIF; se rechazan HTML/SVG y otros tipos. La respuesta incluye `X-Content-Type-Options: nosniff` y caché privada de una hora.
 - Añadidas pruebas para autenticación del endpoint, respuesta de imagen, ausencia de cabecera Authorization hacia el cliente, elemento sin imagen, cabecera de autenticación al servidor Jellyfin y rechazo de tipos no permitidos.
 - Estado: código y pruebas añadidos a la rama. Pendiente de ejecutar pytest, Ruff, CI y probar con una carátula real en Jellyfin. Como las bibliotecas actuales están vacías, la prueba real de imagen requerirá añadir temporalmente un medio propio o autorizado.
+
+
+### Proxy de imágenes — validación local de acceso (4 de noviembre de 2026)
+
+- La suite local terminó con 28 pruebas superadas y Ruff sin errores; CI también finalizó correctamente.
+- API reconstruida en Docker Compose y comprobada con `GET /health`: HTTP 200.
+- Sin cookie de sesión, `GET /jellyfin/media/1/images/primary` devuelve HTTP 401, como exige el control de acceso.
+- Con inicio de sesión del perfil Adultos, `GET /jellyfin/status` devuelve HTTP 200 y confirma Jellyfin `LAPTOP-VIEWTV`, versión `12.4.0`.
+- Con sesión autenticada, la petición de imagen de prueba devuelve HTTP 404 `Elemento no encontrado`, esperado porque la sincronización anterior registró cero medios y no existe aún el ID local 1. No demuestra todavía la descarga de una imagen real.
+- Pendiente: añadir un vídeo propio/autorizado a una biblioteca, ejecutar sincronización y probar una imagen primaria real (y fondo si existe).
