@@ -242,3 +242,61 @@ def media_image(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+
+@router.get("/catalog")
+def get_catalog(
+    _profile: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+    tipo: Literal["pelicula", "serie"] | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, object]:
+    """Devuelve metadatos persistentes para la PWA, nunca rutas del servidor Jellyfin."""
+    if not 1 <= limit <= 100:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El límite debe estar entre 1 y 100.",
+        )
+    if offset < 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="El desplazamiento no puede ser negativo.",
+        )
+
+    statement = select(Medio)
+    if tipo is not None:
+        statement = statement.where(Medio.tipo == tipo)
+
+    total = len(session.exec(statement).all())
+    medios = session.exec(
+        statement.order_by(Medio.titulo, Medio.id).offset(offset).limit(limit)
+    ).all()
+
+    return {
+        "elementos": [
+            {
+                "id": medio.id,
+                "titulo": medio.titulo,
+                "tipo": medio.tipo,
+                "sinopsis": medio.sinopsis,
+                "anio": medio.anio,
+                "generos": medio.generos,
+                "imagen_portada": (
+                    f"/jellyfin/media/{medio.id}/images/primary"
+                    if medio.imagen_portada
+                    else None
+                ),
+                "imagen_fondo": (
+                    f"/jellyfin/media/{medio.id}/images/backdrop"
+                    if medio.imagen_fondo
+                    else None
+                ),
+            }
+            for medio in medios
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
