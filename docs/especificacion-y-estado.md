@@ -298,3 +298,13 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 ### Resultado de la primera ejecución real del script (4 de noviembre de 2026)
 
 El usuario ejecutó `docker compose exec -T api sh -c 'cd /opt/viewtv/backend && python scripts/backup_db.py'` desde Ubuntu/WSL. El script informó de la creación y verificación de `/backups/viewtv-20261104-133925.db` (90.112 bytes) y cero copias antiguas eliminadas. El archivo apareció en `/mnt/c/VIEWTV/backups/`. Una comprobación independiente sobre ese archivo devolvió integridad `ok`, 2 perfiles y versión `0001_initial`. La copia anterior también permanece intacta. Por tanto, el proceso de backup manual y la lectura de la copia están validados; la tarea diaria de Windows sigue pendiente.
+
+
+### Lanzador de backup Windows/WSL validado (4 de noviembre de 2026)
+
+- Se añadió `scripts/backup-daily.sh` para ejecutar la secuencia de Compose/health/backup directamente dentro de Ubuntu 24.04.
+- `scripts/backup-daily.ps1` llama al script Bash mediante `wsl.exe --exec /bin/bash`, evitando el problema de interpretación del bloque multilínea anterior.
+- Prueba real desde PowerShell invocado en WSL: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\\VIEWTV\\scripts\\backup-daily.ps1'`.
+- Resultado correcto al primer intento: la API estaba activa, se creó y verificó `/backups/viewtv-20261104-134904.db` (90.112 bytes) y PowerShell recibió `Backup VIEWTV completado correctamente.`.
+- [x] Lanzador PowerShell/Bash validado manualmente.
+- [ ] Tarea diaria del Programador de tareas de Windows aún no creada ni probada; registro y comportamiento tras suspensión/reinicio pendientes. Por tanto, no considerar todavía activo el backup diario automático.
