@@ -36,3 +36,29 @@ jobs:
       - name: Comprobar estilo
         working-directory: backend
         run: ruff check app tests scripts
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Obtener código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Instalar frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Comprobar tipos
+        run: npm run typecheck
+
+      - name: Comprobar estilo
+        run: npm run lint
+
+      - name: Construir PWA
+        run: npm run build
