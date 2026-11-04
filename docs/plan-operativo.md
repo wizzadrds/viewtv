@@ -144,3 +144,13 @@ Con contenido de prueba autorizado:
 - Restauración aislada verificada el 4 de noviembre de 2026: el archivo se montó en solo lectura en un contenedor temporal independiente; la API arrancó y `/health` devolvió HTTP 200 en `127.0.0.1:8001`. La comprobación SQLite devolvió integridad `ok`, 2 perfiles y Alembic `0001_initial`. El contenedor temporal se eliminó. No se modificó el volumen ni la base activa.
 - Alcance: no se ha restaurado sobre producción ni ensayado la recuperación completa del host/servicios. No sobrescribir `/data/viewtv.db` para probar.
 - Pendiente: script de backup con nombre fechado, retención configurable, registro/alerta de errores y procedimiento de recuperación operativa. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
+
+
+### Automatización de backup SQLite — primera implementación (4 de noviembre de 2026)
+
+- Añadido `backend/scripts/backup_db.py`: usa la Online Backup API de SQLite, abre el origen en modo solo lectura, valida `PRAGMA integrity_check` y publica el archivo con renombrado atómico solo después de validar.
+- Nombre generado: `viewtv-AAAAMMDD-HHMMSS.db`.
+- Retención inicial configurable mediante `BACKUP_RETENTION_DAYS` (30 días por defecto). Solo elimina archivos que coincidan con `viewtv-*.db`, y la limpieza se ejecuta después de crear correctamente el nuevo backup.
+- Compose monta `C:\\VIEWTV\\backups` en `/backups` únicamente en el servicio API. No se monta sobre el volumen SQLite ni sobre la caché multimedia.
+- Ejecución manual prevista desde Ubuntu/WSL: `docker compose exec -T api python scripts/backup_db.py`.
+- Estado: código y pruebas añadidos; falta que el usuario sincronice, recree el contenedor API para aplicar el nuevo montaje, ejecute las pruebas y realice el primer backup automatizado manualmente. La programación diaria con el Programador de tareas de Windows se configurará después de validar esta ejecución. No se ha configurado todavía ninguna tarea programada.
