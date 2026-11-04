@@ -32,6 +32,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
     app.dependency_overrides[get_session] = override_session
     with Session(engine) as session:
         session.add(Perfil(nombre="Adultos", pin_hash=hash_pin("1234")))
+        session.add(Perfil(nombre="Oculto", pin_hash=hash_pin("5678"), activo=False))
         session.commit()
 
     with TestClient(app) as test_client:
@@ -40,14 +41,6 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
     app.dependency_overrides.clear()
     engine.dispose()
     get_settings.cache_clear()
-
-
-def test_profiles_endpoint_only_exposes_active_profile_names(client: TestClient) -> None:
-    response = client.get("/auth/profiles")
-
-    assert response.status_code == 200
-    assert response.json() == {"perfiles": [{"id": 1, "nombre": "Adultos"}]}
-    assert "pin_hash" not in response.text
 
 
 def test_profiles_endpoint_only_exposes_active_profile_names(client: TestClient) -> None:
