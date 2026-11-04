@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { apiPath, apiRequest, CatalogResponse, MediaItem, Profile } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
+import { apiPath, apiRequest } from "@/lib/api";
+import type { CatalogResponse, MediaItem, Profile } from "@/lib/api";
 
 type Session = { id: number; nombre: string };
 type View = "loading" | "login" | "catalog";
