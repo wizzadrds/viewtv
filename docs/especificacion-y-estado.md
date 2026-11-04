@@ -188,7 +188,7 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [x] Comprobar sin revelar el secreto que `JWT_SECRET` tiene al menos 32 caracteres.
 - [x] Crear copia de SQLite con la API online backup, guardarla en `C:\\VIEWTV\\backups` y verificar el archivo copiado: `PRAGMA integrity_check=ok`, 2 perfiles y migración `0001_initial`.
 - [x] Restauración aislada del backup: contenedor temporal `viewtv-restore-test`, base montada en solo lectura, API en `127.0.0.1:8001` con `/health` HTTP 200; integridad `ok`, 2 perfiles y migración `0001_initial`. Contenedor temporal eliminado. No se modificó la base activa.
-- [ ] Automatizar copias, definir retención y probar el procedimiento operativo completo de recuperación del servicio.
+- [ ] Programar la ejecución diaria del backup y validar su operación continuada; el script y la retención ya están implementados, pero todavía no hay tarea programada.
 
 #### A. Cerrar fase 1
 1. [x] Verificar que el commit y la rama remota contienen los últimos cambios; la copia local se actualizó con `git pull --ff-only` hasta el commit `2be846a`.
@@ -281,3 +281,12 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - Restauración aislada: el backup se montó en solo lectura en un contenedor temporal independiente. La API arrancó y `/health` devolvió HTTP 200 en `127.0.0.1:8001`; `PRAGMA integrity_check` devolvió `ok`, se leyeron los 2 perfiles y Alembic indicó `0001_initial`.
 - El contenedor `viewtv-restore-test` se eliminó tras la prueba. La base activa y su volumen no se tocaron.
 - Alcance: backup, copia, lectura y arranque de API aislada verificados. No se ha hecho una restauración sobre producción ni se ha probado el procedimiento completo de recuperación del host. Pendiente automatizar, definir retención y documentar/ensayar recuperación operativa.
+
+
+### Automatización de backup — implementación pendiente de validación local (4 de noviembre de 2026)
+
+- Se añadió `backend/scripts/backup_db.py` con SQLite Online Backup API, origen en solo lectura, comprobación de integridad y publicación atómica.
+- Retención configurable mediante `BACKUP_RETENTION_DAYS` (30 días por defecto); la limpieza solo afecta a nombres `viewtv-*.db` y solo se ejecuta tras crear correctamente una copia nueva.
+- Compose monta `/mnt/c/VIEWTV/backups` en `/backups` dentro de API. No se monta en worker y no se toca el volumen `viewtv_viewtv_data`.
+- Pruebas unitarias añadidas para copia, integridad, retención, rechazo de motores no SQLite y fallo de origen.
+- Pendiente: sincronizar cambios, recrear API para aplicar el bind mount, ejecutar pytest/Ruff, hacer una copia real y configurar la programación diaria en Windows. Hasta completar esas comprobaciones, no se considera automatización operativa.
