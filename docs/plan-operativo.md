@@ -173,3 +173,12 @@ Con contenido de prueba autorizado:
 - Si WSL/Docker/Compose falla, reintenta hasta 10 veces con pausas de 60 segundos. Escribe un registro acumulado en `C:\\VIEWTV\\logs\\backup-daily.log`.
 - El lanzador está añadido al repositorio, pero todavía no se ha ejecutado desde PowerShell ni se ha creado la tarea programada. Hay que validarlo manualmente antes de confiar en la programación.
 - Configuración propuesta de la tarea: diariamente a las 03:00; activar «Ejecutar la tarea lo antes posible si se omitió el inicio programado» y «Activar el equipo para ejecutar esta tarea» si Windows ofrece esa opción. Un equipo apagado no puede hacer la copia hasta que vuelva a arrancar; la opción de inicio omitido permite recuperarla después.
+
+
+### Prueba del lanzador Windows/WSL superada (4 de noviembre de 2026)
+
+- Se separó la lógica Linux en `scripts/backup-daily.sh`; el lanzador `scripts/backup-daily.ps1` invoca ese archivo con `wsl.exe --exec /bin/bash`, evitando pasar un bloque multilínea por `bash -lc`.
+- El archivo PowerShell se copia a `C:\\VIEWTV\\scripts\\backup-daily.ps1` para ejecutarlo desde una ruta nativa de Windows. La ruta UNC `\\\\wsl.localhost\\Ubuntu-24.04\\...` era visible con `Test-Path`, pero PowerShell no la aceptaba como argumento de `-File`.
+- Ejecución real completada desde Ubuntu: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\\VIEWTV\\scripts\\backup-daily.ps1'`.
+- Resultado: intento 1 correcto, API disponible, backup creado y verificado como `/backups/viewtv-20261104-134904.db` (90.112 bytes), mensaje final `Backup VIEWTV completado correctamente.`.
+- Pendiente: crear y probar la tarea del Programador de tareas de Windows; comprobar que el log `C:\\VIEWTV\\logs\\backup-daily.log` se genera y definir alerta ante fallos. La programación diaria aún no está activa.
