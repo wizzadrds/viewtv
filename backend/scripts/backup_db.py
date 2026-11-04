@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -69,8 +70,14 @@ def create_backup(
         raise FileExistsError(f"Ya existe un backup con ese nombre: {final_path}")
 
     try:
-        with sqlite3.connect(f"file:{source_path.as_posix()}?mode=ro", uri=True, timeout=30) as source:
-            with sqlite3.connect(temporary_path, timeout=30) as destination:
+        with closing(
+            sqlite3.connect(
+                f"file:{source_path.as_posix()}?mode=ro",
+                uri=True,
+                timeout=30,
+            )
+        ) as source:
+            with closing(sqlite3.connect(temporary_path, timeout=30)) as destination:
                 source.backup(destination, pages=256, sleep=0.1)
                 result = destination.execute("PRAGMA integrity_check").fetchone()
                 if result is None or result[0] != "ok":
