@@ -213,3 +213,13 @@ Con contenido de prueba autorizado:
 - La prueba confirma el recorrido de autenticación VIEWTV → endpoint de sincronización → cliente Jellyfin → respuesta correcta. La conectividad y autenticación de la API contra Jellyfin ya se habían verificado desde el contenedor: servidor `LAPTOP-VIEWTV`, versión `12.4.0`.
 - El recuento cero es coherente con el estado actual: las bibliotecas Jellyfin `Películas` y `Series` ya están creadas sobre `C:\\VIEWTV\\media\\Peliculas` y `C:\\VIEWTV\\media\\Series`, pero aún no contienen archivos multimedia.
 - Alcance: no se ha probado todavía la importación de elementos reales, la paginación con una biblioteca poblada, la entrega de imágenes/carátulas ni la reproducción desde VIEWTV. La sincronización no implica que las vistas PWA estén implementadas.
+
+
+### Proxy privado de imágenes Jellyfin — implementación subida, validación local pendiente
+
+- Añadido `GET /jellyfin/media/{media_id}/images/{image_kind}`, protegido por la sesión de perfil VIEWTV. El identificador usado en la URL es el ID local del registro `medio`, no una ruta libre del servidor.
+- Tipos permitidos: `primary` y `backdrop`; el backend construye la ruta Jellyfin a partir del ID guardado en catálogo. No acepta URLs externas ni rutas arbitrarias.
+- El backend descarga la imagen con la clave MediaBrowser desde Jellyfin y devuelve los bytes a la PWA. La clave API nunca forma parte de la respuesta ni debe enviarse al navegador.
+- Límite de tamaño: 10 MiB. Se aceptan JPEG, PNG, WebP y GIF; se rechazan HTML/SVG y otros tipos. La respuesta incluye `X-Content-Type-Options: nosniff` y caché privada de una hora.
+- Añadidas pruebas para autenticación del endpoint, respuesta de imagen, ausencia de cabecera Authorization hacia el cliente, elemento sin imagen, cabecera de autenticación al servidor Jellyfin y rechazo de tipos no permitidos.
+- Estado: código y pruebas añadidos a la rama. Pendiente de ejecutar pytest, Ruff, CI y probar con una carátula real en Jellyfin. Como las bibliotecas actuales están vacías, la prueba real de imagen requerirá añadir temporalmente un medio propio o autorizado.
