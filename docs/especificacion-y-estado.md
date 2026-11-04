@@ -186,7 +186,9 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 - [ ] Revisar rate limit: actualmente el almacenamiento por defecto de SlowAPI es local al proceso; no equivale a un contador compartido entre varias réplicas ni persiste reinicios.
 - [x] Comprobar la configuración efectiva: `AUTH_COOKIE_SECURE` no está definido y el valor por defecto del código es `false`; aceptable para HTTP local. Antes de acceso mediante HTTPS debe configurarse `true`.
 - [x] Comprobar sin revelar el secreto que `JWT_SECRET` tiene al menos 32 caracteres.
-- [x] Crear copia de SQLite con la API online backup, guardarla en `C:\\VIEWTV\\backups` y verificar el archivo copiado: `PRAGMA integrity_check=ok`, 2 perfiles y migración `0001_initial`. Pendiente automatizar copias y probar restauración completa en un entorno aislado.
+- [x] Crear copia de SQLite con la API online backup, guardarla en `C:\\VIEWTV\\backups` y verificar el archivo copiado: `PRAGMA integrity_check=ok`, 2 perfiles y migración `0001_initial`.
+- [x] Restauración aislada del backup: contenedor temporal `viewtv-restore-test`, base montada en solo lectura, API en `127.0.0.1:8001` con `/health` HTTP 200; integridad `ok`, 2 perfiles y migración `0001_initial`. Contenedor temporal eliminado. No se modificó la base activa.
+- [ ] Automatizar copias, definir retención y probar el procedimiento operativo completo de recuperación del servicio.
 
 #### A. Cerrar fase 1
 1. [x] Verificar que el commit y la rama remota contienen los últimos cambios; la copia local se actualizó con `git pull --ff-only` hasta el commit `2be846a`.
@@ -270,10 +272,12 @@ Referencia: fondo #0B0B0F, acento #E50914, tipografía Inter, diseño escalable 
 
 
 
-## 10. Validación de copia de seguridad (4 de noviembre de 2026)
+## 10. Validación de copia de seguridad y restauración aislada (4 de noviembre de 2026)
 
 - Se creó una copia coherente de `/data/viewtv.db` usando `sqlite3.Connection.backup()` desde el contenedor API, sin detener servicios ni modificar la base activa.
 - Archivo guardado en `C:\\VIEWTV\\backups` (88 KB en la comprobación).
 - Se copió el archivo guardado de nuevo a una ruta temporal del contenedor y se abrió como base independiente.
 - Verificaciones: `PRAGMA integrity_check` devolvió `ok`; se leyeron los 2 perfiles; `alembic_version` devolvió `0001_initial`.
-- Alcance: verificada la creación, copia y lectura de la copia. No se ha sustituido la base activa ni se ha probado una restauración completa del servicio. Falta automatizar, definir retención y probar restauración aislada.
+- Restauración aislada: el backup se montó en solo lectura en un contenedor temporal independiente. La API arrancó y `/health` devolvió HTTP 200 en `127.0.0.1:8001`; `PRAGMA integrity_check` devolvió `ok`, se leyeron los 2 perfiles y Alembic indicó `0001_initial`.
+- El contenedor `viewtv-restore-test` se eliminó tras la prueba. La base activa y su volumen no se tocaron.
+- Alcance: backup, copia, lectura y arranque de API aislada verificados. No se ha hecho una restauración sobre producción ni se ha probado el procedimiento completo de recuperación del host. Pendiente automatizar, definir retención y documentar/ensayar recuperación operativa.
