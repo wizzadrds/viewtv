@@ -276,3 +276,19 @@ Con contenido de prueba autorizado:
 - Añadida la guía `docs/backup-operativo.md`; enlazada desde README.
 - **Pendiente en el equipo:** hacer `git pull --ff-only`, validar sintaxis Bash y Compose, reconstruir API y ejecutar el lanzador desde PowerShell. La tarea diaria no se considera validada de forma continuada hasta que el archivo nuevo aparezca en Windows y una ejecución programada posterior deje otra copia válida.
 - No borrar volúmenes ni tocar `viewtv_viewtv_data`.
+
+
+### Disponibilidad del equipo y backups cuando el portátil está apagado
+
+VIEWTV funciona en un portátil doméstico; no se presupone que Windows, WSL2 ni Docker Desktop estén disponibles 24/7. El equipo puede apagarse o suspenderse y esto no constituye por sí mismo un fallo del sistema de backup.
+
+- El desencadenador de las 03:00 (Europe/Madrid) es una hora objetivo, no una garantía de ejecución mientras el equipo está apagado.
+- «Activar el equipo para ejecutar esta tarea» puede despertar desde suspensión si hardware, firmware y plan de energía lo permiten; no enciende un portátil apagado. La hibernación también depende de temporizadores compatibles.
+- La tarea está configurada para ejecutarse solo con sesión iniciada. Si el portátil está apagado o no hay sesión, no puede completar el backup en ese momento.
+- «Ejecutar lo antes posible después de que se omita un inicio programado» solicita a Windows recuperar una ejecución perdida cuando vuelva a estar disponible; hay que comprobarlo en la práctica tras arrancar e iniciar sesión.
+- WSL y Docker Desktop deben estar listos. El lanzador reintenta si la API aún no responde y debe dejar error en el log si agota los intentos.
+- No exigir un archivo nuevo por cada fecha natural si el equipo estuvo apagado. El criterio es una copia SQLite válida tras la siguiente oportunidad real de ejecución, con comprobación del archivo final en C:\\VIEWTV\\backups.
+- Un LastTaskResult=0 sin archivo nuevo no basta para considerar que hubo backup. No aplicar retención ni borrar copias antiguas si no se ha publicado y validado una copia nueva.
+- Mantener una copia adicional fuera del portátil para cubrir la pérdida del propio equipo o SSD.
+
+Consultar docs/backup-operativo.md para los pasos de comprobación y recuperación. No considerar VIEWTV un servidor 24/7.
