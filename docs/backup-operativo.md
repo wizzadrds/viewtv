@@ -66,3 +66,28 @@ Luego comprobar desde WSL el archivo más reciente con `python3` y SQLite, y com
 - No copiar directamente `/data/viewtv.db` mientras SQLite está en uso; usar siempre la Online Backup API.
 - No considerar éxito solo porque el comando dentro del contenedor imprimió «Backup verificado»: la copia debe existir y superar la comprobación SQLite en `C:\\VIEWTV\\backups`.
 - Mantener una copia adicional fuera del portátil para recuperación ante fallo del SSD.
+
+
+## Disponibilidad del portátil (no es un servidor 24/7)
+
+VIEWTV vive en un portátil doméstico con Windows 11, WSL2 y Docker Desktop. El equipo puede apagarse, reiniciarse, suspenderse, hibernar o permanecer sin sesión iniciada. Por tanto, **no se puede garantizar una ejecución exactamente a las 03:00 ni una disponibilidad continua**.
+
+Comportamiento esperado:
+
+- **Encendido y con sesión iniciada:** el Programador de tareas puede lanzar el backup a las 03:00; WSL y Docker Desktop deben estar disponibles.
+- **En suspensión:** Windows puede despertar el equipo si están habilitados «Activar el equipo para ejecutar esta tarea» y los temporizadores de activación de energía lo permiten. No es una garantía absoluta; depende del hardware, firmware y plan de energía.
+- **Apagado:** la tarea no puede ejecutarse mientras el portátil está apagado. «Ejecutar lo antes posible después de que se omita un inicio programado» permite que Windows intente recuperarla cuando vuelva a estar disponible, pero no enciende por sí sola un equipo apagado.
+- **Hibernación:** el despertar depende de que el hardware y la configuración de Windows admitan temporizadores de activación. No asumir que funcionará en todos los equipos.
+- **Sin sesión iniciada:** la tarea actual está configurada para ejecutarse solo cuando el usuario haya iniciado sesión; no se ejecutará hasta que exista esa sesión.
+- **WSL/Docker Desktop aún arrancando:** el lanzador reintenta durante un periodo limitado. Si Docker no queda disponible, debe fallar y dejar constancia en el log; no debe declarar éxito.
+
+### Política de recuperación y comprobación
+
+1. Mantener el desencadenador diario a las 03:00 (Europe/Madrid) y activar «Ejecutar la tarea lo antes posible si se omitió el inicio programado».
+2. No exigir un archivo nuevo cada día natural cuando el portátil estuvo apagado o sin sesión. En su lugar, exigir una copia válida tras la siguiente oportunidad de ejecución.
+3. Después de encender el portátil e iniciar sesión, comprobar el log y la fecha del backup más reciente. Si no se recuperó la ejecución omitida, lanzar la tarea manualmente.
+4. La tarea solo cuenta como correcta si el archivo final aparece en `C:\\VIEWTV\\backups` y supera `PRAGMA integrity_check`; `LastTaskResult=0` por sí solo no demuestra que haya una copia nueva.
+5. No borrar copias antiguas cuando el equipo estuvo desconectado o cuando falla una ejecución. La retención solo se aplica después de generar, transferir y validar correctamente una copia nueva.
+6. Para un objetivo de recuperación más estricto, conservar una copia adicional fuera del portátil (por ejemplo, almacenamiento externo desconectado o destino remoto seguro). El backup local no protege frente a robo, avería o pérdida del propio portátil/SSD.
+
+**Criterio realista:** una copia válida cada vez que el portátil esté disponible para ejecutar la tarea, con recuperación tras arranque/inicio de sesión cuando Windows pueda hacerlo; no disponibilidad 24/7.
