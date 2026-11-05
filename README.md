@@ -19,6 +19,7 @@ Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada par
 - [Plan operativo y decisiones del entorno](docs/plan-operativo.md)
 - [Especificación funcional, progreso y tareas pendientes](docs/especificacion-y-estado.md)
 - [Arquitectura técnica](docs/arquitectura.md)
+- [Procedimiento y estado del backup diario](docs/backup-operativo.md)
 
 Antes de continuar una tarea, revisar estos documentos para conocer las decisiones ya tomadas y el estado real. Actualizarlos al completar hitos.
 
