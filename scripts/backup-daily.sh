@@ -26,8 +26,8 @@ for attempt in $(seq 1 60); do
     sleep 5
 done
 
-# El backup se crea en el almacenamiento efímero del contenedor, NO en un
-# bind mount de Windows. Después se exporta explícitamente por stdout/tar.
+# Crear la copia en el almacenamiento temporal del contenedor, nunca en un
+# bind mount de Windows. El script Python valida SQLite antes de publicarla.
 backup_output="$(
     docker compose exec -T api sh -c \
         'cd /opt/viewtv/backend && BACKUP_DIR=/tmp/viewtv-backups python scripts/backup_db.py' 2>&1
@@ -56,9 +56,10 @@ if [[ -e "$final_file" ]]; then
     exit 1
 fi
 
-# Transferencia explícita: evita depender del bind mount /backups de Docker Desktop.
-docker compose exec -T api tar -C /tmp/viewtv-backups -cf - "$backup_name" \
-    | tar -C "$STAGING_DIR" -xf -
+# Transferencia explícita por stdout: no depende de /backups ni de tar en la imagen.
+docker compose exec -T api python -c \
+    'import pathlib,sys; sys.stdout.buffer.write(pathlib.Path(sys.argv[1]).read_bytes())' \
+    "$backup_path" > "$staged_file"
 
 if [[ ! -s "$staged_file" ]]; then
     echo "ERROR: la transferencia al SSD no produjo un archivo válido." >&2
