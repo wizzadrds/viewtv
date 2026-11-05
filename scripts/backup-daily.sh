@@ -32,13 +32,13 @@ backup_output="$(
     docker compose exec -T api sh -c \
         'cd /opt/viewtv/backend && BACKUP_DIR=/tmp/viewtv-backups python scripts/backup_db.py' 2>&1
 )" || {
-    printf '%s\\n' "$backup_output" >&2
+    printf '%s\n' "$backup_output" >&2
     echo "ERROR: falló la creación/validación SQLite dentro del contenedor." >&2
     exit 1
 }
-printf '%s\\n' "$backup_output"
+printf '%s\n' "$backup_output"
 
-backup_path="$(printf '%s\\n' "$backup_output" | sed -n 's/^Backup verificado: //p' | tail -n 1)"
+backup_path="$(printf '%s\n' "$backup_output" | sed -n 's/^Backup verificado: //p' | tail -n 1)"
 case "$backup_path" in
     /tmp/viewtv-backups/viewtv-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9].db) ;;
     *)
