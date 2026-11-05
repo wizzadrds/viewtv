@@ -91,3 +91,13 @@ Comportamiento esperado:
 6. Para un objetivo de recuperación más estricto, conservar una copia adicional fuera del portátil (por ejemplo, almacenamiento externo desconectado o destino remoto seguro). El backup local no protege frente a robo, avería o pérdida del propio portátil/SSD.
 
 **Criterio realista:** una copia válida cada vez que el portátil esté disponible para ejecutar la tarea, con recuperación tras arranque/inicio de sesión cuando Windows pueda hacerlo; no disponibilidad 24/7.
+
+
+## Prueba manual corregida superada (5 de noviembre de 2026)
+
+- Tras corregir los saltos de línea literales en `scripts/backup-daily.sh`, el usuario actualizó la rama con `git pull --ff-only` y `bash -n scripts/backup-daily.sh` terminó sin errores.
+- Ejecución real desde Windows PowerShell mediante `C:\\VIEWTV\\scripts\\backup-daily.ps1` completada en el primer intento.
+- El backup se creó temporalmente en el contenedor como `/tmp/viewtv-backups/viewtv-20261105-133137.db`, se transfirió explícitamente al SSD y se validó allí antes de publicarlo.
+- Resultado en SSD: `viewtv-20261105-133137.db`, 90.112 bytes; `PRAGMA integrity_check=ok`, 2 perfiles y migración `0001_initial`.
+- El archivo apareció en Windows como `C:\\VIEWTV\\backups\\viewtv-20261105-133137.db` con fecha 05/11/2026 14:31:38. El lanzador terminó con `Backup VIEWTV completado y verificado en SSD` y código de salida correcto.
+- Conclusión: generación, transferencia al SSD, validación SQLite en destino y publicación están verificadas manualmente. Sigue pendiente observar una ejecución diaria real del Programador de tareas después de una oportunidad programada; no se afirma disponibilidad 24/7 ni restauración completa del host.
