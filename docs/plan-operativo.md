@@ -266,3 +266,13 @@ Con contenido de prueba autorizado:
 - La ficha es informativa; la reproducción todavía no está conectada. Tampoco se ha implementado aún service worker/offline, paginación incremental, ni validación en TV.
 - **Pendiente de ejecutar por el usuario en WSL:** instalar Node.js 20.9+ si no está disponible; en `~/projects/viewtv/frontend`, ejecutar `npm install`, `npm run typecheck`, `npm run lint`, `npm run build`, después `npm run dev` y abrir `http://localhost:3000`.
 - Tras las pruebas de escritorio, validar foco, cruceta, Enter, Atrás y lectura de carátulas en Fire TV/TV Bro. No abrir el servicio a la LAN hasta configurar bind y firewall de forma restringida.
+
+
+### Incidencia del backup diario y corrección (5 de noviembre de 2026)
+
+- La tarea de Windows se ejecutó manualmente y generó dos copias SQLite válidas dentro del contenedor API, pero el bind mount `/mnt/c/VIEWTV/backups:/backups` no reflejó los archivos en WSL/Windows. Las pruebas mostraron un filesystem de 7,7 GB dentro del contenedor y visibilidad distinta entre ambos lados. Las afirmaciones anteriores de que el montaje de backups funcionaba quedan supersedidas por esta incidencia.
+- Se recuperaron explícitamente al SSD `viewtv-20261105-131312.db` y `viewtv-20261105-131424.db`. Ambas se verificaron directamente en `/mnt/c/VIEWTV/backups`: `PRAGMA integrity_check=ok`, 2 perfiles y Alembic `0001_initial`. La base activa y el volumen `viewtv_viewtv_data` no se modificaron.
+- Corrección publicada: el API ya no monta `C:\\VIEWTV\\backups` en `/backups`; el backup se crea en `/tmp/viewtv-backups` dentro del contenedor y `scripts/backup-daily.sh` transfiere explícitamente el archivo al SSD, valida allí SQLite y solo entonces publica la copia y aplica retención.
+- Añadida la guía `docs/backup-operativo.md`; enlazada desde README.
+- **Pendiente en el equipo:** hacer `git pull --ff-only`, validar sintaxis Bash y Compose, reconstruir API y ejecutar el lanzador desde PowerShell. La tarea diaria no se considera validada de forma continuada hasta que el archivo nuevo aparezca en Windows y una ejecución programada posterior deje otra copia válida.
+- No borrar volúmenes ni tocar `viewtv_viewtv_data`.
