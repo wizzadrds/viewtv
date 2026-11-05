@@ -292,3 +292,13 @@ VIEWTV funciona en un portátil doméstico; no se presupone que Windows, WSL2 ni
 - Mantener una copia adicional fuera del portátil para cubrir la pérdida del propio equipo o SSD.
 
 Consultar docs/backup-operativo.md para los pasos de comprobación y recuperación. No considerar VIEWTV un servidor 24/7.
+
+
+### Backup diario — transferencia y validación manual superadas (5 de noviembre de 2026)
+
+- Se corrigió `scripts/backup-daily.sh` para emitir saltos de línea reales al procesar la ruta de backup; antes el sufijo literal `\\n` impedía identificar el archivo generado.
+- El usuario actualizó la rama y validó sintaxis Bash. Ejecución desde PowerShell completada en el primer intento.
+- Archivo final en el SSD: `C:\\VIEWTV\\backups\\viewtv-20261105-133137.db`, 90.112 bytes, visible desde Windows.
+- Validación realizada después de la transferencia: SQLite `integrity_check=ok`, 2 perfiles, Alembic `0001_initial`. El script informó `Backup VIEWTV completado y verificado en SSD`.
+- Estado: prueba manual completa superada (crear → transferir → validar en SSD → publicar). Pendiente comprobar una ejecución diaria automática real posterior. No se ha modificado la base activa ni el volumen `viewtv_viewtv_data`.
+- Detalle operativo en `docs/backup-operativo.md`.
