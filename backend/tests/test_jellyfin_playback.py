@@ -47,9 +47,7 @@ def test_playback_info_posts_device_profile_and_sanitizes_server_urls():
     )
     public = _public_playback_info(data, 7)
     assert public["estado"] == "listo"
-    assert public["fuentes"][0]["url"] == (
-        "/jellyfin/media/7/stream?media_source_id=source-1"
-    )
+    assert public["fuentes"][0]["url"] == ("/jellyfin/media/7/stream?media_source_id=source-1")
     assert "api_key" not in str(public)
     assert "TranscodingUrl" not in str(public)
 
