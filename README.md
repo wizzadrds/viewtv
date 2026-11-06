@@ -2,7 +2,7 @@
 
 Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada para Android TV y Fire TV.
 
-> **Estado actual:** API, worker y autenticación operativos; integración Jellyfin validada con un medio real, catálogo sincronizado y proxy de carátulas comprobado (HTTP 200, JPEG). La primera interfaz PWA con Next.js/React/TypeScript ya está implementada en `frontend`: selección de perfil/PIN, catálogo, filtros, búsqueda, detalles y navegación espacial inicial. Falta instalar dependencias y validar el frontend en navegador y Fire TV. Consulta el estado detallado en la documentación del proyecto.
+> **Estado actual:** API, worker y autenticación operativos; integración Jellyfin validada con un medio real, catálogo sincronizado y proxy de carátulas comprobado. Primera etapa del backend de reproducción añadida en una rama de trabajo: negociación Direct Play y proxy HTTP con soporte Range; aún pendiente validación local y conexión del reproductor PWA. La primera interfaz PWA con Next.js/React/TypeScript ya está implementada en `frontend`: selección de perfil/PIN, catálogo, filtros, búsqueda, detalles y navegación espacial inicial. Falta instalar dependencias y validar el frontend en navegador y Fire TV. Consulta el estado detallado en la documentación del proyecto.
 
 ## Objetivos
 
@@ -20,6 +20,7 @@ Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada par
 - [Especificación funcional, progreso y tareas pendientes](docs/especificacion-y-estado.md)
 - [Arquitectura técnica](docs/arquitectura.md)
 - [Procedimiento y estado del backup diario](docs/backup-operativo.md)
+- [Implementación y estado de reproducción Jellyfin](docs/reproduccion-jellyfin.md)
 
 Antes de continuar una tarea, revisar estos documentos para conocer las decisiones ya tomadas y el estado real. Actualizarlos al completar hitos.
 
