@@ -324,12 +324,24 @@ export default function ViewTVApp() {
               <img alt="" className="detail-backdrop" src={apiPath(selectedItem.imagen_fondo)} />
             )}
             <div className="detail-content">
-              <p className="eyebrow">{selectedItem.tipo === "pelicula" ? "PELÍCULA" : "SERIE"}</p>
-              <h2 id="detail-title">{selectedItem.titulo}</h2>
-              <p className="detail-meta">{selectedItem.anio ?? "Año desconocido"}{selectedItem.generos.length ? ` · ${selectedItem.generos.join(" · ")}` : ""}</p>
-              <p className="detail-synopsis">{selectedItem.sinopsis || "No hay sinopsis disponible para este título."}</p>
-              <p className="muted small-note">La reproducción se integrará en la siguiente etapa.</p>
-              <button className="primary-button compact" data-spatial onClick={() => setSelectedItem(null)} type="button">Volver a la biblioteca</button>
+              <div className="detail-layout">
+                {selectedItem.imagen_portada && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt={`Carátula de ${selectedItem.titulo}`}
+                    className="detail-poster"
+                    src={apiPath(selectedItem.imagen_portada)}
+                  />
+                )}
+                <div className="detail-copy">
+                  <p className="eyebrow">{selectedItem.tipo === "pelicula" ? "PELÍCULA" : "SERIE"}</p>
+                  <h2 id="detail-title">{selectedItem.titulo}</h2>
+                  <p className="detail-meta">{selectedItem.anio ?? "Año desconocido"}{selectedItem.generos.length ? ` · ${selectedItem.generos.join(" · ")}` : ""}</p>
+                  <p className="detail-synopsis">{selectedItem.sinopsis || "No hay sinopsis disponible para este título."}</p>
+                  <p className="muted small-note">La reproducción se integrará en la siguiente etapa.</p>
+                  <button className="primary-button compact" data-spatial onClick={() => setSelectedItem(null)} type="button">Volver a la biblioteca</button>
+                </div>
+              </div>
             </div>
           </section>
         </div>
