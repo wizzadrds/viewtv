@@ -1,7 +1,10 @@
+import json
+
 import httpx
 import pytest
 
 from app.config import Settings
+from app.jellyfin import JellyfinError
 from app.jellyfin_playback import JellyfinPlaybackClient, _public_playback_info
 
 
@@ -19,7 +22,7 @@ def test_playback_info_posts_device_profile_and_sanitizes_server_urls():
         assert request.url.path == "/Items/jf-item-1/PlaybackInfo"
         assert request.headers["Authorization"] == 'MediaBrowser Token="private-test-key"'
         assert request.url.params["IsPlayback"] == "true"
-        payload = __import__("json").loads(request.content)
+        payload = json.loads(request.content)
         assert payload["DeviceProfile"]["Name"] == "VIEWTV Web"
         assert payload["EnableTranscoding"] is True
         return httpx.Response(
@@ -106,7 +109,7 @@ def test_stream_rejects_non_video_response():
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, content=b"<html>", headers={"Content-Type": "text/html"})
 
-    with pytest.raises(Exception, match="formato de vídeo"):
+    with pytest.raises(JellyfinError, match="formato de vídeo"):
         JellyfinPlaybackClient(make_settings(), httpx.MockTransport(handler)).open_stream(
             "jf-item-1", None, None, None
         )
