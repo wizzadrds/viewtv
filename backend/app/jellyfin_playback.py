@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+import re
 from typing import Any
 from urllib.parse import quote
 
@@ -217,7 +218,7 @@ def stream_media(
     media = session.get(Medio, media_id)
     if media is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Elemento no encontrado.")
-    if range_header and not __import__("re").fullmatch(r"bytes=\d*-\d*(,\d*-\d*)*", range_header):
+    if range_header and not re.fullmatch(r"bytes=\d*-\d*(,\d*-\d*)*", range_header):
         raise HTTPException(status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE, detail="Rango no válido.")
     try:
         upstream_client, upstream = JellyfinPlaybackClient().open_stream(
