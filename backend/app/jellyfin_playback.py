@@ -219,7 +219,10 @@ def stream_media(
     if media is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Elemento no encontrado.")
     if range_header and not re.fullmatch(r"bytes=\d*-\d*(,\d*-\d*)*", range_header):
-        raise HTTPException(status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE, detail="Rango no válido.")
+        raise HTTPException(
+            status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE,
+            detail="Rango no válido.",
+        )
     try:
         upstream_client, upstream = JellyfinPlaybackClient().open_stream(
             media.jellyfin_id,
@@ -228,7 +231,10 @@ def stream_media(
             if_range,
         )
     except LookupError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vídeo no encontrado.") from None
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vídeo no encontrado.",
+        ) from None
     except JellyfinError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
