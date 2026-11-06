@@ -106,7 +106,7 @@ class JellyfinPlaybackClient:
         params: dict[str, str] = {"static": "true"}
         if media_source_id:
             params["mediaSourceId"] = media_source_id
-        headers = {"Accept": "video/*,application/octet-stream"}
+        headers = {"Accept": "video/*,application/octet-stream", "Accept-Encoding": "identity"}
         if range_header:
             headers["Range"] = range_header
         if if_range:
