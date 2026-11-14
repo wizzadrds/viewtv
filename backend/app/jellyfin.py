@@ -151,6 +151,7 @@ def _upsert_media(session: Session, item: dict, now: datetime) -> bool:
         else None
     )
     media.actualizado_en = now
+    media.disponible_en_jellyfin = True
     session.add(media)
     return True
 
@@ -182,6 +183,7 @@ def sync_catalog(
     start_index = 0
     page_size = 100
     now = datetime.now(UTC)
+    seen_ids: set[str] = set()
 
     try:
         client = JellyfinClient()
@@ -190,16 +192,36 @@ def sync_catalog(
             items = page.get("Items", [])
             if not isinstance(items, list):
                 raise JellyfinError("Jellyfin devolvió un catálogo no válido.")
+
+            total_count = page.get("TotalRecordCount")
+            if total_count is not None and (
+                isinstance(total_count, bool)
+                or not isinstance(total_count, int)
+                or total_count < 0
+            ):
+                raise JellyfinError("Jellyfin devolvió un recuento no válido.")
+
             for item in items:
                 if isinstance(item, dict) and _upsert_media(session, item, now):
+                    seen_ids.add(item["Id"])
                     total_synced += 1
-            session.commit()
-            start_index += len(items)
-            total_count = page.get("TotalRecordCount")
-            if not items or len(items) < page_size:
+
+            next_index = start_index + len(items)
+            if total_count is not None:
+                if next_index >= total_count:
+                    break
+                if not items or len(items) < page_size:
+                    raise JellyfinError("Jellyfin devolvió un catálogo incompleto.")
+            elif not items or len(items) < page_size:
                 break
-            if isinstance(total_count, int) and start_index >= total_count:
-                break
+
+            start_index = next_index
+
+        for media in session.exec(select(Medio)).all():
+            media.disponible_en_jellyfin = media.jellyfin_id in seen_ids
+            session.add(media)
+
+        session.commit()
     except JellyfinError as exc:
         session.rollback()
         raise HTTPException(
@@ -221,14 +243,36 @@ def media_image(
     session: Annotated[Session, Depends(get_session)],
 ) -> Response:
     media = session.get(Medio, media_id)
+
     if media is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Elemento no encontrado.")
-    image_path = media.imagen_portada if image_kind == "primary" else media.imagen_fondo
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Elemento no encontrado.",
+        )
+
+    if not media.disponible_en_jellyfin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Elemento no disponible.",
+        )
+
+    image_path = (
+        media.imagen_portada
+        if image_kind == "primary"
+        else media.imagen_fondo
+    )
+
     if not image_path:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Imagen no disponible.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Imagen no disponible.",
+        )
 
     try:
-        image, content_type = JellyfinClient().get_image(media.jellyfin_id, image_kind)
+        image, content_type = JellyfinClient().get_image(
+            media.jellyfin_id,
+            image_kind,
+        )
     except JellyfinError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -266,11 +310,13 @@ def get_catalog(
             detail="El desplazamiento no puede ser negativo.",
         )
 
-    statement = select(Medio)
+    statement = select(Medio).where(Medio.disponible_en_jellyfin.is_(True))
     if tipo is not None:
         statement = statement.where(Medio.tipo == tipo)
 
-    count_statement = select(func.count()).select_from(Medio)
+    count_statement = select(func.count()).select_from(Medio).where(
+        Medio.disponible_en_jellyfin.is_(True)
+    )
     if tipo is not None:
         count_statement = count_statement.where(Medio.tipo == tipo)
     total = session.exec(count_statement).one()

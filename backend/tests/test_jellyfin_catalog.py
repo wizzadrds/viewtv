@@ -7,6 +7,7 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.auth import get_current_profile
 from app.database import get_session
+from app.jellyfin import JellyfinError
 from app.main import app
 from app.models import Medio, Perfil
 
@@ -109,3 +110,66 @@ def test_catalog_requires_viewtv_authentication() -> None:
         response = client.get("/jellyfin/catalog")
 
     assert response.status_code == 401
+
+
+
+def test_catalog_sync_marks_missing_media_as_unavailable(
+    catalog_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeJellyfinClient:
+        def get_items(self, start_index: int, limit: int) -> dict:
+            assert start_index == 0
+            return {
+                "Items": [
+                    {"Id": "movie-2", "Type": "Movie", "Name": "Drama actualizado"}
+                ],
+                "TotalRecordCount": 1,
+            }
+
+    monkeypatch.setattr("app.jellyfin.JellyfinClient", FakeJellyfinClient)
+
+    response = catalog_client.post("/jellyfin/catalog/sync")
+
+    assert response.status_code == 200
+    assert response.json()["elementos_procesados"] == 1
+
+    catalog = catalog_client.get("/jellyfin/catalog").json()
+    assert catalog["total"] == 1
+    assert [item["titulo"] for item in catalog["elementos"]] == [
+        "Drama actualizado"
+    ]
+
+
+def test_catalog_sync_rolls_back_when_a_later_page_fails(
+    catalog_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingJellyfinClient:
+        def get_items(self, start_index: int, limit: int) -> dict:
+            if start_index == 0:
+                return {
+                    "Items": [
+                        {
+                            "Id": f"new-movie-{index}",
+                            "Type": "Movie",
+                            "Name": f"Nueva película {index}",
+                        }
+                        for index in range(limit)
+                    ],
+                    "TotalRecordCount": limit + 1,
+                }
+            raise JellyfinError("Fallo simulado en la segunda página.")
+
+    monkeypatch.setattr("app.jellyfin.JellyfinClient", FailingJellyfinClient)
+
+    response = catalog_client.post("/jellyfin/catalog/sync")
+
+    assert response.status_code == 503
+    catalog = catalog_client.get("/jellyfin/catalog").json()
+    assert catalog["total"] == 3
+    assert [item["titulo"] for item in catalog["elementos"]] == [
+        "Aventura",
+        "Drama",
+        "Misterio",
+    ]

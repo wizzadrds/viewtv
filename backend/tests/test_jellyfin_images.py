@@ -82,3 +82,4 @@ def test_image_endpoint_returns_404_when_media_has_no_image(
     response = image_client.get("/jellyfin/media/1/images/backdrop")
 
     assert response.status_code == 404
+

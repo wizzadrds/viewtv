@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     jellyfin_base_url: str = ""
     jellyfin_api_key: str = ""
     jellyfin_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    tmdb_api_key: str = ""
+    tmdb_language: str = "es-ES"
+    tmdb_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
 
     model_config = SettingsConfigDict(
         env_file=".env",

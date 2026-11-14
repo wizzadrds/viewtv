@@ -28,6 +28,10 @@ class Medio(SQLModel, table=True):
             "tipo IN ('pelicula', 'serie', 'temporada', 'episodio')",
             name="ck_medio_tipo",
         ),
+        CheckConstraint(
+            "tmdb_estado IN ('pendiente', 'asociado', 'revisar', 'sin_resultado', 'error')",
+            name="ck_medio_tmdb_estado",
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -40,6 +44,15 @@ class Medio(SQLModel, table=True):
     imagen_fondo: str | None = Field(default=None, max_length=1000)
     generos: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     actualizado_en: datetime = Field(default_factory=utc_now, index=True)
+    disponible_en_jellyfin: bool = Field(default=True, index=True)
+    tmdb_id: int | None = Field(default=None, index=True)
+    tmdb_sinopsis: str | None = None
+    tmdb_anio: int | None = Field(default=None, ge=1870, le=2200)
+    tmdb_generos: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    tmdb_imagen_portada: str | None = Field(default=None, max_length=1000)
+    tmdb_imagen_fondo: str | None = Field(default=None, max_length=1000)
+    tmdb_estado: str = Field(default="pendiente", max_length=20, index=True)
+    tmdb_intentado_en: datetime | None = None
 
 
 class Solicitud(SQLModel, table=True):
