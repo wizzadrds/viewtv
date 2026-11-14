@@ -100,8 +100,8 @@ def enrich_pending_media() -> None:
                 tmdb_id = matches[0].get("id")
                 if not isinstance(tmdb_id, int) or tmdb_id <= 0:
                     media.tmdb_estado = "error"
-                      session.add(media)
-                      session.commit()
+                    session.add(media)
+                    session.commit()
                     continue
 
                 details = client.details(media.tipo, tmdb_id)
