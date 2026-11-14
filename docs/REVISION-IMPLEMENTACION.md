@@ -232,3 +232,22 @@ instalaciones de dependencias ni commits como parte de la inspección.
 Las correcciones se realizarán en entregables separados, con sus respectivas
 comprobaciones y commits en la rama de trabajo. No se hará push ni merge a
 `main` sin autorización expresa.
+
+## Validación de migraciones Alembic
+
+Se ha ejecutado una validación real de las migraciones sobre una base SQLite temporal, aislada de los datos de la aplicación.
+
+**Procedimiento:**
+- Se creó un directorio temporal bajo `/tmp`.
+- Se exportó `DATABASE_URL` apuntando explícitamente a la base temporal. Esto evita utilizar la URL predeterminada `/data/viewtv.db`.
+- Se ejecutó `alembic heads`, que identificó `0003_metadatos_tmdb` como revisión principal.
+- Se ejecutó `alembic upgrade head` y se aplicaron correctamente las revisiones `0001_initial`, `0002_medio_disponible_en_jellyfin` y `0003_metadatos_tmdb`.
+- Se ejecutó `alembic current` y se confirmó la revisión `0003_metadatos_tmdb`.
+- Se inspeccionó el esquema SQLite y se encontraron las tablas `perfil`, `medio`, `solicitud` y `alembic_version`.
+- Se comprobaron las columnas de las tres tablas de aplicación, incluidos los campos de disponibilidad Jellyfin, metadatos TMDB y gestión de leases de la cola.
+
+**Resultado:** validación correcta. Las tres migraciones se aplicaron sin errores y el esquema resultante contiene las tablas y columnas esperadas.
+
+El directorio temporal se configuró para eliminarse automáticamente al finalizar el procedimiento. No se modificó la base de datos de producción ni ningún archivo de datos de VIEWTV.
+
+**Alcance:** esta prueba valida la cadena de migraciones sobre una base nueva. No demuestra todavía la compatibilidad con una base de datos preexistente ni la concurrencia real de la cola.
