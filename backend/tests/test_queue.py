@@ -1,3 +1,4 @@
+import multiprocessing
 from datetime import UTC, datetime, timedelta
 
 from sqlmodel import Session, SQLModel, create_engine
@@ -10,6 +11,30 @@ from app.queue import (
     get_queue_counts,
     renew_lease,
 )
+
+
+def _claim_request_in_process(
+    database_url: str,
+    worker_id: str,
+    barrier,
+    results,
+) -> None:
+    """Intenta reclamar una solicitud desde un proceso independiente."""
+    engine = create_engine(
+        database_url,
+        connect_args={"timeout": 15},
+    )
+    try:
+        with Session(engine) as session:
+            barrier.wait(timeout=15)
+            claimed = claim_next_request(
+                session,
+                worker_id,
+                now=datetime(2026, 11, 2, 20, 0, tzinfo=UTC),
+            )
+            results.put((worker_id, claimed.id if claimed else None))
+    finally:
+        engine.dispose()
 
 
 def make_session():
@@ -136,7 +161,6 @@ def test_failure_uses_exponential_backoff_and_eventually_stops():
         assert saved.ultimo_error == "fallo definitivo"
 
 
-
 def test_queue_counts_report_all_states_without_mutating_requests():
     with make_session() as session:
         request = add_request(session)
@@ -153,6 +177,7 @@ def test_queue_counts_report_all_states_without_mutating_requests():
         assert saved is not None
         assert saved.estado == "pendiente"
 
+
 def test_expired_lease_at_attempt_limit_becomes_failed():
     start = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
     with make_session() as session:
@@ -167,11 +192,14 @@ def test_expired_lease_at_attempt_limit_becomes_failed():
         assert claimed.intentos == 1
 
         # El siguiente ciclo de reclamación detecta que el lease venció.
-        assert claim_next_request(
-            session,
-            "worker-b",
-            now=start + timedelta(seconds=11),
-        ) is None
+        assert (
+            claim_next_request(
+                session,
+                "worker-b",
+                now=start + timedelta(seconds=11),
+            )
+            is None
+        )
 
         saved = session.get(Solicitud, request.id)
         assert saved is not None
@@ -208,3 +236,54 @@ def test_expired_lease_cannot_be_renewed_or_completed_by_old_worker():
             now=expired_at,
         )
 
+
+def test_two_processes_cannot_claim_the_same_request(tmp_path):
+    database_file = tmp_path / "queue-concurrency.db"
+    database_url = f"sqlite:///{database_file}"
+    engine = create_engine(database_url)
+    SQLModel.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        request = add_request(session)
+        request_id = request.id
+
+    engine.dispose()
+
+    context = multiprocessing.get_context("spawn")
+    barrier = context.Barrier(2)
+    results = context.Queue()
+    workers = [
+        context.Process(
+            target=_claim_request_in_process,
+            args=(database_url, worker_id, barrier, results),
+        )
+        for worker_id in ("worker-a", "worker-b")
+    ]
+
+    try:
+        for worker in workers:
+            worker.start()
+
+        for worker in workers:
+            worker.join(timeout=30)
+
+        for worker in workers:
+            if worker.is_alive():
+                worker.terminate()
+                worker.join()
+                raise AssertionError("Un proceso de reclamación quedó bloqueado")
+
+        assert [worker.exitcode for worker in workers] == [0, 0]
+
+        outcomes = [results.get(timeout=5) for _ in workers]
+        claimed_ids = [request_id_result for _, request_id_result in outcomes]
+
+        assert claimed_ids.count(request_id) == 1
+        assert claimed_ids.count(None) == 1
+    finally:
+        for worker in workers:
+            if worker.is_alive():
+                worker.terminate()
+                worker.join()
+        results.close()
+        results.join_thread()

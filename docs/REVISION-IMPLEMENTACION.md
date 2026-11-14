@@ -251,3 +251,21 @@ Se ha ejecutado una validación real de las migraciones sobre una base SQLite te
 El directorio temporal se configuró para eliminarse automáticamente al finalizar el procedimiento. No se modificó la base de datos de producción ni ningún archivo de datos de VIEWTV.
 
 **Alcance:** esta prueba valida la cadena de migraciones sobre una base nueva. No demuestra todavía la compatibilidad con una base de datos preexistente ni la concurrencia real de la cola.
+
+## Validación de reclamación concurrente de la cola
+
+Se ha añadido una prueba de integración que comprueba la reclamación simultánea de una misma solicitud por dos procesos independientes.
+
+**Procedimiento:**
+- Se creó una base de datos SQLite temporal mediante `tmp_path`, aislada de la base de datos de la aplicación.
+- Se insertó una única solicitud disponible.
+- Se iniciaron dos procesos independientes mediante el contexto `spawn` de `multiprocessing`.
+- Ambos procesos utilizaron conexiones y sesiones SQLite independientes.
+- Una barrera sincronizó los procesos antes de llamar a `claim_next_request`.
+- Se comprobaron los resultados devueltos por ambos procesos.
+
+**Resultado:** la prueba `test_two_processes_cannot_claim_the_same_request` pasó. Exactamente uno de los procesos obtuvo el identificador de la solicitud y el otro obtuvo `None`. No se produjo una doble reclamación.
+
+**Verificaciones:** las ocho pruebas de `tests/test_queue.py` pasaron; la suite completa pasó con 41 pruebas y Ruff terminó sin errores.
+
+**Alcance:** esta prueba valida la exclusividad ante una reclamación simultánea concreta entre dos procesos sobre SQLite. No demuestra por sí sola la ausencia de cualquier otra condición de carrera ni sustituye pruebas adicionales de carga, recuperación o ejecución prolongada de workers. No se modificó la implementación de la cola.
