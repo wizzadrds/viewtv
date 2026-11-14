@@ -50,3 +50,39 @@ En el equipo de desarrollo Windows 11 + WSL2, el SSD es la unidad `C:`. Las carp
 ## Entorno de desarrollo
 
 El objetivo inicial es Windows 11 + WSL2 (Ubuntu 24.04) + Docker Desktop. Se recomienda clonar y ejecutar el proyecto desde el sistema de archivos Linux de WSL. La aceleración Intel Quick Sync se investigará más adelante y no se dará por disponible hasta verificar el hardware, los controladores y el acceso desde contenedores.
+
+## Fuentes técnicas y documentación oficial
+
+Las siguientes referencias sirven como documentación primaria para implementar,
+mantener y verificar las integraciones y tecnologías de VIEWTV. Se consultarán
+las versiones compatibles con las dependencias declaradas en el proyecto.
+
+### Backend y persistencia
+
+- [FastAPI](https://fastapi.tiangolo.com/): API HTTP, dependencias y pruebas.
+- [SQLModel](https://sqlmodel.tiangolo.com/): modelos y acceso a datos.
+- [SQLAlchemy](https://docs.sqlalchemy.org/): sesiones, transacciones y operaciones SQLite.
+- [SQLite](https://www.sqlite.org/docs.html): motor de base de datos y concurrencia.
+- [Alembic](https://alembic.sqlalchemy.org/en/latest/): migraciones del esquema.
+- [APScheduler 3.x](https://apscheduler.readthedocs.io/en/3.x/): planificación de tareas del worker.
+- [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/): configuración y variables de entorno.
+- [PyJWT](https://pyjwt.readthedocs.io/): gestión de tokens JWT.
+- [argon2-cffi](https://argon2-cffi.readthedocs.io/): hashing de PIN y credenciales.
+
+### Frontend y contenedores
+
+- [Next.js](https://nextjs.org/docs): aplicación web y PWA.
+- [React](https://react.dev/learn): componentes e interfaz.
+- [Docker Compose](https://docs.docker.com/compose/): definición y ejecución de servicios.
+
+### Servicios e integraciones externas
+
+- [Jellyfin API](https://api.jellyfin.org/): biblioteca, metadatos e información de reproducción.
+- [TMDB API](https://developer.themoviedb.org/docs): consulta y enriquecimiento de metadatos.
+
+### Calidad y mantenimiento
+
+- [Ruff](https://docs.astral.sh/ruff/): análisis estático y formato de Python.
+- [pytest](https://docs.pytest.org/): pruebas automatizadas.
+- [ESLint](https://eslint.org/docs/latest/): análisis estático del frontend.
+- [TypeScript](https://www.typescriptlang.org/docs/): comprobación de tipos.
