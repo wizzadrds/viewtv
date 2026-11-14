@@ -131,6 +131,8 @@ export default function ViewTVApp() {
     );
   }, [items, search]);
 
+  const selectedPoster = selectedItem?.imagen_fondo ?? selectedItem?.imagen_portada;
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProfile || !/^\d{4,8}$/.test(pin)) {
@@ -325,12 +327,12 @@ export default function ViewTVApp() {
             )}
             <div className="detail-content">
               <div className="detail-layout">
-                {(selectedItem.imagen_fondo || selectedItem.imagen_portada) && (
+                {selectedPoster && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     alt={`Imagen de ${selectedItem.titulo}`}
                     className="detail-poster"
-                    src={apiPath(selectedItem.imagen_fondo || selectedItem.imagen_portada)}
+                    src={apiPath(selectedPoster)}
                   />
                 )}
                 <div className="detail-copy">
