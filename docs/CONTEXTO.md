@@ -138,27 +138,43 @@ PIN con Argon2, JWT en cookie `httpOnly`, rate limit en login, chat y panel, val
 
 ## 17. Estado actual
 
-- **En GitHub**: solo andamiaje del 2 de noviembre. README, `.env.example`, `.gitignore`, `docs/arquitectura.md` y un README por módulo. Sin código.
-- **Local, sin subir**: trabajo de worker y de interfaz, incluido el cambio de orientación de portadas. Inventario pendiente.
-- **Fase 1 abierta** y sin cerrar.
+- **Rama principal remota (`origin/main`)**: contiene el inventario documental y el ADR 0001 aceptado. No contiene todavía la implementación local de la fase 1.
+- **Rama de trabajo local**: `inventario-trabajo-local`. Incluye la implementación, las correcciones, las pruebas y los entregables de cierre de fase 1.
+- **Último commit local verificado**: `9405d23` (`Documentar fuentes técnicas de arquitectura`).
+- **Último commit conocido en `origin/inventario-trabajo-local`**: `005e0ef`. Los commits posteriores siguen únicamente en el repositorio local.
+- **Árbol de trabajo**: limpio en la última comprobación.
+- **Fase 1**: cerrada tras superar las verificaciones locales de backend, frontend, Docker Compose, salud de API, migraciones y concurrencia de la cola.
+- No se ha realizado push, PR ni merge de los últimos cambios a `main`.
 
 ## 18. ADR pendientes
 
-`0001-orientacion-de-portadas.md` con las opciones (a) 2:3 en filas, (b) filas en horizontal, (c) mixto: 2:3 en filas y 16:9 en detalle. Recomendación de partida: (c). No aplicar hasta que lo elija el propietario.
+No hay ADR pendientes conocidos.
+
+- `0001-orientacion-de-portadas.md`: aceptado.
+- Decisión: póster vertical 2:3 en todas las filas del catálogo.
+- Estado: decisión documentada; implementación visual sujeta al alcance de su fase correspondiente.
+- No se exige backdrop en la ficha de detalle.
 
 ## 19. Siguiente tarea
 
-1. Inventario en `docs/ESTADO.md`: árbol de archivos, qué hace cada uno, en qué estado está, qué sobra y qué falta. Sin jerga.
-2. ADR de portadas.
-3. Commit de ambos.
-4. Solo entonces, cerrar la fase 1: compose, modelos SQLModel, migración inicial, reclamación por lease, CI con `ruff` y `pytest`, `Makefile`, `LICENSE` MIT y sección de fuentes en `docs/arquitectura.md`.
+La fase 1 está cerrada. No hay una fase 2 definida todavía en este documento.
 
-## 20. Criterios de la fase
+El siguiente alcance deberá acordarse expresamente antes de modificar código. No adelantar funcionalidades ni reabrir decisiones cerradas sin un ADR que lo justifique.
 
-- `docker compose up -d` levanta sin errores y `/health` responde.
-- `alembic upgrade head` crea el esquema en base vacía.
-- Dos procesos reclamando el mismo trabajo no lo duplican.
-- `ruff` y `pytest` en verde.
+Antes de integrar el trabajo local en `main`, se deberá revisar y autorizar expresamente el procedimiento de publicación.
+
+## 20. Criterios de la fase 1 (cerrada)
+
+Criterios originales y resultado de la última verificación local:
+
+- `docker compose up -d` levanta los servicios y `/health` responde: **verificado**.
+- `alembic upgrade head` crea el esquema en una base vacía: **verificado previamente en una base temporal aislada**. La base del contenedor está en `0003_metadatos_tmdb (head)`.
+- Dos procesos reclamando el mismo trabajo no lo duplican: **verificado mediante prueba multiproceso**.
+- `ruff` y `pytest`: **verificados**, con 41 pruebas superadas y Ruff sin errores.
+- Frontend: comprobaciones de TypeScript, ESLint y build de producción **superadas**.
+- `docker compose config --quiet`: **superado**.
+
+La última ejecución registró dos advertencias de deprecación durante pytest, sin fallos. No se consideran bloqueantes para el cierre.
 
 ## 21. Lo que no se hace
 
