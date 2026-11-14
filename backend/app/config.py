@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     tmdb_language: str = "es-ES"
     tmdb_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
 
+    jackett_base_url: str = ""
+    jackett_api_key: str = ""
+    jackett_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+
+    qbittorrent_base_url: str = ""
+    qbittorrent_api_key: str = ""
+    qbittorrent_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
