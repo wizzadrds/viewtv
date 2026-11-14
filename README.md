@@ -79,4 +79,4 @@ Los adaptadores de búsqueda/transferencia se utilizarán únicamente con conten
 
 ## Licencia
 
-Pendiente de definir por el propietario del proyecto.
+Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo LICENSE.
