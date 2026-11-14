@@ -1,21 +1,19 @@
 # ADR 0001: orientación de las portadas
 
-- **Estado:** pendiente de decisión del propietario.
-- **Fecha:** 2026-11-14.
-- **Ámbito:** presentación de las carátulas en las filas del catálogo y en la ficha de detalle.
-- **Decisión aplicada:** ninguna.
+- **Estado:** aceptado.
+- **Fecha de decisión:** 2026-11-14.
+- **Ámbito:** presentación de las carátulas en las filas del catálogo.
+- **Decisión:** opción A, póster vertical 2:3 en las filas.
 
 ## Contexto
 
-La especificación de VIEWTV contempla pósteres verticales con proporción 2:3 en las filas del catálogo y fondos panorámicos 16:9 en la ficha de detalle. Sin embargo, el trabajo de interfaz mencionado en el documento de contexto ha utilizado portadas horizontales sin que exista una decisión registrada.
+La especificación de VIEWTV contempla pósteres verticales con proporción 2:3 en las filas del catálogo. Durante el trabajo de interfaz se han probado también portadas horizontales, por lo que era necesario registrar una decisión explícita antes de consolidar el diseño.
 
-Es necesario elegir una orientación antes de consolidar el diseño. Este documento registra las alternativas; no autoriza a cambiar la interfaz ni los recursos existentes.
-
-## Opciones
+## Opciones consideradas
 
 ### A. Póster vertical 2:3 en las filas
 
-Todas las filas del catálogo muestran pósteres verticales 2:3. La ficha de detalle puede conservar su composición actual hasta que se defina expresamente en otra decisión.
+Todas las filas del catálogo muestran pósteres verticales 2:3.
 
 **Ventajas**
 - Sigue la especificación original para las filas.
@@ -51,21 +49,19 @@ Las filas del catálogo muestran pósteres verticales 2:3. La ficha de detalle u
 - Requiere disponer de dos imágenes o variantes cuando estén disponibles.
 - La interfaz debe contemplar una alternativa cuando falte el póster o el backdrop.
 
-## Recomendación
-
-La recomendación inicial es **C**, porque coincide con la especificación recogida en `docs/CONTEXTO.md` y asigna un uso claro a cada formato.
-
-Esta recomendación no constituye una decisión ni debe implementarse sin confirmación expresa.
-
 ## Decisión
 
-**Pendiente.** El propietario debe elegir A, B o C.
+Se elige **A: póster vertical 2:3 en todas las filas del catálogo**.
 
-Hasta entonces:
-- no cambiar la orientación de las portadas;
-- no modificar componentes, estilos ni datos de imágenes;
-- no asumir que la recomendación equivale a una aprobación.
+La decisión ha sido confirmada expresamente por el propietario. La opción C no se adopta: este ADR no establece el uso obligatorio de un backdrop 16:9 en la ficha de detalle. El diseño del detalle queda fuera del alcance de esta decisión y no debe inferirse de ella.
 
 ## Consecuencias
 
-Se actualizará este ADR con la opción elegida y su justificación. La implementación se realizará únicamente cuando el propietario la autorice como siguiente paso.
+- Las tarjetas de películas de las filas del catálogo utilizarán proporción 2:3.
+- La interfaz existente que use portadas horizontales en esas filas deberá adaptarse cuando se autorice el trabajo de implementación correspondiente.
+- No se realizan cambios de interfaz, estilos ni recursos de imágenes como parte de la aceptación de este ADR.
+- Las imágenes de detalle no quedan sujetas a una proporción específica por esta decisión.
+
+## Estado de implementación
+
+**Decisión aceptada; implementación pendiente.** Registrar esta decisión no autoriza a adelantar otras fases ni a modificar ahora componentes de la interfaz.
