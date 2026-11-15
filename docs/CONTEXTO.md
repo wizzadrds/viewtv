@@ -121,7 +121,7 @@ PIN con Argon2, JWT en cookie `httpOnly`, rate limit en login, chat y panel, val
 
 - Fases cerradas y revisadas. No se avanza sin pedido expreso.
 - Al final de cada fase: qué se hizo, qué se supuso, qué queda. Y parar.
-- Un commit por entregable, en `main`, mensajes en español.
+- Un commit por entregable, en la rama de trabajo acordada, con mensajes en español. No integrar en `main` sin autorización expresa.
 - Nada de retoques visuales durante la fase 1 salvo el ADR de portadas.
 - Al crear un archivo, una línea explicando para qué sirve.
 - Verificar firmas reales de las API antes de usarlas. Si algo no es viable, alternativa y justificación.
@@ -140,9 +140,9 @@ PIN con Argon2, JWT en cookie `httpOnly`, rate limit en login, chat y panel, val
 
 - **Rama principal remota (`origin/main`)**: contiene el inventario documental y el ADR 0001 aceptado. No contiene todavía la implementación local de la fase 1.
 - **Rama de trabajo local**: `inventario-trabajo-local`. Incluye la implementación, las correcciones, las pruebas y los entregables de cierre de fase 1.
-- **Último commit local verificado**: `9405d23` (`Documentar fuentes técnicas de arquitectura`).
+- **Último commit local verificado**: `dfb00f7` (`Añadir modelo y migración de descargas`).
 - **Último commit conocido en `origin/inventario-trabajo-local`**: `005e0ef`. Los commits posteriores siguen únicamente en el repositorio local.
-- **Árbol de trabajo**: limpio en la última comprobación.
+- **Árbol de trabajo**: el código está confirmado hasta `dfb00f7`; la documentación del entregable 3 está modificada y pendiente de commit.
 - **Fase 1**: cerrada tras superar las verificaciones locales de backend, frontend, Docker Compose, salud de API, migraciones y concurrencia de la cola.
 - No se ha realizado push, PR ni merge de los últimos cambios a `main`.
 
@@ -157,9 +157,13 @@ No hay ADR pendientes conocidos.
 
 ## 19. Siguiente tarea
 
-La fase 1 está cerrada. No hay una fase 2 definida todavía en este documento.
+La fase 1 está cerrada. La fase 2, «Primera descarga real controlada», está aprobada y en curso.
 
-El siguiente alcance deberá acordarse expresamente antes de modificar código. No adelantar funcionalidades ni reabrir decisiones cerradas sin un ADR que lo justifique.
+Los entregables 1, 2 y 3 están cerrados. El siguiente es el entregable 4: endpoint autenticado para crear solicitudes de descarga.
+
+Antes de modificar código se deben inspeccionar los endpoints existentes, autenticación, autorización, modelos y cola durable; verificar las firmas reales y presentar el diseño técnico para aprobación.
+
+No adelantar el worker ni los entregables posteriores. No reabrir decisiones cerradas sin un ADR que lo justifique.
 
 Antes de integrar el trabajo local en `main`, se deberá revisar y autorizar expresamente el procedimiento de publicación.
 
@@ -168,7 +172,7 @@ Antes de integrar el trabajo local en `main`, se deberá revisar y autorizar exp
 Criterios originales y resultado de la última verificación local:
 
 - `docker compose up -d` levanta los servicios y `/health` responde: **verificado**.
-- `alembic upgrade head` crea el esquema en una base vacía: **verificado previamente en una base temporal aislada**. La base del contenedor está en `0003_metadatos_tmdb (head)`.
+- `alembic upgrade head` crea el esquema en una base vacía: **verificado previamente en una base temporal aislada**. Al cierre de fase 1, la base del contenedor estaba en `0003_metadatos_tmdb`; durante el entregable 3 de fase 2 se aplicó `0004_descarga`.
 - Dos procesos reclamando el mismo trabajo no lo duplican: **verificado mediante prueba multiproceso**.
 - `ruff` y `pytest`: **verificados**, con 41 pruebas superadas y Ruff sin errores.
 - Frontend: comprobaciones de TypeScript, ESLint y build de producción **superadas**.
@@ -190,8 +194,11 @@ Entregables cerrados:
 
 1. Configuración de Jackett y qBittorrent (`e3b4676`).
 2. Clientes HTTP independientes de Jackett y qBittorrent (`c51f3b7`).
+3. Modelo `Descarga`, migración Alembic y pruebas (`dfb00f7`).
 
-Siguiente entregable: modelo `Descarga` y migración Alembic. Antes de implementarlos hay que inspeccionar los modelos, relaciones y convenciones de migración existentes.
+Validación del entregable 3: 64 pruebas de backend superadas, Ruff correcto, migración `0004_descarga` aplicada y tabla, restricciones, índices y clave foránea verificadas en la base SQLite del contenedor.
+
+Siguiente entregable: endpoint autenticado para crear solicitudes. Antes de implementarlo hay que inspeccionar los endpoints, autenticación, autorización, modelos y cola durable, y aprobar el diseño técnico.
 
 El trabajo continúa en la rama local `inventario-trabajo-local`. No hacer push, PR ni merge a `main` sin autorización expresa.
 

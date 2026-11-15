@@ -62,6 +62,12 @@ También puede terminar en `failed`.
 
 La disponibilidad del medio se determina por separado mediante Jellyfin.
 
+### Estados de Descarga implementados
+
+El modelo `Descarga` utiliza los estados persistidos en español:
+
+`seleccionada`, `enviada`, `descargando`, `pausada`, `completada` y `fallida`.
+
 ## Restricción de fuentes y uso autorizado
 
 No utilizar DonTorrent ni otras fuentes cuya autorización no esté acreditada. La configuración local puede contener indexers, pero VIEWTV solo debe buscar y descargar contenido de fuentes que el usuario esté autorizado a utilizar.
@@ -179,13 +185,63 @@ Commit local:
 
 `c51f3b7 Añadir clientes HTTP de Jackett y qBittorrent`
 
+## Entregable 3 — Modelo Descarga y migración
+
+**Estado: cerrado.**
+
+Archivos modificados:
+
+- `backend/app/models.py`
+- `backend/migrations/versions/0004_descarga.py`
+- `backend/tests/test_models.py`
+
+Se añadió el modelo SQLModel `Descarga`, relacionado mediante clave foránea con `Solicitud`.
+
+Campos persistidos:
+
+- Identificador y solicitud asociada.
+- Hash del resultado y hash asignado por qBittorrent.
+- Título e indexador.
+- Estado de descarga.
+- Progreso entre 0 y 1.
+- Tamaño en bytes.
+- Último error.
+- Fechas de creación y actualización.
+
+Restricciones e índices:
+
+- Estados limitados a `seleccionada`, `enviada`, `descargando`, `pausada`, `completada` y `fallida`.
+- Progreso entre 0 y 1.
+- Tamaño no negativo cuando está informado.
+- Índices por solicitud y estado.
+- Índice único parcial para `info_hash` no nulo.
+
+No se añadió una relación directa con `Medio`: la disponibilidad sigue dependiendo de Jellyfin. Se permiten varias filas de descarga asociadas a una solicitud a lo largo del tiempo.
+
+La migración `0004_descarga` depende de `0003_metadatos_tmdb`. Se aplicó durante el arranque de la API. Se verificaron la tabla, sus restricciones, índices y clave foránea en la base SQLite del contenedor.
+
+### Pruebas y validaciones
+
+- `make backend-test`: 64 pruebas superadas.
+- `make backend-lint`: correcto.
+- `git diff --check`: correcto.
+- Alembic: `0004_descarga (head)`.
+- API: arranque correcto y `/health` respondió `200 OK`.
+- Worker: iniciado correctamente.
+
+Se observaron dos advertencias de deprecación de Starlette que no provocaron fallos.
+
+Commit local:
+
+`dfb00f7 Añadir modelo y migración de descargas`
+
 ## Estado de la fase
 
 | Entregable | Estado |
 |---|---|
 | 1. Configuración | Cerrado |
 | 2. Clientes HTTP | Cerrado |
-| 3. Modelo Descarga y migración | Pendiente |
+| 3. Modelo Descarga y migración | Cerrado |
 | 4. Endpoint autenticado | Pendiente |
 | 5. Procesador del worker | Pendiente |
 | 6. Búsqueda y selección | Pendiente |
@@ -194,17 +250,19 @@ Commit local:
 
 ## Siguiente entregable
 
-Implementar el modelo `Descarga` y su migración Alembic.
+Diseñar e implementar el endpoint autenticado para crear solicitudes de descarga.
 
 Antes de modificar código:
 
-1. Inspeccionar los modelos actuales de solicitud y medio.
-2. Inspeccionar la configuración SQLModel y las migraciones existentes.
-3. Verificar convenciones de nombres, claves foráneas, índices y timestamps.
-4. Concretar campos, restricciones y relaciones del nuevo modelo.
-5. Presentar el diseño para revisión si la inspección revela alguna diferencia respecto al diseño acordado.
+1. Inspeccionar los endpoints existentes y sus convenciones.
+2. Revisar autenticación, autorización y resolución del perfil autenticado.
+3. Revisar los modelos `Medio`, `Solicitud` y `Descarga`.
+4. Revisar cómo se inserta trabajo en la cola durable y cómo se asignan prioridades.
+5. Verificar las firmas reales de dependencias y funciones que intervengan.
+6. Proponer el contrato HTTP, validaciones, respuestas y transacciones.
+7. Presentar el diseño técnico para aprobación antes de modificar código.
 
-No se debe empezar el endpoint ni el worker hasta cerrar este entregable.
+No se debe empezar el procesador del worker ni adelantar los entregables posteriores.
 
 ## Límites de trabajo
 
