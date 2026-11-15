@@ -179,3 +179,20 @@ La última ejecución registró dos advertencias de deprecación durante pytest,
 ## 21. Lo que no se hace
 
 Sin reproductor propio. Sin scraper de HTML. Sin cola en memoria. Sin base de datos en la caché. Sin Wake-on-LAN. Sin exponer a Internet. Sin adelantar fases.
+
+## 22. Estado actualizado de fase 2
+
+La fase 1 está cerrada. La fase 2, «Primera descarga real controlada», está aprobada y en curso.
+
+Seguimiento detallado, decisiones técnicas, validaciones y commits locales: `docs/FASE-2.md`.
+
+Entregables cerrados:
+
+1. Configuración de Jackett y qBittorrent (`e3b4676`).
+2. Clientes HTTP independientes de Jackett y qBittorrent (`c51f3b7`).
+
+Siguiente entregable: modelo `Descarga` y migración Alembic. Antes de implementarlos hay que inspeccionar los modelos, relaciones y convenciones de migración existentes.
+
+El trabajo continúa en la rama local `inventario-trabajo-local`. No hacer push, PR ni merge a `main` sin autorización expresa.
+
+La integración debe utilizar exclusivamente fuentes y contenido cuyo uso esté autorizado. No incluir claves API ni secretos en el repositorio.
