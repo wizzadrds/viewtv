@@ -1,6 +1,14 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, CheckConstraint, Column, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Column,
+    Index,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlmodel import Field, SQLModel
 
 
@@ -83,4 +91,44 @@ class Solicitud(SQLModel, table=True):
     heartbeat: datetime | None = None
     ultimo_error: str | None = None
     creado_en: datetime = Field(default_factory=utc_now, index=True)
+    actualizado_en: datetime = Field(default_factory=utc_now)
+
+
+class Descarga(SQLModel, table=True):
+    """Seguimiento durable de un resultado enviado al gestor de descargas."""
+
+    __tablename__ = "descarga"
+    __table_args__ = (
+        CheckConstraint(
+            "tamano_bytes IS NULL OR tamano_bytes >= 0",
+            name="ck_descarga_tamano_bytes",
+        ),
+        CheckConstraint(
+            "estado IN ('seleccionada', 'enviada', 'descargando', "
+            "'pausada', 'completada', 'fallida')",
+            name="ck_descarga_estado",
+        ),
+        CheckConstraint(
+            "progreso >= 0.0 AND progreso <= 1.0",
+            name="ck_descarga_progreso",
+        ),
+        Index(
+            "uq_descarga_info_hash",
+            "info_hash",
+            unique=True,
+            sqlite_where=text("info_hash IS NOT NULL"),
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    solicitud_id: int = Field(foreign_key="solicitud.id", index=True)
+    info_hash: str | None = Field(default=None, max_length=128)
+    titulo: str = Field(max_length=500)
+    indexador: str | None = Field(default=None, max_length=128)
+    qbittorrent_hash: str | None = Field(default=None, max_length=128)
+    estado: str = Field(default="seleccionada", max_length=20, index=True)
+    progreso: float = Field(default=0.0, ge=0.0, le=1.0)
+    tamano_bytes: int | None = Field(default=None, ge=0)
+    ultimo_error: str | None = Field(default=None, sa_type=Text)
+    creado_en: datetime = Field(default_factory=utc_now)
     actualizado_en: datetime = Field(default_factory=utc_now)
