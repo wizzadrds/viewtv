@@ -2,7 +2,7 @@
 
 Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada para Android TV y Fire TV.
 
-> **Estado actual:** API, worker y autenticación operativos; integración Jellyfin validada con un medio real, catálogo sincronizado y proxy de carátulas comprobado. Primera etapa del backend de reproducción añadida en una rama de trabajo: negociación Direct Play y proxy HTTP con soporte Range; aún pendiente validación local y conexión del reproductor PWA. La primera interfaz PWA con Next.js/React/TypeScript ya está implementada en `frontend`: selección de perfil/PIN, catálogo, filtros, búsqueda, detalles y navegación espacial inicial. Falta instalar dependencias y validar el frontend en navegador y Fire TV. Consulta el estado detallado en la documentación del proyecto.
+> **Estado actual:** API y worker operativos en el entorno local. La integración Jellyfin de catálogo e imágenes está validada con un medio real. El flujo backend de solicitudes manuales, búsqueda Jackett/Torznab, resultados con metadatos de calidad y selección manual está implementado y cubierto por pruebas. La conectividad y autenticación con qBittorrent están verificadas, pero todavía no se ha enviado ni completado una descarga real. Consulta el [estado detallado y los próximos pasos](docs/estado-y-continuacion-2026-11-15.md).
 
 ## Objetivos
 
@@ -18,6 +18,7 @@ Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada par
 
 - [Plan operativo y decisiones del entorno](docs/plan-operativo.md)
 - [Especificación funcional, progreso y tareas pendientes](docs/especificacion-y-estado.md)
+- [Estado actual y continuación del desarrollo (15-11-2026)](docs/estado-y-continuacion-2026-11-15.md)
 - [Arquitectura técnica](docs/arquitectura.md)
 - [Procedimiento y estado del backup diario](docs/backup-operativo.md)
 - [Implementación y estado de reproducción Jellyfin](docs/reproduccion-jellyfin.md)
@@ -31,7 +32,7 @@ Antes de continuar una tarea, revisar estos documentos para conocer las decision
 | Interfaz | Next.js, React, TypeScript | PWA, navegación espacial y experiencia de TV |
 | API | FastAPI, SQLModel | Autenticación, catálogo, solicitudes y configuración |
 | Persistencia | SQLite | Perfiles, catálogo, solicitudes y estado de tareas |
-| Worker | Python + APScheduler | Procesamiento y recuperación de tareas |
+| Worker | Python, proceso independiente con polling | Procesamiento de búsquedas y descargas seleccionadas |
 | Reproducción | Jellyfin | Biblioteca y reproducción multimedia |
 | Fuentes externas | Adaptadores configurables | Metadatos y fuentes autorizadas |
 
@@ -52,7 +53,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-La API queda disponible inicialmente solo en el propio equipo: `http://localhost:8000/health`. La primera ejecución aplica las migraciones de SQLite automáticamente. Los servicios `api` y `worker` se ejecutan por separado y comparten volúmenes distintos para datos persistentes y caché. El worker todavía no procesa solicitudes ni transferencias reales.
+La API queda disponible inicialmente solo en el propio equipo: `http://localhost:8000/health`. La primera ejecución aplica las migraciones de SQLite automáticamente. Los servicios `api` y `worker` se ejecutan por separado y comparten volúmenes distintos para datos persistentes y caché. El worker procesa la búsqueda de solicitudes y las descargas seleccionadas; **el envío y seguimiento de una transferencia real todavía requieren validación integral**.
 
 Para ver los registros: `docker compose logs -f api worker`. Para detener los servicios: `docker compose down`. No uses `docker compose down -v`, porque eliminaría los volúmenes persistentes.
 
