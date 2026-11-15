@@ -1,271 +1,393 @@
-# Revisión técnica de la implementación VIEWTV
+# VIEWTV — Revisión técnica de la implementación
 
-## Alcance y referencia
+## 1. Propósito y alcance
 
-Revisión estática y ejecución parcial de comprobaciones realizada sobre la rama
-`inventario-trabajo-local`, con HEAD `197e605` (`Integrar documentación actual de main`).
+Este documento conserva las revisiones técnicas realizadas sobre VIEWTV, sus comprobaciones y los resultados obtenidos en cada momento.
 
-Este documento complementa el inventario histórico de `docs/ESTADO.md`.
-No sustituye las decisiones de `docs/CONTEXTO.md` ni los ADR aceptados.
+Su contenido debe interpretarse teniendo en cuenta el commit y el estado del proyecto sobre los que se realizó cada revisión.
 
-La revisión no autoriza adelantar fases ni modificar decisiones arquitectónicas.
+**Importante:** el diagnóstico inicial de este documento es histórico. Se realizó sobre un estado anterior del repositorio y no debe utilizarse como descripción automática del estado actual.
 
-## Estado general
+Este documento:
 
-La rama contiene una implementación considerable de backend, worker y frontend.
-La configuración de Docker Compose es válida sintácticamente y las pruebas
-existentes del backend pasan.
+- Conserva los resultados de inspecciones y pruebas anteriores.
+- Registra las limitaciones conocidas de cada comprobación.
+- Permite consultar la evolución técnica del proyecto.
+- No sustituye el estado actual de `docs/ESTADO.md`.
+- No sustituye el plan de trabajo de `docs/FASE-2.md`.
+- No modifica las decisiones arquitectónicas recogidas en `docs/CONTEXTO.md` ni los ADR aceptados.
 
-Todavía no se considera verificada la instalación completa ni cerrada la fase 1.
+Las correcciones y nuevas comprobaciones deben realizarse en tareas separadas y quedar documentadas con su referencia de código correspondiente.
 
-## Entorno de desarrollo comprobado
+---
+
+## 2. Diagnóstico técnico histórico
+
+### 2.1. Referencia de la revisión
+
+La revisión inicial se realizó sobre:
+
+- Rama: `inventario-trabajo-local`.
+- HEAD: `197e605` (`Integrar documentación actual de main`).
+
+Fue una revisión estática y una ejecución parcial de comprobaciones.
+
+No se realizó una validación completa de la instalación ni un arranque controlado de todos los servicios.
+
+### 2.2. Estado general observado entonces
+
+En aquel momento, la rama contenía una implementación considerable de backend, worker y frontend.
+
+Las comprobaciones realizadas indicaban:
+
+- La configuración de Docker Compose era válida sintácticamente.
+- Las pruebas existentes del backend pasaban.
+- Ruff terminaba correctamente en el alcance comprobado.
+- La compilación Python encontraba un error de indentación en el worker.
+- El frontend tenía un error de tipos que impedía completar el build.
+- No se había validado el arranque completo de los servicios.
+- La fase 1 todavía no se consideraba cerrada en aquella revisión.
+
+Estas conclusiones corresponden exclusivamente al estado `197e605`. No deben trasladarse al estado actual sin repetir las comprobaciones.
+
+### 2.3. Entorno comprobado
+
+En aquella revisión se registraron los siguientes datos:
 
 - Sistema: Windows 11 con WSL2 Ubuntu 24.04.
 - Repositorio: `~/projects/viewtv`.
-- Python del entorno: 3.12.3.
+- Python: 3.12.3.
 - Entorno virtual: `backend/.venv`.
 - Docker: 29.9.2.
 - Docker Compose: v5.6.1.
-- `docker compose config --quiet`: termina correctamente.
-- No se ha realizado un arranque controlado de los servicios durante esta revisión.
+- `docker compose config --quiet`: resultado correcto.
 
-El entorno virtual está dentro de `backend/`, no en la raíz del repositorio.
-Los comandos Python deben utilizar `backend/.venv/bin/python` y Ruff
-`backend/.venv/bin/ruff`.
+No se realizó un arranque controlado de los servicios durante aquella inspección.
 
-## Backend
+Los comandos Python utilizados empleaban `backend/.venv/bin/python`, y Ruff se ejecutaba mediante `backend/.venv/bin/ruff`.
 
-### Pruebas
+### 2.4. Backend: pruebas y Ruff
 
 Comando ejecutado:
 
-    backend/.venv/bin/python -m pytest -v
+```bash
+backend/.venv/bin/python -m pytest -v
+```
 
-Resultado:
+Resultado histórico:
 
 - 40 pruebas recogidas.
 - 40 pruebas superadas.
 - 0 fallidas.
 - Dos advertencias de deprecación procedentes de Starlette/httpx.
 
-Las pruebas cubren autenticación, copias de seguridad, Jellyfin, catálogo,
-imágenes, reproducción, modelos y cola.
+Las pruebas cubrían autenticación, copias de seguridad, Jellyfin, catálogo, imágenes, reproducción, modelos y cola.
 
-### Ruff
+También se ejecutó:
 
-Comando ejecutado:
+```bash
+backend/.venv/bin/python -m ruff check backend/app backend/tests backend/scripts
+```
 
-    backend/.venv/bin/python -m ruff check backend/app backend/tests backend/scripts
+Resultado: todas las comprobaciones superadas en el alcance indicado.
 
-Resultado: todas las comprobaciones superadas.
+La revisión señaló que debía comprobarse la inclusión del worker en el alcance de CI y de Ruff.
 
-Nota: el workflow CI también debe revisarse para asegurar que incluye los
-archivos del worker cuando corresponda.
+Estos resultados no representan el número actual de pruebas ni sustituyen las validaciones posteriores.
 
-### Compilación Python
+### 2.5. Compilación Python
 
-Comando ejecutado:
+En la revisión inicial se ejecutó:
 
-    backend/.venv/bin/python -m compileall -q backend/app backend/scripts worker
+```bash
+backend/.venv/bin/python -m compileall -q backend/app backend/scripts worker
+```
 
-Resultado: falla en `worker/tmdb_enrichment.py`, línea 103, por
-`IndentationError: unexpected indent`.
+Resultado: error de indentación en `worker/tmdb_enrichment.py`, línea 103.
 
-La inspección del fragmento identifica dos líneas con indentación excesiva:
+La inspección identificó indentación excesiva en:
 
 - `session.add(media)`
 - `session.commit()`
 
-Ambas pertenecen al caso en que el identificador TMDB no es válido.
-Corrección pendiente de aplicar y verificar.
+Ambas instrucciones pertenecían al caso en que el identificador TMDB no era válido.
 
-### Cola SQLite
+La revisión registró la corrección como pendiente en aquel momento.
 
-La implementación revisada utiliza `BEGIN IMMEDIATE`, leases de 120 segundos,
-heartbeat y renovación prevista cada 30 segundos, con control de propietario
-y recuperación de leases caducados.
+Este documento no acredita si esa incidencia se corrigió posteriormente. Para conocer el estado actual debe repetirse la compilación.
 
-Los tests existentes validan exclusividad secuencial, recuperación de leases,
-renovación, finalización, backoff y recuentos.
+### 2.6. Cola SQLite
 
-Pendiente: prueba de concurrencia real entre dos procesos o conexiones
-independientes. Los tests actuales no acreditan por sí solos ese criterio.
+La revisión inicial identificó una implementación basada en:
 
-## Frontend
+- `BEGIN IMMEDIATE`.
+- Leases de 120 segundos.
+- Heartbeat.
+- Renovación prevista cada 30 segundos.
+- Control de propietario.
+- Recuperación de leases caducados.
 
-### TypeScript
+Los tests existentes validaban exclusividad secuencial, recuperación de leases, renovación, finalización, backoff y recuentos.
 
-`npm run typecheck` falla en:
+En aquella primera inspección se señaló la ausencia de una prueba de concurrencia real entre procesos o conexiones independientes.
 
-    frontend/components/viewtv-app.tsx:333
+Posteriormente se añadió una validación específica de reclamación concurrente, documentada en el apartado 4.
 
-El valor pasado a `apiPath()` tiene tipo `string | null`, pero la función
-requiere `string`.
+### 2.7. Frontend
 
-El JSX comprueba previamente que exista `imagen_fondo` o `imagen_portada`,
-pero TypeScript no conserva esa garantía al evaluar la expresión de `src`.
+En la revisión inicial, `npm run typecheck` fallaba en:
 
-Corrección pendiente: estrechar el tipo sin alterar el comportamiento
-ni introducir una URL vacía como solución funcional.
+`frontend/components/viewtv-app.tsx:333`
 
-### ESLint
+El problema era el paso de un valor `string | null` a una función que requería `string`.
 
-Comando ejecutado:
+Se observó que la comprobación previa de `imagen_fondo` o `imagen_portada` no garantizaba el estrechamiento de tipo en la expresión de `src`.
 
-    npm run lint
+También se registró:
 
-Resultado: correcto.
+- `npm run lint`: correcto.
+- `npm run build`: fallaba en la comprobación de tipos por el mismo problema.
 
-### Build
+Aparecían advertencias de Autoprefixer en `frontend/app/globals.css`, relativas al valor `end` en propiedades de alineación.
 
-`npm run build` compila inicialmente, pero falla en la fase de comprobación
-de tipos por el mismo error de TypeScript descrito arriba.
+Se indicó que esas advertencias no justificaban retoques visuales ajenos al alcance de la corrección.
 
-También aparecen advertencias de Autoprefixer en `frontend/app/globals.css`
-relativas al valor `end` en propiedades de alineación. No son la causa
-del fallo del build y no se deben convertir en retoques visuales ajenos
-al alcance.
+Estas observaciones son históricas. No deben considerarse incidencias actuales sin repetir typecheck, lint y build.
 
-## Docker y configuración
+### 2.8. Docker y configuración
 
-- `docker compose config --quiet` termina correctamente.
-- Docker y Docker Compose están disponibles.
-- Se identificó una imagen `viewtv:local` para la API.
-- La salida de `docker compose images` mostró una entrada del worker sin
-  repositorio ni tamaño identificable; no se considera verificada su imagen.
-- No se ha probado el arranque completo ni el endpoint `/health`.
+La revisión inicial comprobó:
 
-### Caché
+- `docker compose config --quiet`: correcto.
+- Docker y Docker Compose disponibles.
+- Existencia de una imagen `viewtv:local` para la API.
+- Una entrada de worker sin repositorio ni tamaño identificable en la salida de `docker compose images`.
 
-La configuración permite `CACHE_DIR` y define una cuota de 80 GB.
-Sin embargo, el volumen de Compose revisado monta una ruta host fija
-`/mnt/c/VIEWTV/cache` en `/cache`.
+No se probó el arranque completo ni el endpoint `/health`.
 
-Esto debe resolverse para respetar la ruta configurable y el entorno WSL,
-sin cambiar la decisión arquitectónica de caché de 80 GB, TTL 48 horas
-y política LRU.
+#### Caché
 
-## Modelos y migraciones
+En aquella revisión se observó que la configuración permitía `CACHE_DIR` y definía una cuota de 80 GB, pero el volumen de Compose montaba una ruta host fija:
 
-La revisión estática identificó modelos SQLModel y migraciones Alembic
-ordenadas:
+`/mnt/c/VIEWTV/cache`
+
+Se señaló la necesidad de revisar ese montaje para respetar la ruta configurable y el entorno WSL.
+
+La observación no autorizaba a cambiar las decisiones de arquitectura de caché que estuvieran aprobadas.
+
+No se afirma que esta incidencia continúe vigente. Debe comprobarse en la configuración actual antes de plantear cambios.
+
+### 2.9. Modelos y migraciones
+
+En la revisión inicial se identificaron estas migraciones:
 
 - `0001_initial`
 - `0002_medio_disponible_en_jellyfin`
 - `0003_metadatos_tmdb`
 
-La estructura parece corresponder a los modelos actuales, pero todavía
-no se ha validado mediante una base de datos temporal y `alembic upgrade head`.
+La revisión estática no había validado todavía su aplicación mediante una base de datos temporal.
 
-No se ha ejecutado ninguna migración contra datos de usuario o producción.
+Posteriormente se realizó una validación real, documentada en el apartado 3.
 
-## Worker
+### 2.10. Worker
 
-El worker actual programa un informe de estado de cola cada 30 segundos.
-No reclama solicitudes ni ejecuta el ciclo operativo de heartbeat.
+En el estado inicial revisado, el worker programaba un informe de estado de cola cada 30 segundos.
 
-El archivo `worker/tmdb_enrichment.py` contiene el error de indentación
-descrito anteriormente.
+No reclamaba solicitudes ni ejecutaba el ciclo operativo de heartbeat descrito en aquella revisión.
 
-La integración del enriquecimiento TMDB con el ciclo del worker no debe
-activarse como parte de esta corrección: es trabajo funcional distinto
-y no debe adelantarse sin autorización y revisión de fase.
+También se identificó el error de indentación de `worker/tmdb_enrichment.py`.
 
-## CI y herramientas de proyecto
+Se indicó que la integración del enriquecimiento TMDB con el ciclo operativo del worker debía mantenerse separada de aquella corrección técnica.
 
-- Existe workflow de CI para backend y frontend.
-- Backend CI ejecuta pytest y Ruff.
-- Frontend CI ejecuta typecheck, lint y build.
-- El trigger de push revisado incluye `main` y `feature/**`; los PR hacia
-  `main` también están contemplados.
-- La rama `inventario-trabajo-local` no está incluida en el trigger de push.
-- El alcance de Ruff revisado no incluía `worker`.
-- No existe Makefile.
-- No existe archivo LICENSE; está pendiente incorporar MIT según el alcance
-  de fase 1.
+Esta descripción corresponde al estado histórico inspeccionado. El estado actual del worker debe determinarse mediante una inspección del código antes de diseñar el entregable 5 de fase 2.
 
-## Archivos auxiliares y secretos
+### 2.11. CI y herramientas
 
-Se identificaron cuatro archivos `.bak` versionados:
+En la inspección inicial se registró:
+
+- Workflow de CI para backend y frontend.
+- Backend CI con pytest y Ruff.
+- Frontend CI con typecheck, lint y build.
+- Trigger de push que incluía `main` y `feature/**`.
+- PR hacia `main` contemplados.
+- La rama `inventario-trabajo-local` no estaba incluida en el trigger de push revisado.
+- El alcance de Ruff no incluía `worker`.
+- No se encontró Makefile.
+- No se encontró archivo LICENSE.
+
+También se registró como pendiente incorporar MIT según el alcance de fase 1.
+
+Estas observaciones no deben utilizarse como inventario actual sin revisar los workflows y archivos existentes.
+
+### 2.12. Archivos auxiliares y secretos
+
+En la revisión inicial se identificaron cuatro archivos `.bak` versionados:
 
 - `frontend/app/globals.css.antes-ficha-horizontal.bak`
 - `frontend/app/globals.css.antes-horizontal.bak`
 - `frontend/components/viewtv-app.tsx.antes-ficha-horizontal.bak`
 - `frontend/components/viewtv-app.tsx.antes-horizontal.bak`
 
-No se eliminan en esta revisión: su contenido es histórico y debe decidirse
-su destino después de revisar diferencias y referencias.
+No se eliminaron durante aquella revisión. Se dejó pendiente decidir su destino después de revisar sus diferencias y referencias.
 
-`.env.example` contiene variables de credenciales con valores vacíos o
-placeholders. No se identificó `.env` entre los archivos versionados
-en la inspección realizada. Esto no equivale a una auditoría exhaustiva
-de secretos de todo el historial Git.
+También se observó que `.env.example` contenía variables de credenciales con valores vacíos o placeholders.
 
-## Decisiones de interfaz ya aceptadas
+No se identificó `.env` entre los archivos versionados inspeccionados. Esto no equivalía a una auditoría exhaustiva de secretos de todo el historial Git.
 
-El ADR 0001 está aceptado: póster vertical 2:3 en todas las filas del catálogo.
-La implementación está pendiente.
+No se debe eliminar ni modificar ningún archivo auxiliar sin revisar previamente su contenido, historial y posibles referencias.
 
-No se deben introducir cambios visuales para aplicar ese ADR dentro de esta
-corrección técnica, ni modificar el diseño de detalle por inferencia.
+---
 
-## Lista de pendientes
+## 3. Validación histórica de migraciones Alembic
 
-1. Corregir indentación de `worker/tmdb_enrichment.py`.
-2. Corregir el estrechamiento de tipo en `frontend/components/viewtv-app.tsx`.
-3. Repetir compilación Python, pytest y Ruff.
-4. Repetir typecheck, lint y build del frontend.
-5. Validar migraciones en una base de datos temporal.
-6. Probar reclamación concurrente de cola con procesos/conexiones independientes.
-7. Revisar y corregir el montaje configurable de caché en Compose.
-8. Verificar arranque de servicios y endpoint `/health`.
-9. Revisar inclusión de worker en CI y cobertura de Ruff.
-10. Incorporar Makefile y LICENSE MIT según el alcance de fase 1.
-11. Revisar el destino de los cuatro `.bak`.
-12. Completar la sección de fuentes de `docs/arquitectura.md`.
+Posteriormente se ejecutó una validación real de las migraciones sobre una base de datos SQLite temporal, aislada de los datos de la aplicación.
 
-## Límite de esta revisión
+### Procedimiento
 
-No se han realizado cambios de código, migraciones, arranque de servicios,
-instalaciones de dependencias ni commits como parte de la inspección.
-
-Las correcciones se realizarán en entregables separados, con sus respectivas
-comprobaciones y commits en la rama de trabajo. No se hará push ni merge a
-`main` sin autorización expresa.
-
-## Validación de migraciones Alembic
-
-Se ha ejecutado una validación real de las migraciones sobre una base SQLite temporal, aislada de los datos de la aplicación.
-
-**Procedimiento:**
 - Se creó un directorio temporal bajo `/tmp`.
-- Se exportó `DATABASE_URL` apuntando explícitamente a la base temporal. Esto evita utilizar la URL predeterminada `/data/viewtv.db`.
-- Se ejecutó `alembic heads`, que identificó `0003_metadatos_tmdb` como revisión principal.
-- Se ejecutó `alembic upgrade head` y se aplicaron correctamente las revisiones `0001_initial`, `0002_medio_disponible_en_jellyfin` y `0003_metadatos_tmdb`.
-- Se ejecutó `alembic current` y se confirmó la revisión `0003_metadatos_tmdb`.
-- Se inspeccionó el esquema SQLite y se encontraron las tablas `perfil`, `medio`, `solicitud` y `alembic_version`.
-- Se comprobaron las columnas de las tres tablas de aplicación, incluidos los campos de disponibilidad Jellyfin, metadatos TMDB y gestión de leases de la cola.
+- Se exportó `DATABASE_URL` apuntando explícitamente a la base temporal para evitar utilizar la URL predeterminada `/data/viewtv.db`.
+- Se ejecutó `alembic heads`.
+- Se identificó `0003_metadatos_tmdb` como revisión principal.
+- Se ejecutó `alembic upgrade head`.
+- Se aplicaron correctamente `0001_initial`, `0002_medio_disponible_en_jellyfin` y `0003_metadatos_tmdb`.
+- Se ejecutó `alembic current`.
+- Se confirmó la revisión `0003_metadatos_tmdb`.
+- Se inspeccionó el esquema SQLite.
 
-**Resultado:** validación correcta. Las tres migraciones se aplicaron sin errores y el esquema resultante contiene las tablas y columnas esperadas.
+Se encontraron las tablas `perfil`, `medio`, `solicitud` y `alembic_version`.
 
-El directorio temporal se configuró para eliminarse automáticamente al finalizar el procedimiento. No se modificó la base de datos de producción ni ningún archivo de datos de VIEWTV.
+También se comprobaron columnas de las tablas de aplicación, incluidos los campos de disponibilidad Jellyfin, metadatos TMDB y gestión de leases de la cola.
 
-**Alcance:** esta prueba valida la cadena de migraciones sobre una base nueva. No demuestra todavía la compatibilidad con una base de datos preexistente ni la concurrencia real de la cola.
+### Resultado
 
-## Validación de reclamación concurrente de la cola
+La validación fue correcta: las tres migraciones se aplicaron sin errores y el esquema resultante contenía las tablas y columnas esperadas.
 
-Se ha añadido una prueba de integración que comprueba la reclamación simultánea de una misma solicitud por dos procesos independientes.
+El directorio temporal se configuró para eliminarse automáticamente al finalizar el procedimiento.
 
-**Procedimiento:**
-- Se creó una base de datos SQLite temporal mediante `tmp_path`, aislada de la base de datos de la aplicación.
+No se modificó la base de datos de producción ni ningún archivo de datos de VIEWTV.
+
+### Limitaciones
+
+Esta prueba valida la cadena de migraciones sobre una base nueva.
+
+No demuestra:
+
+- Compatibilidad con todas las bases de datos preexistentes.
+- Seguridad de una migración sobre datos reales.
+- Ausencia de problemas en cualquier escenario de actualización.
+- El estado de las migraciones incorporadas posteriormente.
+
+En particular, esta validación histórica terminó en `0003_metadatos_tmdb`. Posteriormente se incorporó la migración `0004` correspondiente al modelo de descargas. No debe confundirse esta prueba con una validación de toda la cadena actual.
+
+---
+
+## 4. Validación histórica de reclamación concurrente de la cola
+
+Se añadió una prueba de integración para comprobar la reclamación simultánea de una misma solicitud por dos procesos independientes.
+
+### Procedimiento
+
+- Se creó una base de datos SQLite temporal mediante `tmp_path`.
 - Se insertó una única solicitud disponible.
 - Se iniciaron dos procesos independientes mediante el contexto `spawn` de `multiprocessing`.
 - Ambos procesos utilizaron conexiones y sesiones SQLite independientes.
 - Una barrera sincronizó los procesos antes de llamar a `claim_next_request`.
 - Se comprobaron los resultados devueltos por ambos procesos.
 
-**Resultado:** la prueba `test_two_processes_cannot_claim_the_same_request` pasó. Exactamente uno de los procesos obtuvo el identificador de la solicitud y el otro obtuvo `None`. No se produjo una doble reclamación.
+### Resultado
 
-**Verificaciones:** las ocho pruebas de `tests/test_queue.py` pasaron; la suite completa pasó con 41 pruebas y Ruff terminó sin errores.
+La prueba `test_two_processes_cannot_claim_the_same_request` pasó.
 
-**Alcance:** esta prueba valida la exclusividad ante una reclamación simultánea concreta entre dos procesos sobre SQLite. No demuestra por sí sola la ausencia de cualquier otra condición de carrera ni sustituye pruebas adicionales de carga, recuperación o ejecución prolongada de workers. No se modificó la implementación de la cola.
+Exactamente uno de los procesos obtuvo el identificador de la solicitud y el otro obtuvo `None`.
+
+No se produjo una doble reclamación.
+
+### Verificaciones registradas
+
+- Las ocho pruebas de `tests/test_queue.py` pasaron.
+- La suite completa pasó con 41 pruebas.
+- Ruff terminó sin errores.
+
+### Limitaciones
+
+La prueba valida la exclusividad ante una reclamación simultánea concreta entre dos procesos sobre SQLite.
+
+No demuestra por sí sola:
+
+- La ausencia de cualquier otra condición de carrera.
+- El comportamiento bajo carga prolongada.
+- La recuperación de todos los escenarios de fallo.
+- La correcta ejecución de un ciclo completo de workers.
+
+La validación no modificó la implementación de la cola.
+
+---
+
+## 5. Relación con el estado actual del proyecto
+
+Las revisiones anteriores describen estados históricos del repositorio.
+
+Para conocer el estado vigente deben consultarse las fuentes actuales:
+
+- `docs/ESTADO.md`: situación de la rama, entregables cerrados y siguiente trabajo.
+- `docs/FASE-2.md`: planificación y seguimiento de los entregables de fase 2.
+- `docs/CONTEXTO.md`: decisiones, arquitectura aprobada y criterios de trabajo.
+- `docs/arquitectura.md`: estructura y relaciones entre componentes.
+- Los ADR aceptados: decisiones técnicas formalizadas.
+
+A fecha de la actualización documental del 15 de noviembre de 2026, la fase 1 está cerrada y la fase 2 tiene cerrados sus cuatro primeros entregables.
+
+Los entregables cerrados de fase 2 son:
+
+1. Configuración de servicios de descarga.
+2. Clientes HTTP de Jackett y qBittorrent.
+3. Modelo de descarga y migración.
+4. Endpoint autenticado de solicitudes.
+
+El siguiente trabajo es el entregable 5: procesador de solicitudes en el worker.
+
+La existencia de clientes HTTP, modelos y endpoint no significa que el flujo completo de búsqueda, selección, envío y seguimiento de descargas esté terminado.
+
+Antes de implementar el procesador se debe inspeccionar el worker actual, revisar la persistencia y acordar el diseño técnico.
+
+---
+
+## 6. Criterios para futuras revisiones
+
+Toda revisión nueva debe identificar claramente:
+
+1. Fecha de realización.
+2. Rama revisada.
+3. Commit exacto.
+4. Alcance de la inspección.
+5. Comandos ejecutados.
+6. Resultado de cada comprobación.
+7. Incidencias encontradas.
+8. Limitaciones de las pruebas.
+9. Archivos modificados, si los hubiera.
+
+No se debe presentar como actual un resultado obtenido sobre un commit antiguo.
+
+No se debe afirmar que una incidencia está corregida sin una comprobación posterior que lo demuestre.
+
+Las pruebas sobre bases temporales deben identificar expresamente la base utilizada y evitar cualquier conexión accidental con datos reales.
+
+Las pruebas de integración y concurrencia deben indicar qué escenario concreto validan y qué escenarios quedan fuera de su alcance.
+
+---
+
+## 7. Límites y precauciones
+
+Las revisiones técnicas no autorizan por sí mismas:
+
+- Adelantar entregables o fases.
+- Modificar decisiones arquitectónicas aceptadas.
+- Alterar estilos, portadas o componentes visuales.
+- Eliminar archivos auxiliares sin revisar su contenido.
+- Ejecutar migraciones sobre datos reales sin autorización y procedimiento aprobado.
+- Publicar secretos, credenciales, archivos `.env` o bases de datos locales.
+- Cambiar de rama, hacer push, crear PR o fusionar a `main`.
+
+Cada corrección debe realizarse en un entregable separado, con comprobaciones adecuadas y documentación coherente.
+
+No se hará push ni merge a `main` sin autorización expresa.

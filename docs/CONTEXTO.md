@@ -1,228 +1,339 @@
-# CONTEXTO DEL PROYECTO — VIEWTV
+# VIEWTV — Contexto del proyecto
 
-Documento de traspaso. Léelo entero antes de tocar nada. Si algo aquí contradice a tu intuición, manda el documento.
+**Última actualización:** 15 de noviembre de 2026
+**Rama de trabajo:** `inventario-trabajo-local`
+**Último commit de código revisado:** `f050115`
+**Estado:** fase 1 cerrada; fase 2 en curso.
 
-## 1. Qué es esto
+Este documento recoge el contexto general, las decisiones técnicas y los criterios de trabajo de VIEWTV. Es una referencia para continuar el desarrollo sin reabrir decisiones ya aprobadas ni confundir funcionalidades previstas con funcionalidades implementadas.
 
-Aplicación doméstica autohospedada con interfaz tipo Netflix para ver cine en un televisor con el mando a distancia. El catálogo es permanente y barato; el vídeo es efímero: se descarga al pedirlo, se reproduce mientras descarga, y se borra solo al terminar. Un chat permite pedir títulos por texto con prioridad máxima. Lo que no se encuentra queda en una lista de espera que reintenta y sobrevive a apagones.
+---
 
-No es un gestor de biblioteca permanente. No es un clon de Netflix para varios usuarios. No se expone a Internet.
+## 1. Objetivo del proyecto
+
+VIEWTV es una aplicación doméstica para organizar y reproducir contenido multimedia desde una interfaz web instalable (PWA), utilizando Jellyfin como servidor multimedia.
+
+El proyecto contempla dos perfiles domésticos con acceso protegido mediante PIN y una experiencia orientada principalmente a Android TV y Fire TV.
+
+La evolución prevista incluye un flujo controlado de solicitudes y descargas: el usuario solicita contenido, el sistema consulta fuentes autorizadas, permite seleccionar un resultado y gestiona la descarga mediante qBittorrent. La disponibilidad final del contenido se comprueba a través de Jellyfin.
+
+Este flujo es el objetivo de desarrollo. No debe considerarse completamente implementado hasta que se cierren los entregables correspondientes de fase 2.
 
 ## 2. Glosario
 
-- **Indexer**: buscador de enlaces torrent. La app no los consulta uno a uno, habla con un agregador.
-- **Torznab**: protocolo HTTP estándar para consultar indexers. Lo hablan Jackett y Prowlarr.
-- **Prowlarr / Jackett**: agregadores de indexers. Devuelven resultados en JSON por Torznab.
-- **qBittorrent**: cliente de descargas, con API web.
-- **Jellyfin**: servidor multimedia. Sirve y transcodifica el vídeo; la app no reimplementa reproductor.
-- **TMDB**: base de datos de cine. Aporta título, sinopsis, carátulas y reparto.
-- **Lease**: bloqueo temporal de un trabajo para que dos procesos no lo procesen a la vez.
-- **Backoff**: espera creciente entre reintentos.
-- **LRU**: se borra primero lo usado hace más tiempo.
-- **PWA**: web instalable que se abre a pantalla completa como una app.
-- **NVENC**: codificador de vídeo por hardware de NVIDIA.
+- **Indexer:** buscador de enlaces torrent consultado mediante un agregador.
+- **Torznab:** protocolo HTTP para consultar indexers; las respuestas utilizadas por VIEWTV son XML RSS.
+- **Jackett:** agregador de indexers elegido para la integración de búsqueda de esta fase.
+- **Prowlarr:** agregador alternativo; no forma parte de la integración aprobada actualmente.
+- **qBittorrent:** cliente de descargas, con API web.
+- **Jellyfin:** servidor multimedia y motor de reproducción.
+- **TMDB:** fuente de metadatos de cine.
+- **Lease:** bloqueo temporal de un trabajo para evitar que dos procesos lo procesen simultáneamente.
+- **Backoff:** espera creciente entre reintentos.
+- **LRU:** política de expulsión que prioriza lo utilizado hace más tiempo.
+- **PWA:** aplicación web instalable.
 
 ## 3. Entorno real
 
-- Windows 11 + WSL2 (Ubuntu 24.04) + Docker Desktop con integración WSL.
-- Se clona y se ejecuta desde el sistema de archivos de WSL (`~/projects/viewtv`), **nunca** desde `/mnt/c`.
-- Portátil con 32 GB de RAM, GPU NVIDIA, SSD pequeño.
-- El portátil **no está siempre encendido**: se enciende a mano cuando se va a ver algo. Sin Wake-on-LAN.
-- Cliente: Android TV / Fire TV con TV Bro o Silk. La app es una PWA.
-- Dos perfiles con PIN, uso doméstico, red local.
-- Ya funcionando en la máquina: Docker, Jellyfin, qBittorrent, Prowlarr.
+- Windows 11, WSL2 con Ubuntu 24.04 y Docker Desktop con integración WSL.
+- El proyecto se ejecuta desde `~/projects/viewtv` dentro del sistema de archivos de WSL, nunca desde `/mnt/c`.
+- La aceleración de vídeo prevista es Intel Quick Sync (QSV). No utilizar NVENC.
+- El portátil no está siempre encendido; se inicia manualmente cuando se necesita.
+- Cliente previsto: Android TV / Fire TV mediante navegador compatible.
+- Uso doméstico en red local, con dos perfiles protegidos mediante PIN.
+
+Los servicios y su disponibilidad efectiva deben comprobarse en el entorno antes de dar por operativa cualquier integración.
 
 ## 4. Decisiones cerradas
 
-No reabrir sin ADR que lo justifique.
+Estas decisiones no deben reabrirse sin una justificación técnica y, cuando corresponda, un ADR.
 
-1. Fuentes por **adaptador Torznab genérico**, válido para Jackett y para Prowlarr. La app **nunca** parsea HTML.
-2. Jellyfin es el motor de reproducción y de biblioteca.
-3. Cola **durable en SQLite**, jamás en memoria. Leases de 120 s con heartbeat de 30 s, en transacción.
-4. Prioridades fijas: **P0** chat, **P1** ficha o fijado, **P2** descubrimiento automático.
-5. Caché en `CACHE_DIR` con cuota configurable (80 GB por defecto), TTL de 48 h tras visionado y expulsión LRU. La base de datos nunca vive dentro de la caché.
-6. Descarga secuencial con primeros y últimos trozos primero. Reproducción a partir del 15 % o 400 MB.
-7. Colchón de reproducción en `/dev/shm`.
-8. Perfil de calidad por defecto 1080p H.264/AAC. 4K solo si el cliente lo reproduce en directo.
-9. PWA, no envoltorio nativo.
-10. Interfaz, logs, documentación y mensajes de commit en español de España.
+1. Integración de búsqueda mediante adaptador Torznab genérico contra Jackett.
+2. No implementar parseo de páginas HTML.
+3. Jellyfin es el motor de reproducción y biblioteca.
+4. La cola de trabajos debe ser durable y persistente en SQLite, nunca únicamente en memoria.
+5. El worker debe ser independiente del proceso web.
+6. Intel Quick Sync (QSV) es la tecnología de aceleración de vídeo elegida; no NVENC.
+7. La aplicación es una PWA, no un envoltorio nativo.
+8. Interfaz, logs, documentación y mensajes de commit en español de España.
+9. Utilizar únicamente fuentes y contenido cuyo uso esté autorizado.
+
+Las decisiones describen la arquitectura aprobada. Su inclusión aquí no significa que todas las funcionalidades estén implementadas.
 
 ## 5. Fuentes e indexers
 
-**Hecho verificado**: el repositorio de definiciones de Prowlarr (carpeta activa `v11`, actualizada el 1 de noviembre de 2026) **no tiene** definición de DivxTotal, DonTorrent, MejorTorrent, EliteTorrent, TorrentLand, DivTeam, XbytesV2, HD-Spain ni ZonaQ. Solo existen `puntotorrent` y `hdolimpo`, ambas privadas. Por eso la búsqueda no puede montarse solo contra Prowlarr.
+La integración aprobada para fase 2 utiliza Jackett mediante Torznab.
 
-- Jackett cubre las públicas españolas: DivxTotal, DonTorrent, MejorTorrent, EliteTorrent. Los nombres exactos de sus definiciones están **pendientes de verificar** en la interfaz de Jackett, buscando "spanish" en "Add Indexer".
-- Prowlarr aporta las privadas con definición: PuntoTorrent, HD-Olimpo.
-- Endpoint del adaptador: `GET {BASE}/api/v2.0/indexers/all/results/torznab/api?apikey=<k>&t=search&q=<q>&cat=2000,5000`.
-- Filtrado en cliente tras la respuesta: descartar sin seeders, sin pista castellano, fuera de perfil de calidad o por encima del tamaño máximo.
-- Fallos: 429, 503 o timeout → indexer marcado caído 30 min, se registra y se sigue. Un indexer caído nunca tumba una búsqueda.
-- Panel con estado por indexer, contador de fallos e interruptor para desactivar uno sin tocar el agregador.
-- Aviso en la UI cuando todos estén caídos, distinguiendo "sin fuentes" de "sin buscadores".
-- Los foros de descarga directa (Exvagos, Piratawarez, ForoWarezPirata) **no** son buscables por API: fuera del alcance, solo descarga manual.
+- Las consultas se realizan mediante el endpoint Torznab de Jackett.
+- Las respuestas se procesan como XML RSS.
+- El cliente HTTP de Jackett está implementado y dispone de pruebas.
+- La integración funcional de búsqueda y selección corresponde al entregable 6 de fase 2.
+- La integración funcional de envío y seguimiento en qBittorrent corresponde al entregable 7.
+- Prowlarr no forma parte de la integración aprobada para esta fase.
+- No se implementará análisis de páginas HTML.
+- Solo se utilizarán fuentes cuyo uso esté autorizado.
 
-## 6. Ciclo de vida del vídeo
+No se consideran verificadas las listas antiguas de indexers, su disponibilidad, sus dominios ni sus definiciones actuales. Cualquier incorporación deberá comprobarse y respetar las restricciones de uso autorizado.
 
-Estados: `pendiente → buscando → descargando → listo → en_reproduccion → visto → expira → borrado`. Más `fallido`, `vigilando`, `fijado`, `cancelado`.
+## 6. Flujo funcional previsto
 
-1. Al pulsar "Ver ahora": buscar por `tmdb_id`, aplicar perfil y filtro castellano, elegir la mejor opción y encolar.
-2. Si ya está en caché, reproducir al instante.
-3. Al 90 % de visionado, marcar `visto` y programar borrado a las 48 h.
-4. Al borrar: archivo, torrent y entrada de Jellyfin. Se conservan metadatos y el estado "disponible bajo pedido".
-5. Concurrencia máxima: 1 descarga y 1 reproducción.
+El objetivo funcional es que un perfil autenticado pueda solicitar contenido y que VIEWTV gestione el proceso de forma persistente y controlada.
 
-Reglas de espacio: cuota configurable; al 90 % se expulsa por LRU entre los vistos no fijados; con menos de 15 GB libres no se aceptan solicitudes y se avisa. Nunca se borra lo que se reproduce ni lo que descarga.
+El flujo previsto es:
 
-## 7. Cola durable
+1. El usuario accede con su perfil.
+2. Selecciona o solicita un medio disponible en Jellyfin.
+3. El backend valida la sesión, el perfil y la solicitud.
+4. La solicitud se registra de forma persistente.
+5. El worker procesa la solicitud.
+6. Se consultan los indexers autorizados mediante Jackett y Torznab.
+7. El sistema presenta resultados para que el usuario pueda seleccionar uno.
+8. El resultado seleccionado se envía a qBittorrent.
+9. El worker realiza el seguimiento del estado de la descarga.
+10. Se comprueba la disponibilidad del contenido mediante Jellyfin.
 
-- Tabla `solicitud` con `prioridad`, `estado`, `intentos`, `proximo_intento`, `locked_until`, `heartbeat`, `motivo_fallo`, `idempotency_key` única por `tmdb_id` + resolución + perfil.
-- Reclamación: `estado='pendiente' AND proximo_intento <= now() AND (locked_until IS NULL OR locked_until < now()) ORDER BY prioridad ASC, proximo_intento ASC`, en transacción.
-- Al arrancar se reconcilia contra qBittorrent: torrent presente → reanudar sin consumir intento; ausente → devolver a `pendiente`.
-- Backoff: 5 min, 15 min, 45 min, 2 h, 6 h, 12 h, 24 h. Al octavo intento, estado `vigilando` con comprobación cada 24 h.
-- Un job en `vigilando` que encuentra fuente vuelve a `pendiente` con su prioridad original.
-- Pantalla "Lista de espera" con estado, motivo, intentos, próximo intento y botones Reintentar y Quitar.
+Este apartado describe el comportamiento objetivo. Los pasos pendientes no deben interpretarse como funcionalidades ya operativas.
 
-## 8. Descubrimiento
+## 7. Solicitudes y persistencia
 
-Bucle permanente mientras el equipo esté encendido, ciclos de 20 min, máximo 40 búsquedas por ciclo. Nunca adelanta a una prioridad superior. Por defecto solo enriquece metadatos y la fila "Novedades"; el relleno de descargas es un ajuste con tope de GB. Modo simulación disponible.
+Las solicitudes deben mantenerse en almacenamiento persistente para sobrevivir a reinicios del backend o del worker.
 
-## 9. Chat
+El diseño debe contemplar:
 
-Dominio cerrado a cine y catálogo. Intenciones: `buscar_y_encolar`, `consultar_disponibilidad`, `borrar`, `pausar`, `saludo`. Parser determinista por patrones y búsqueda difusa en TMDB; Ollama opcional, nunca obligatorio.
+- Identificación del perfil que origina la solicitud.
+- Identificación del medio solicitado.
+- Prevención de solicitudes duplicadas.
+- Estados y transiciones controlados.
+- Registro de errores y marcas temporales.
+- Reintentos seguros.
+- Protección frente al procesamiento simultáneo de un mismo trabajo.
 
-Flujo: extraer título y año → multi-search → tarjeta de confirmación con póster → al confirmar, solicitud P0 y "buscando, te aviso". Si TMDB no resuelve: "no la encuentro, ¿cómo se llama exactamente?" con tres sugerencias. Si resuelve pero no hay fuentes en castellano: decirlo y dejar en vigilancia. Nunca afirma disponibilidad sin haber consultado.
+La persistencia debe apoyarse en SQLite. No se debe utilizar una cola en memoria como fuente de verdad.
 
-## 10. Arquitectura y límites
+### Estado implementado
 
-- Web (Next.js) no toca SQLite, Jellyfin ni secretos.
-- API (FastAPI) valida, autentica y es la única puerta de la interfaz a los datos.
-- SQLite en volumen persistente, fuera de la caché.
-- Worker independiente con APScheduler. Nunca dentro del proceso web.
-- Jellyfin externo, consumido con credenciales solo en el servidor.
+El endpoint autenticado `POST /solicitudes` está implementado.
 
-## 11. Pantallas
+Su comportamiento documentado incluye:
 
-Perfil con PIN grande. Inicio con filas horizontales: Continuar viendo, Novedades, Tendencias, Por género, Fijados. Detalle con backdrop, sinopsis, año, duración, géneros, reparto, calidad, audio, estado de caché, botones Ver ahora, Mantener y Borrar, y similares. Búsqueda con teclado en pantalla. Chat con burbujas. Lista de espera. Reproductor con barra que se oculta, salto de 10 s, subtítulos y posición memorizada. Panel de administración de escritorio con cola, indexers, almacenamiento, ajustes y logs. Estados vacíos, de error, de carga y de servidor apagado. Skeletons, nunca spinners.
+- Exigencia de una sesión autenticada.
+- Validación del perfil y del medio solicitado.
+- Prevención de duplicados activos.
+- Inserción transaccional mediante `BEGIN IMMEDIATE`.
+- Respuestas diferenciadas para solicitudes inexistentes, conflictos y datos no válidos.
+- Posibilidad de reintentar una solicitud fallida.
+- Separación entre perfiles.
 
-**Pendiente de decisión**: orientación de las portadas. La especificación decía pósters 2:3 verticales en las filas y backdrops 16:9 solo en detalle. Se ha estado trabajando en horizontal sin ADR. Ver tarea de ADR.
+El endpoint registra solicitudes, pero esto no significa que el procesamiento completo de descargas esté terminado.
 
-## 12. Estética
+## 8. Modelo de descargas
 
-Fondo #0B0B0F, acento #E50914, tipografía Inter, esquinas redondeadas, difuminados, transiciones 200 ms, foco con anillo blanco de 3 px y escala 1.05, sin scrollbars, `prefers-reduced-motion` respetado, referencia 1920x1080 escalable.
+El modelo `Descarga` está implementado y dispone de una migración de base de datos.
 
-## 13. Seguridad
+Los estados definidos son:
 
-PIN con Argon2, JWT en cookie `httpOnly`, rate limit en login, chat y panel, validación Pydantic y TypeScript estricto, secretos solo en servidor, nada expuesto a Internet.
+- `seleccionada`
+- `enviada`
+- `descargando`
+- `pausada`
+- `completada`
+- `fallida`
 
-## 14. Datos
+El modelo contempla información como:
 
-`usuario`, `perfil`, `ajuste`, `pelicula`, `serie`, `temporada`, `episodio`, `genero`, `persona`, `reparto`, `archivo_cache`, `solicitud`, `descarga`, `mensaje_chat`, `log_agente`, `fuente_indexer`, `exclusion`. Alembic desde el primer commit, índices y claves foráneas, `tmdb_id` único.
+- Hash de la descarga.
+- Título.
+- Indexer de origen.
+- Progreso.
+- Tamaño.
+- Error.
+- Marcas temporales.
 
-## 15. Reglas de trabajo
+La migración correspondiente es `0004`. Existe un índice parcial único sobre `info_hash` para evitar duplicados conforme a las condiciones definidas en el modelo.
 
-- Fases cerradas y revisadas. No se avanza sin pedido expreso.
-- Al final de cada fase: qué se hizo, qué se supuso, qué queda. Y parar.
-- Un commit por entregable, en la rama de trabajo acordada, con mensajes en español. No integrar en `main` sin autorización expresa.
-- Nada de retoques visuales durante la fase 1 salvo el ADR de portadas.
-- Al crear un archivo, una línea explicando para qué sirve.
-- Verificar firmas reales de las API antes de usarlas. Si algo no es viable, alternativa y justificación.
-- Nunca commitear `.env` ni secretos.
+La existencia del modelo y de los clientes HTTP no implica que el ciclo completo de descarga, seguimiento y reconciliación esté integrado.
 
-## 16. Trampas conocidas
+## 9. Worker y procesamiento
 
-- Prowlarr no cubre las fuentes públicas españolas.
-- Los indexers cambian de dominio a menudo; el vigente sale de su Telegram, no de Google.
-- El navegador de la tele traduce la cruceta a teclas: la navegación se prueba así.
-- Con MKV el índice va al final: sin la regla de trozos primero, la reproducción progresiva falla.
-- El archivo es `worker/tmdb_enrichment.py`; se ha escrito varias veces con la errata `tmbd`.
-- La caché en `/tmp` se borra al reiniciar.
+El worker debe ejecutarse de forma independiente del proceso web.
 
-## 17. Estado actual
+Su responsabilidad será procesar trabajos persistidos, gestionar estados, controlar reintentos y comunicarse con los servicios externos.
 
-- **Rama principal remota (`origin/main`)**: contiene el inventario documental y el ADR 0001 aceptado. No contiene todavía la implementación local de la fase 1.
-- **Rama de trabajo local**: `inventario-trabajo-local`.
-- **Último commit local confirmado**: entregable 4, endpoint autenticado de solicitudes. El entregable 4 está implementado, probado y confirmado en el commit `3a868c0`.
-- **Último commit conocido en `origin/inventario-trabajo-local`**: `005e0ef`. Los commits posteriores siguen únicamente en el repositorio local.
-- **Árbol de trabajo**: árbol de trabajo limpio tras confirmar el entregable 4 en `3a868c0`.
-- **Fase 1**: cerrada.
-- **Fase 2**: en curso; entregables 1 a 4 implementados y probados.
-- No se ha realizado push, PR ni merge de estos cambios a `main`.
+El procesamiento deberá diseñarse teniendo en cuenta:
 
-## 18. ADR pendientes
+- Recuperación después de reinicios.
+- Prevención de ejecuciones simultáneas incompatibles.
+- Transiciones de estado coherentes.
+- Errores recuperables y no recuperables.
+- Reintentos con backoff.
+- Persistencia de resultados y errores.
+- Comunicación con Jackett y qBittorrent mediante los clientes HTTP existentes.
 
-No hay ADR pendientes conocidos.
+El procesador de solicitudes es el entregable 5 de fase 2 y constituye el siguiente trabajo de desarrollo.
 
-- `0001-orientacion-de-portadas.md`: aceptado.
-- Decisión: póster vertical 2:3 en todas las filas del catálogo.
-- Estado: decisión documentada; implementación visual sujeta al alcance de su fase correspondiente.
-- No se exige backdrop en la ficha de detalle.
+Antes de modificar código se debe inspeccionar la implementación actual del worker, revisar los modelos y las transacciones existentes, y acordar el diseño técnico del procesador.
 
-## 19. Siguiente tarea
+No se debe dar por supuesto que existe una planificación mediante APScheduler ni otra tecnología concreta sin comprobarlo en el código.
 
-La fase 1 está cerrada. La fase 2, «Primera descarga real controlada», está aprobada y en curso.
+## 10. Interfaz y orientación visual
 
-Los entregables 1, 2, 3 y 4 están cerrados a nivel de implementación y pruebas.
+La aplicación debe mantener una experiencia de uso doméstica, sencilla y adecuada para pantallas de televisión.
 
-El siguiente es el entregable 5: procesador del worker. Antes de modificar código hay que inspeccionar el worker existente y acordar el diseño técnico concreto.
+La decisión de orientación de portadas está documentada en el ADR 0001:
 
-No adelantar entregables posteriores ni reabrir decisiones cerradas sin un ADR.
+- Póster vertical.
+- Proporción 2:3.
+- Presentación en filas.
 
-No realizar push, PR ni merge a `main` sin autorización expresa.
+**El ADR está aceptado.** La implementación visual de esta decisión sigue pendiente y no debe confundirse con una decisión de arquitectura abierta.
 
-Antes de integrar el trabajo local en `main`, se deberá revisar y autorizar expresamente el procedimiento de publicación.
+No modificar estilos, portadas, componentes visuales ni frontend por iniciativa propia. Cualquier cambio visual requiere autorización expresa.
 
-## 20. Criterios de la fase 1 (cerrada)
+## 11. Seguridad y configuración
 
-Criterios originales y resultado de la última verificación local:
+Los servicios externos deben configurarse mediante variables de entorno y mecanismos adecuados de configuración.
 
-- `docker compose up -d` levanta los servicios y `/health` responde: **verificado**.
-- `alembic upgrade head` crea el esquema en una base vacía: **verificado previamente en una base temporal aislada**. Al cierre de fase 1, la base del contenedor estaba en `0003_metadatos_tmdb`; durante el entregable 3 de fase 2 se aplicó `0004_descarga`.
-- Dos procesos reclamando el mismo trabajo no lo duplican: **verificado mediante prueba multiproceso**.
-- `ruff` y `pytest`: **verificados**, con 41 pruebas superadas y Ruff sin errores.
-- Frontend: comprobaciones de TypeScript, ESLint y build de producción **superadas**.
-- `docker compose config --quiet`: **superado**.
+Criterios obligatorios:
 
-La última ejecución registró dos advertencias de deprecación durante pytest, sin fallos. No se consideran bloqueantes para el cierre.
+- No incluir contraseñas, tokens ni claves en el repositorio.
+- No publicar archivos `.env`.
+- No versionar bases de datos locales ni copias de seguridad con información sensible.
+- No registrar secretos en logs.
+- Validar las sesiones y los permisos en el backend.
+- No confiar en la interfaz como único mecanismo de autorización.
+- Mantener las credenciales de los servicios externos fuera del código.
 
-## 21. Lo que no se hace
+Los ejemplos de configuración deben utilizar valores ficticios y dejar claro qué parámetros debe proporcionar cada instalación.
 
-Sin reproductor propio. Sin scraper de HTML. Sin cola en memoria. Sin base de datos en la caché. Sin Wake-on-LAN. Sin exponer a Internet. Sin adelantar fases.
+## 12. Pruebas y validación
 
-## 22. Estado actualizado de fase 2
+Las pruebas deben acompañar a cada entregable y comprobar el comportamiento real de la funcionalidad modificada.
 
+En la revisión del entregable 4 se documentaron:
 
-La fase 1 está cerrada. La fase 2, «Primera descarga real controlada», está aprobada y en curso.
+- 73 pruebas backend ejecutadas correctamente.
+- Ruff ejecutado correctamente.
+- `git diff --check` sin errores.
 
-Seguimiento detallado: `docs/FASE-2.md`.
+No se documentó una prueba específica de concurrencia HTTP para ese entregable. Por tanto, no debe afirmarse que esa condición quedó cubierta por las pruebas.
 
-Entregables cerrados:
+Los resultados históricos de fases anteriores deben conservarse como antecedentes, diferenciándolos de las validaciones actuales.
 
-1. Configuración de Jackett y qBittorrent (`e3b4676`).
-2. Clientes HTTP independientes (`c51f3b7`).
-3. Modelo `Descarga` y migración Alembic (`dfb00f7`), documentados en `59e4d5e`.
-4. Endpoint autenticado para crear solicitudes: implementación y pruebas completadas.
+Cada nuevo entregable debe registrar qué pruebas se ejecutaron, su resultado y las limitaciones conocidas.
 
-Validación del entregable 4: 73 pruebas de backend superadas, Ruff correcto y `git diff --check` correcto. No se ha añadido una prueba específica de concurrencia HTTP.
+## 13. Estado de desarrollo
 
-Siguiente entregable: procesador del worker. Requiere inspección y acuerdo de diseño antes de implementar.
+### Fase 1
 
-No se ha autorizado push, PR ni merge a `main`.
+<badge color="success">Cerrada</badge>
 
-La integración debe utilizar exclusivamente fuentes y contenido cuyo uso esté autorizado. No incluir claves API ni secretos en el repositorio.
+La fase 1 está cerrada. Sus resultados y validaciones históricas se conservan en la documentación especializada.
 
-## 23. Actualización de fase 2 — Entregable 4
+### Fase 2
 
-El entregable 4, endpoint autenticado para crear solicitudes, está implementado y probado.
+<badge color="warning">En curso</badge>
 
-- Endpoint: `POST /solicitudes`.
-- Requiere perfil autenticado y recibe el identificador interno `medio_id`.
-- Valida existencia y disponibilidad del medio en Jellyfin.
-- Evita solicitudes activas duplicadas por perfil y medio mediante una transacción SQLite `BEGIN IMMEDIATE`.
-- Devuelve 404 para medios inexistentes o no disponibles y 409 para duplicados activos.
-- Pruebas: 73 superadas; Ruff correcto.
-- No se ha añadido una prueba específica de concurrencia HTTP.
+| Entregable | Descripción | Estado |
+|---|---|---|
+| 1 | Configuración de servicios de descarga | Cerrado |
+| 2 | Clientes HTTP de Jackett y qBittorrent | Cerrado |
+| 3 | Modelo de descarga y migración | Cerrado |
+| 4 | Endpoint autenticado de solicitudes | Cerrado |
+| 5 | Procesador de solicitudes en el worker | Pendiente |
+| 6 | Búsqueda y selección de resultados | Pendiente |
+| 7 | Envío y seguimiento mediante qBittorrent | Pendiente |
+| 8 | Pruebas de resiliencia e integración | Pendiente |
 
-El código y la documentación del entregable 4 están confirmados en `inventario-trabajo-local`.
+El siguiente trabajo es el entregable 5. No adelantar los entregables 6, 7 u 8 sin cerrar y validar los anteriores conforme al plan.
 
-Siguiente tarea: diseñar el entregable 5, procesador del worker. No implementarlo hasta acordar el diseño.
+## 14. Estado del repositorio
 
-No se ha autorizado push, PR ni merge a `main`.
+En la revisión del 15 de noviembre de 2026 se registró:
+
+- Rama de trabajo: `inventario-trabajo-local`.
+- HEAD local: `f050115`.
+- Referencia remota: `a6b9daa`.
+- Seis commits locales por delante de la rama remota.
+
+Los seis commits locales registrados eran:
+
+1. `e3b4676` — Configurar servicios de descarga.
+2. `c51f3b7` — Añadir clientes HTTP de Jackett y qBittorrent.
+3. `ad2add4` — Documentar avance de fase 2.
+4. `dfb00f7` — Añadir modelo y migración de descargas.
+5. `59e4d5e` — Documentar cierre del modelo de descargas.
+6. `f050115` — Añadir endpoint autenticado de solicitudes.
+
+El estado limpio del árbol de trabajo corresponde a la revisión previa a las modificaciones documentales actuales. No debe presentarse como estado actual sin ejecutar antes `git status`.
+
+No se debe cambiar de rama, hacer push, crear PR, fusionar a `main`, hacer pull, resetear ni limpiar archivos sin autorización expresa.
+
+## 15. Criterios de trabajo
+
+El desarrollo debe avanzar en entregables pequeños, verificables y con límites claros.
+
+Reglas de trabajo:
+
+1. Inspeccionar el código existente antes de proponer cambios.
+2. No dar por implementada una funcionalidad por el mero hecho de estar descrita.
+3. No modificar código fuera del alcance del entregable acordado.
+4. No alterar estilos ni interfaz visual sin autorización.
+5. Ejecutar las pruebas pertinentes después de cada cambio.
+6. Revisar los cambios con `git diff` y `git diff --check`.
+7. Mantener la documentación coherente con el estado real del código.
+8. Utilizar commits pequeños, en español y con un único entregable por commit.
+9. Detenerse al terminar cada tarea y esperar indicaciones.
+10. No hacer push ni operaciones de integración sin permiso explícito.
+
+## 16. Restricciones de contenido y servicios
+
+VIEWTV debe utilizar únicamente fuentes y contenido cuyo uso esté autorizado.
+
+No se deben incorporar fuentes, indexers, dominios, definiciones ni mecanismos de acceso sin comprobar previamente su legitimidad y compatibilidad con las restricciones del proyecto.
+
+La integración técnica no justifica eludir controles de acceso, restricciones de uso o condiciones de servicio.
+
+No implementar parseo HTML como mecanismo alternativo a Torznab.
+
+## 17. Documentación del proyecto
+
+La documentación debe tener una fuente de verdad coherente y evitar duplicidades innecesarias.
+
+Cada documento tiene una responsabilidad concreta:
+
+| Documento | Responsabilidad |
+|---|---|
+| `README.md` | Presentación del proyecto y navegación documental |
+| `docs/CONTEXTO.md` | Contexto general, decisiones y criterios de trabajo |
+| `docs/ESTADO.md` | Estado actual, entregables y siguiente tarea |
+| `docs/FASE-2.md` | Plan y seguimiento detallado de fase 2 |
+| `docs/REVISION-IMPLEMENTACION.md` | Revisiones técnicas e incidencias históricas |
+| `docs/arquitectura.md` | Arquitectura y relaciones entre componentes |
+| `docs/especificacion-y-estado.md` | Especificación funcional y estado de funcionalidades |
+| `docs/plan-operativo.md` | Plan de trabajo y operaciones del proyecto |
+| `docs/backup-operativo.md` | Procedimiento de copias de seguridad y recuperación |
+| `docs/reproduccion-jellyfin.md` | Configuración y funcionamiento de la reproducción |
+| `docs/adr/0001-orientacion-de-portadas.md` | Decisión de orientación y proporción de portadas |
+
+También deben mantenerse los README específicos de `backend`, `frontend` y `worker` cuando describan instrucciones propias de cada componente.
+
+Los documentos especializados no deben eliminarse por duplicar parcialmente información. Se deben corregir sus referencias y responsabilidades para que no contradigan esta fuente de contexto.
+
+## 18. Mantenimiento de este documento
+
+Actualizar este documento cuando cambien:
+
+- Las decisiones de arquitectura.
+- El entorno real de desarrollo.
+- El estado de los entregables.
+- Las responsabilidades de los componentes.
+- Las restricciones de seguridad o contenido.
+- La organización de la documentación.
+
+Los resultados de pruebas, commits y estados del repositorio deben fecharse y verificarse antes de documentarlos.
+
+No convertir objetivos futuros en afirmaciones sobre funcionalidades disponibles.
+
+---
+
+**Regla principal:** el código y las pruebas determinan qué está implementado; los ADR determinan las decisiones aceptadas; `ESTADO.md` y `FASE-2.md` reflejan el avance; este documento proporciona el contexto general para mantener todo coherente.

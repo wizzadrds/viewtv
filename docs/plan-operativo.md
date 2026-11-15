@@ -1,304 +1,396 @@
-# VIEWTV — Plan operativo y estado acordado
-
-Este documento conserva las decisiones del proyecto y debe consultarse junto con `README.md` y `docs/arquitectura.md` antes de proponer nuevas tareas. Actualizarlo cuando cambie el estado.
-
-## Reparto del trabajo
-
-- **Usuario:** realiza instalaciones y configuraciones manuales en Windows, Ubuntu/WSL, Docker, Jellyfin y el televisor; ejecuta comandos y valida cada fase.
-- **Asistente:** diseña e implementa VIEWTV, mantiene el código, documentación, pruebas, migraciones e integraciones, y guía las tareas manuales paso a paso.
-- Indicar siempre dónde ejecutar cada instrucción: PowerShell, Ubuntu/WSL o interfaz web.
-- Consultar este documento y el repositorio antes de preguntar decisiones ya respondidas. No dar una fase por terminada sin revisar sus pruebas y validación en TV cuando corresponda.
-
-## Decisiones confirmadas
-
-| Elemento | Estado |
-| --- | --- |
-| Repositorio | Privado: `wizzadrds/viewtv` |
-| Rama de trabajo | `feature/fase-1-backend-base` |
-| Equipo anfitrión | Windows 11; nombre comunicado: `LAPTOP-V2QSMC01` |
-| Linux | Ubuntu 24.04 en WSL2; no hay Linux nativo instalado |
-| Docker | Docker Desktop con integración WSL2; Compose funciona |
-| SSD | 1 TB; cuota inicial de caché: **80 GB** |
-| GPU | Intel integrada, no NVIDIA. No usar NVENC; investigar Quick Sync/QSV y verificar soporte antes de activarlo |
-| Zona horaria | `Europe/Madrid` |
-| Perfiles | Adultos e Infantil creados; inicio de sesión probado |
-| Jellyfin | Instalado en Windows y accesible en `http://localhost:8096`; en la interfaz se ha visto el nombre `LAPTOP-VIEWTV` |
-| Biblioteca multimedia | Todavía no hay archivos ni bibliotecas configuradas |
-| Red | No abrir puertos en el router; v1 limitada a la red local |
-
-No pedir ni pegar en el chat PIN, contraseñas, claves API, cookies, tokens ni el contenido de `.env`.
-
-## 1. Equipo, almacenamiento y disponibilidad
-
-### Almacenamiento confirmado (3 de noviembre de 2026)
-
-- SSD anfitrión: unidad Windows `C:` (SSD de 1 TB).
-- Carpetas creadas y verificadas desde Windows y WSL: `C:\\VIEWTV\\media`, `C:\\VIEWTV\\cache`, `C:\\VIEWTV\\data` y `C:\\VIEWTV\\backups`; en WSL están bajo `/mnt/c/VIEWTV/`.
-- Jellyfin permanece instalado de forma nativa en Windows. La carpeta prevista para sus bibliotecas es `C:\\VIEWTV\\media`; todavía no hay bibliotecas ni archivos multimedia.
-- Compose monta `C:\\VIEWTV\\cache` en `/cache` para los servicios `api` y `worker` mediante `/mnt/c/VIEWTV/cache`. Se verificó escritura desde ambos contenedores.
-- La base de datos permanece en el volumen Docker `viewtv_viewtv_data`, montado en `/data`; `viewtv.db` existe y Alembic informa `0001_initial (head)`. No se ha movido a `C:\\VIEWTV\\data`.
-- El volumen antiguo `viewtv_viewtv_cache` se eliminó el 3 de noviembre de 2026 tras comprobar que ningún contenedor lo utilizaba. Solo permanece `viewtv_viewtv_data`.
-- La API quedó `healthy`, `/health` devolvió HTTP 200 y el worker permaneció en ejecución tras aplicar el nuevo montaje. `docker inspect` confirmó que API y worker comparten el mismo bind mount de caché y el volumen `viewtv_viewtv_data`.
-- El 3 de noviembre de 2026 se ejecutó `docker compose down` seguido de `docker compose up -d` (sin `-v`): la API volvió a `healthy` y el worker arrancó. Después del reinicio, `alembic current` confirmó `0001_initial (head)`, la consulta SQLite confirmó 2 perfiles y `/health` respondió HTTP 200.
-
-1. Confirmar el espacio real del SSD. Mantener 80 GB de caché para 1 TB; si el disco real fuese de 256 GB, usar 40 GB.
-2. Elegir y documentar una ruta persistente de caché. No usar la raíz del SSD ni `/tmp`.
-3. Separar estrictamente la caché temporal de SQLite, perfiles y metadatos persistentes.
-4. Crear la carpeta y verificar permisos desde los servicios que la necesiten.
-5. Decidir una ruta compartida coherente entre VIEWTV, Jellyfin y el cliente de transferencias que se habilite.
-6. Comprobar suspensión, hibernación y comportamiento al cerrar la tapa. No asumir que WSL/Docker siguen trabajando si Windows suspende.
-7. Preferir Ethernet cuando sea posible para la reproducción progresiva.
-
-## 2. Sistema y Docker
-
-- Mantener Windows 11 + WSL2 Ubuntu 24.04 + Docker Desktop.
-- Ejecutar los comandos del proyecto desde `~/projects/viewtv` en Ubuntu, salvo indicación contraria.
-- Verificar `docker compose version` y `docker compose ps` cuando se modifique el entorno.
-- Mantener los datos persistentes y la caché en volúmenes separados.
-- La integración WSL de Docker Desktop gestiona el acceso de Docker; no asumir que se necesita el grupo `docker` de una instalación Linux nativa.
-
-## 3. Jellyfin
-
-- Jellyfin es el servidor de biblioteca y reproducción; VIEWTV conserva su catálogo, perfiles, solicitudes y experiencia de usuario.
-- VIEWTV consultará Jellyfin en modo de solo lectura para sincronizar películas, series, temporadas, episodios, identificadores, imágenes y metadatos.
-- Crear un usuario de servicio con privilegios mínimos y una API key; guardarla solo en el entorno del servidor.
-- Configurar bibliotecas de películas y series cuando estén definidas las carpetas de contenido.
-- Decidir si se mantiene Jellyfin nativo en Windows o se migra a Docker. El plan inicial decía contenedor, pero la instalación actual es Windows; no cambiarla sin acordarlo.
-- Si VIEWTV gestiona metadatos con TMDB, evitar duplicar descargas automáticas de metadatos en Jellyfin.
-- No configurar NVENC en este equipo Intel. Investigar Quick Sync/QSV y comprobar compatibilidad real de hardware, controladores y contenedores.
-
-## 4. Fuentes, metadatos y transferencias
-
-- TMDB puede aportar metadatos; no proporciona los archivos de vídeo.
-- Prowlarr puede actuar como gestor de fuentes configurables y qBittorrent como cliente de transferencias.
-- Estas integraciones se implementarán únicamente para contenido propio, autorizado o de dominio público, respetando las condiciones de cada fuente.
-- Para fuentes compatibles, la arquitectura prevista usa un único adaptador Torznab genérico, con credenciales solo en backend, normalización de resultados y sin parseo HTML. La lista real de fuentes se verificará en cada instancia; no se presupone el catálogo de Prowlarr/Jackett.
-- Errores 429/503/timeout: enfriamiento inicial de 30 minutos por fuente, sin cancelar la búsqueda global; panel con estado y habilitación individual. Este comportamiento está especificado, pero aún no implementado.
-- Filtros previstos sobre resultados estructurados: seeders, idioma/pista declarada, perfil de calidad y tamaño máximo. Estos filtros no sustituyen la comprobación de que el contenido está autorizado.
-- No configurar fuentes cuyo propósito sea obtener obras protegidas sin autorización ni automatizar ese flujo.
-- Prowlarr y qBittorrent aún no están instalados/configurados.
-- Si se habilita qBittorrent para transferencias autorizadas: WebUI con credenciales fuertes, acceso LAN restringido, carpeta temporal definida y límites razonables de transferencia.
-- Obtener TMDB API v3 si se decide usarlo; revisar atribución y términos. Guardar la clave únicamente en `.env`.
-
-## 5. Red y seguridad
-
-1. Para el acceso desde el televisor, reservar una IP DHCP o documentar una dirección estable.
-2. Configurar un nombre local tipo `.local` solo tras probar resolución desde el Fire Stick.
-3. Permitir los puertos necesarios en el firewall únicamente desde la LAN.
-4. Mantener la API en localhost hasta que se necesite acceso desde la LAN.
-5. No abrir puertos en el router ni publicar API, Jellyfin o paneles de administración en Internet en la v1.
-6. Usar credenciales fuertes, privilegios mínimos y secretos fuera de Git.
-
-## 6. Fire TV
-
-- Probar TV Bro en el Fire Stick.
-- Abrir una página local de prueba y verificar cruceta, foco, Enter y desplazamiento.
-- Probar el dictado por voz del teclado del sistema.
-- Guardar la dirección local de VIEWTV en favoritos.
-- Validar cada fase relevante en el televisor, no solo en escritorio. Resolver problemas de mando antes del pulido final de la PWA.
-
-## 7. Repositorio y configuración
-
-- El repositorio privado está creado y clonado en WSL.
-- Trabajar con ramas y commits pequeños.
-- Usar `.env.example` como plantilla; nunca subir `.env`.
-- Completar claves de Jellyfin, TMDB y servicios opcionales solo cuando estén instalados.
-- La fase 1 ya comprobó que la tabla `solicitud` tiene `locked_by`, `locked_until` y `heartbeat`.
-- No compartir PIN, claves API, contraseñas, cookies o tokens en conversaciones ni commits.
+# VIEWTV — Plan operativo
 
-## 8. Fases de VIEWTV
+**Última revisión:** 15 de noviembre de 2026
+**Rama de trabajo:** `inventario-trabajo-local`
+**Estado del proyecto:** fase 1 cerrada; fase 2 en curso.
 
-1. Base del repositorio, Compose, configuración, SQLite, migraciones, cola durable y CI.
-2. Integración Jellyfin de solo lectura, sincronización de catálogo y fichas.
-3. Solicitudes, cola durable y reproducción mediante Jellyfin.
-4. Ciclo de vida de caché, cuota de 80 GB, caducidad, expulsión y lista de espera.
-5. Asistente conversacional determinista con desambiguación y confirmación explícita.
-6. PWA instalable, navegación espacial con mando, notificaciones y pulido.
+Este documento recoge las instrucciones operativas del proyecto, el reparto de responsabilidades y los antecedentes de configuración del entorno.
 
-Revisar criterios de aceptación y pruebas antes de pasar a la siguiente fase.
+Debe consultarse junto con `README.md`, `docs/CONTEXTO.md`, `docs/ESTADO.md`, `docs/FASE-2.md` y `docs/arquitectura.md`.
 
-## 9. Pruebas finales
+Los datos históricos se conservan como registro de operaciones realizadas. No deben interpretarse automáticamente como una comprobación del estado actual.
 
-Con contenido de prueba autorizado:
-1. Levantar desde cero siguiendo el README.
-2. Solicitar un elemento disponible y comprobar el flujo hasta la reproducción.
-3. Solicitar uno no disponible y comprobar el mensaje y estado de vigilancia/lista de espera.
-4. Detener el worker durante un trabajo y comprobar recuperación del lease.
-5. Llenar la cuota de prueba y comprobar la expulsión según la política definida.
-6. Borrar la caché y verificar que perfiles, catálogo y metadatos persisten.
-7. Repetir pruebas principales con el mando del televisor.
+---
 
-## 10. Mantenimiento
+## 1. Reparto del trabajo
 
-- Revisar periódicamente las fuentes autorizadas y sus condiciones.
-- Actualizar servicios y dependencias de forma controlada.
-- Hacer copias de seguridad de la base de datos y de la configuración secreta fuera del portátil, en un destino seguro.
-- No guardar secretos en el repositorio ni enviarlos por chat.
+- **Usuario:** realiza instalaciones y configuraciones manuales en Windows, Ubuntu/WSL, Docker, Jellyfin y el televisor; ejecuta los comandos y valida cada tarea.
+- **Asistente:** inspecciona el repositorio, propone diseños, prepara cambios de código y documentación, desarrolla pruebas y guía las operaciones manuales paso a paso.
 
-### Backup SQLite — procedimiento validado inicialmente (4 de noviembre de 2026)
+Criterios de colaboración:
 
-- La base activa está en el volumen Docker `viewtv_viewtv_data`, ruta `/data/viewtv.db`; no está en `C:\\VIEWTV\\data`.
-- Se validó una copia online mediante `sqlite3.Connection.backup()` desde el contenedor API. No hace falta parar API/worker y no se debe copiar el archivo SQLite activo con un `cp` ordinario mientras está en uso.
-- La copia se guardó en `C:\\VIEWTV\\backups` (accesible desde WSL como `/mnt/c/VIEWTV/backups`).
-- Se volvió a copiar el archivo de backup a una ruta temporal del contenedor y se abrió como base independiente. `PRAGMA integrity_check` devolvió `ok`, se leyeron los dos perfiles y la versión Alembic fue `0001_initial`.
-- Restauración aislada verificada el 4 de noviembre de 2026: el archivo se montó en solo lectura en un contenedor temporal independiente; la API arrancó y `/health` devolvió HTTP 200 en `127.0.0.1:8001`. La comprobación SQLite devolvió integridad `ok`, 2 perfiles y Alembic `0001_initial`. El contenedor temporal se eliminó. No se modificó el volumen ni la base activa.
-- Alcance: no se ha restaurado sobre producción ni ensayado la recuperación completa del host/servicios. No sobrescribir `/data/viewtv.db` para probar.
-- Pendiente: programación diaria, supervisión/alerta de errores y procedimiento de recuperación operativa. Mantener al menos una copia adicional fuera del portátil para recuperación ante fallo del SSD.
+1. Indicar dónde ejecutar cada instrucción: PowerShell, Ubuntu/WSL o interfaz web.
+2. Consultar el repositorio y la documentación antes de preguntar decisiones ya tomadas.
+3. No dar una fase o entregable por terminado sin revisar sus pruebas y validaciones.
+4. Separar los cambios en tareas pequeñas y verificables.
+5. Detenerse al terminar cada tarea y esperar indicaciones.
+6. No realizar operaciones destructivas ni de publicación sin autorización expresa.
 
+El usuario debe ejecutar y comunicar los resultados de los comandos locales. No se debe afirmar que se ha modificado o validado el entorno cuando no existe una salida que lo demuestre.
 
-### Automatización de backup SQLite — primera implementación (4 de noviembre de 2026)
+## 2. Entorno de trabajo
 
-- Añadido `backend/scripts/backup_db.py`: usa la Online Backup API de SQLite, abre el origen en modo solo lectura, valida `PRAGMA integrity_check` y publica el archivo con renombrado atómico solo después de validar.
-- Nombre generado: `viewtv-AAAAMMDD-HHMMSS.db`.
-- Retención inicial configurable mediante `BACKUP_RETENTION_DAYS` (30 días por defecto). Solo elimina archivos que coincidan con `viewtv-*.db`, y la limpieza se ejecuta después de crear correctamente el nuevo backup.
-- Compose monta `C:\\VIEWTV\\backups` en `/backups` únicamente en el servicio API. No se monta sobre el volumen SQLite ni sobre la caché multimedia.
-- Ejecución manual prevista desde Ubuntu/WSL: `docker compose exec -T api python scripts/backup_db.py`.
-- Estado: código, pruebas y ejecución manual real verificados. El contenedor API tiene el montaje `/backups`; el primer backup generado por el script se verificó con SQLite. La programación diaria con el Programador de tareas de Windows sigue pendiente.
+### Configuración conocida
 
+- Sistema anfitrión: Windows 11.
+- Linux: Ubuntu 24.04 mediante WSL2.
+- Docker: Docker Desktop con integración WSL2.
+- Repositorio: `~/projects/viewtv` dentro del sistema de archivos Linux de WSL.
+- Rama de trabajo: `inventario-trabajo-local`.
+- Zona horaria de referencia: `Europe/Madrid`.
+- GPU: Intel integrada.
+- Aceleración de vídeo elegida: Intel Quick Sync (QSV), no NVENC.
 
-### Validación del script de backup en el entorno real (4 de noviembre de 2026)
+El nombre del equipo y las direcciones locales pueden cambiar. No deben tratarse como configuración permanente sin comprobarlas.
 
-- Se ejecutó desde Ubuntu/WSL, en el contenedor API: `cd /opt/viewtv/backend && python scripts/backup_db.py`.
-- Resultado del script: backup creado y verificado en `/backups/viewtv-20261104-133925.db`, tamaño 90.112 bytes; backups antiguos eliminados: 0.
-- El archivo apareció en el SSD anfitrión como `C:\\VIEWTV\\backups\\viewtv-20261104-133925.db` (aprox. 88 KB).
-- Verificación independiente del archivo recién creado: `PRAGMA integrity_check=ok`, 2 perfiles y versión Alembic `0001_initial`.
-- Se conserva también la copia anterior `viewtv-2026-11-04-141712.db`; ambas permanecen en la carpeta de backups.
-- Conclusión: montaje, escritura, creación de copia online, integridad y lectura de la copia real están comprobados. La ejecución sigue siendo manual; no existe todavía una tarea diaria programada ni alerta de fallo.
+### Reglas de ejecución
 
+- Ejecutar los comandos del proyecto desde Ubuntu/WSL, dentro de `~/projects/viewtv`, salvo que se indique expresamente PowerShell o una interfaz web.
+- No trabajar desde `/mnt/c` para ejecutar el repositorio.
+- Mantener Docker Desktop y su integración WSL como entorno de contenedores.
+- Comprobar `docker compose version` y `docker compose ps` cuando una tarea afecte al entorno.
+- No asumir que WSL o Docker siguen ejecutándose cuando Windows suspende, hiberna o se apaga.
 
-### Lanzador para programación en Windows (4 de noviembre de 2026)
+## 3. Almacenamiento y persistencia
 
-- Añadido `scripts/backup-daily.ps1` para invocarlo desde el Programador de tareas de Windows.
-- El script llama a Ubuntu 24.04 en WSL como usuario `viewtv`, entra en `~/projects/viewtv`, levanta la API con Compose, espera hasta cinco minutos a que `/health` responda y ejecuta el script de backup dentro del contenedor API.
-- Si WSL/Docker/Compose falla, reintenta hasta 10 veces con pausas de 60 segundos. Escribe un registro acumulado en `C:\\VIEWTV\\logs\\backup-daily.log`.
-- El lanzador está añadido al repositorio, pero todavía no se ha ejecutado desde PowerShell ni se ha creado la tarea programada. Hay que validarlo manualmente antes de confiar en la programación.
-- Configuración propuesta de la tarea: diariamente a las 03:00; activar «Ejecutar la tarea lo antes posible si se omitió el inicio programado» y «Activar el equipo para ejecutar esta tarea» si Windows ofrece esa opción. Un equipo apagado no puede hacer la copia hasta que vuelva a arrancar; la opción de inicio omitido permite recuperarla después.
+El entorno se diseñó alrededor de un SSD anfitrión de 1 TB y una cuota inicial de caché de 80 GB.
 
+En los registros históricos se documentaron estas rutas de Windows:
 
-### Prueba del lanzador Windows/WSL superada (4 de noviembre de 2026)
+- `C:\VIEWTV\media`
+- `C:\VIEWTV\cache`
+- `C:\VIEWTV\data`
+- `C:\VIEWTV\backups`
 
-- Se separó la lógica Linux en `scripts/backup-daily.sh`; el lanzador `scripts/backup-daily.ps1` invoca ese archivo con `wsl.exe --exec /bin/bash`, evitando pasar un bloque multilínea por `bash -lc`.
-- El archivo PowerShell se copia a `C:\\VIEWTV\\scripts\\backup-daily.ps1` para ejecutarlo desde una ruta nativa de Windows. La ruta UNC `\\\\wsl.localhost\\Ubuntu-24.04\\...` era visible con `Test-Path`, pero PowerShell no la aceptaba como argumento de `-File`.
-- Ejecución real completada desde Ubuntu: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\\VIEWTV\\scripts\\backup-daily.ps1'`.
-- Resultado: intento 1 correcto, API disponible, backup creado y verificado como `/backups/viewtv-20261104-134904.db` (90.112 bytes), mensaje final `Backup VIEWTV completado correctamente.`.
-- Pendiente: crear y probar la tarea del Programador de tareas de Windows; comprobar que el log `C:\\VIEWTV\\logs\\backup-daily.log` se genera y definir alerta ante fallos. La programación diaria aún no está activa.
+Desde WSL se accedía a ellas mediante `/mnt/c/VIEWTV/`.
 
+La base de datos SQLite se ha mantenido históricamente en el volumen Docker `viewtv_viewtv_data`, montado en `/data`, con el archivo `/data/viewtv.db`.
 
-### Programación diaria de backup verificada en Windows (4 de noviembre de 2026)
+La configuración de volúmenes y rutas debe comprobarse en Docker Compose antes de realizar cambios. No se debe deducir el estado actual de los montajes a partir de las pruebas históricas.
 
-- Creada en la Biblioteca del Programador de tareas la tarea `VIEWTV - Backup diario`, en la ruta raíz `\\`.
-- Desencadenador diario configurado a las 03:00, zona horaria local de Windows (Europe/Madrid).
-- Acción: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\\VIEWTV\\scripts\\backup-daily.ps1"`; directorio de inicio `C:\\VIEWTV\\scripts`.
-- Configuración: ejecutar solo cuando el usuario haya iniciado sesión; no requiere privilegios elevados. En Condiciones se permite funcionar con batería y se marca «Activar el equipo para ejecutar esta tarea». En Configuración se habilita la ejecución a petición y la ejecución lo antes posible si se omitió el inicio programado; si ya hay una instancia, no iniciar otra.
-- Prueba real desde el Programador: `LastRunTime=04/11/2026 15:10:24`, `LastTaskResult=0`. El archivo `C:\\VIEWTV\\backups\\viewtv-20261104-141027.db` apareció con 90.112 bytes y hora 15:10:27, coincidente con la ejecución.
-- Comprobación final del horario: `NextRunTime=05/11/2026 03:00:00`.
-- Conclusión: la tarea diaria está creada, el lanzador se ejecutó correctamente desde el Programador y se generó un archivo de backup real en el SSD. No equivale a una restauración completa del host. El portátil apagado no puede ejecutar la tarea; la reanudación desde suspensión depende de la configuración y capacidad del equipo. Conviene comprobar mañana que la ejecución programada dejó un nuevo archivo y que `LastTaskResult` sigue siendo 0.
+### Reglas de persistencia
 
+1. Separar la caché temporal de SQLite, perfiles y metadatos persistentes.
+2. No almacenar la base de datos únicamente en una carpeta temporal.
+3. No eliminar volúmenes Docker sin identificar su contenido y obtener autorización.
+4. No copiar una base SQLite activa mediante un `cp` ordinario como procedimiento de backup.
+5. Utilizar el mecanismo de copia online de SQLite documentado en `docs/backup-operativo.md`.
+6. Verificar la integridad de las copias antes de considerarlas válidas.
+7. Mantener una copia adicional fuera del portátil para protegerse ante la pérdida del equipo o del SSD.
 
-### Integración Jellyfin — primera implementación (4 de noviembre de 2026)
+La cuota inicial de caché es 80 GB para el SSD de 1 TB. No modificarla sin revisar la decisión y sus consecuencias.
 
-- Se creó una clave API con nombre VIEWTV en el panel de Jellyfin y se guardó únicamente en el `.env` local; nunca se incorpora al repositorio.
-- Prueba real desde el contenedor API contra `http://host.docker.internal:8096/System/Info`: HTTP 200, servidor `LAPTOP-VIEWTV`, versión `12.4.0`. Se verificó autenticación mediante `Authorization: MediaBrowser Token=...` sin imprimir la clave.
-- En la rama `feature/fase-1-backend-base` se incorporó configuración `JELLYFIN_BASE_URL`, `JELLYFIN_API_KEY` y `JELLYFIN_TIMEOUT_SECONDS`; el ejemplo usa `host.docker.internal` porque Jellyfin está instalado nativamente en Windows y la API corre en Docker Desktop.
-- Añadido cliente HTTP de solo lectura y rutas protegidas por sesión VIEWTV: `GET /jellyfin/status` y `POST /jellyfin/catalog/sync`. La sincronización pagina el endpoint `/Items`, limita los tipos a películas y series y hace upsert de título, sinopsis, año, géneros e identificadores de imágenes en `medio`. No descarga vídeos ni guarda la clave en los metadatos.
-- No se requiere migración de SQLite para esta primera integración: se reutilizan los campos existentes de `medio` y su identificador Jellyfin único.
-- Añadidas pruebas unitarias para autenticación MediaBrowser, parámetros de consulta y normalización/upsert de metadatos. Pendiente: ejecutar CI/pruebas en el entorno local, comprobar `/jellyfin/status` mediante sesión VIEWTV y probar sincronización con una biblioteca real. Actualmente Jellyfin todavía no tiene bibliotecas ni archivos multimedia, por lo que la primera sincronización real puede devolver cero elementos.
-- Estado: implementación subida a la rama, pero no dar por validada hasta pasar pruebas y comprobar los endpoints en el contenedor.
+## 4. Docker y servicios
 
+Docker Desktop con integración WSL2 es el entorno aprobado.
 
-### Integración Jellyfin — prueba local de catálogo superada (4 de noviembre de 2026)
+Antes de intervenir en servicios:
 
-- La API VIEWTV respondió HTTP 200 al inicio de sesión del perfil Adultos.
-- La llamada autenticada `POST /jellyfin/catalog/sync` respondió HTTP 200 con `{"estado":"sincronizado","elementos_procesados":0}`.
-- La prueba confirma el recorrido de autenticación VIEWTV → endpoint de sincronización → cliente Jellyfin → respuesta correcta. La conectividad y autenticación de la API contra Jellyfin ya se habían verificado desde el contenedor: servidor `LAPTOP-VIEWTV`, versión `12.4.0`.
-- El recuento cero es coherente con el estado actual: las bibliotecas Jellyfin `Películas` y `Series` ya están creadas sobre `C:\\VIEWTV\\media\\Peliculas` y `C:\\VIEWTV\\media\\Series`, pero aún no contienen archivos multimedia.
-- Alcance: no se ha probado todavía la importación de elementos reales, la paginación con una biblioteca poblada, la entrega de imágenes/carátulas ni la reproducción desde VIEWTV. La sincronización no implica que las vistas PWA estén implementadas.
+```bash
+docker compose config --quiet
+docker compose ps
+```
 
+Si se modifican imágenes o configuración, ejecutar las comprobaciones correspondientes y verificar el estado de los servicios.
 
-### Proxy privado de imágenes Jellyfin — implementación subida, validación local pendiente
+No utilizar `docker compose down -v` como operación rutinaria: puede eliminar volúmenes persistentes.
 
-- Añadido `GET /jellyfin/media/{media_id}/images/{image_kind}`, protegido por la sesión de perfil VIEWTV. El identificador usado en la URL es el ID local del registro `medio`, no una ruta libre del servidor.
-- Tipos permitidos: `primary` y `backdrop`; el backend construye la ruta Jellyfin a partir del ID guardado en catálogo. No acepta URLs externas ni rutas arbitrarias.
-- El backend descarga la imagen con la clave MediaBrowser desde Jellyfin y devuelve los bytes a la PWA. La clave API nunca forma parte de la respuesta ni debe enviarse al navegador.
-- Límite de tamaño: 10 MiB. Se aceptan JPEG, PNG, WebP y GIF; se rechazan HTML/SVG y otros tipos. La respuesta incluye `X-Content-Type-Options: nosniff` y caché privada de una hora.
-- Añadidas pruebas para autenticación del endpoint, respuesta de imagen, ausencia de cabecera Authorization hacia el cliente, elemento sin imagen, cabecera de autenticación al servidor Jellyfin y rechazo de tipos no permitidos.
-- Estado: código y pruebas añadidos a la rama. Pendiente de ejecutar pytest, Ruff, CI y probar con una carátula real en Jellyfin. Como las bibliotecas actuales están vacías, la prueba real de imagen requerirá añadir temporalmente un medio propio o autorizado.
+La base de datos, la caché y los backups tienen responsabilidades y ubicaciones diferentes. Cualquier modificación de sus montajes debe revisarse antes de aplicarse.
 
+No dar por operativo un servicio solo porque su configuración Compose sea válida. Cuando corresponda, comprobar también su arranque, logs, healthcheck y persistencia.
 
-### Proxy de imágenes — validación local de acceso (4 de noviembre de 2026)
+## 5. Jellyfin
 
-- La suite local terminó con 28 pruebas superadas y Ruff sin errores; CI también finalizó correctamente.
-- API reconstruida en Docker Compose y comprobada con `GET /health`: HTTP 200.
-- Sin cookie de sesión, `GET /jellyfin/media/1/images/primary` devuelve HTTP 401, como exige el control de acceso.
-- Con inicio de sesión del perfil Adultos, `GET /jellyfin/status` devuelve HTTP 200 y confirma Jellyfin `LAPTOP-VIEWTV`, versión `12.4.0`.
-- Con sesión autenticada, la petición de imagen de prueba devuelve HTTP 404 `Elemento no encontrado`, esperado porque la sincronización anterior registró cero medios y no existe aún el ID local 1. No demuestra todavía la descarga de una imagen real.
-- CI del commit `f024662864ba8833859e5e1049b882d06e22d896` completó correctamente: 32 pruebas superadas y Ruff sin errores.
-- Pendiente: ejecutar las nuevas pruebas en el entorno WSL local; añadir un vídeo propio/autorizado a una biblioteca, ejecutar sincronización y probar una imagen primaria real (y fondo si existe).
+Jellyfin es el servidor de biblioteca y reproducción.
 
+VIEWTV conserva su propia gestión de perfiles, solicitudes, catálogo local y experiencia de usuario.
 
-### API de lectura del catálogo para la PWA — implementación subida (4 de noviembre de 2026)
+La integración desarrollada utiliza la API de Jellyfin para consultar el catálogo y sus metadatos. La comunicación se realiza desde el backend, manteniendo la clave API fuera del navegador.
 
-- Añadido `GET /jellyfin/catalog`, protegido por sesión VIEWTV, para consultar los metadatos locales sincronizados desde Jellyfin.
-- Parámetros: `tipo=pelicula|serie` opcional, `limit` de 1 a 100 (por defecto 50) y `offset` desde 0. Devuelve elementos, total y datos de paginación ordenados por título.
-- La respuesta incluye título, tipo, sinopsis, año y géneros. Las imágenes se exponen exclusivamente mediante rutas privadas VIEWTV; no se devuelve el ID Jellyfin ni URLs/credenciales del servidor.
-- Añadidas pruebas de paginación, filtro por tipo, ausencia de imágenes, parámetros inválidos y autenticación.
-- Estado: código y pruebas añadidos a la rama; pendiente CI y ejecución local tras actualizar el repositorio. El catálogo real seguirá vacío hasta añadir y sincronizar medios en Jellyfin.
+Criterios:
 
+- Utilizar una cuenta de servicio con privilegios mínimos.
+- Guardar la clave API únicamente en la configuración local del servidor.
+- No devolver credenciales ni URLs internas sensibles al frontend.
+- Mantener las operaciones de catálogo dentro de los permisos previstos.
+- No duplicar innecesariamente el enriquecimiento de metadatos entre Jellyfin y VIEWTV.
+- Verificar la disponibilidad real de bibliotecas y archivos antes de validar una sincronización con contenido.
 
-## 11. Estado real de Jellyfin y primera interfaz PWA (4 de noviembre de 2026)
+La instalación nativa de Jellyfin en Windows y las pruebas realizadas en noviembre forman parte del historial del entorno. No migrar Jellyfin a Docker sin una decisión expresa.
 
-### Jellyfin — catálogo e imágenes comprobados con un medio real
+La integración de lectura y el proxy de imágenes tienen antecedentes de validación real documentados en este archivo histórico. Esas pruebas no equivalen a validar todo el flujo de reproducción desde VIEWTV.
 
-- El usuario añadió un vídeo a la biblioteca Jellyfin y confirmó que aparece en su interfaz.
-- Desde la API se ejecutó el inicio de sesión VIEWTV: HTTP 200.
-- `POST /jellyfin/catalog/sync`: HTTP 200, `elementos_procesados: 1`.
-- `GET /jellyfin/catalog?limit=20`: HTTP 200, total 1. El elemento se devolvió como película, con título `videoplayback` y carátula declarada.
-- Prueba autenticada del endpoint de imagen: HTTP 200, `image/jpeg`, 13.975 bytes.
-- Conclusión: autenticación, sincronización de catálogo poblado, persistencia de metadatos y proxy de imagen están validados de extremo a extremo. No equivale todavía a reproducción desde VIEWTV.
+## 6. Fuentes, búsqueda y transferencias
 
-### Primera iteración PWA — código publicado, validación local pendiente
+### Decisiones vigentes
 
-- Se ha creado la aplicación Next.js App Router, React y TypeScript en `frontend/`.
-- Se añadió `GET /auth/profiles`, que expone únicamente ID y nombre de perfiles activos; nunca hashes PIN. Incluye prueba automatizada.
-- El frontend usa proxy same-origin de Next.js hacia FastAPI (`/api/viewtv/*)) para que la cookie HttpOnly no dependa de CORS ni de cookies cross-site. Por defecto el destino es `http://127.0.0.1:8000`; se puede cambiar con `VIEWTV_API_INTERNAL_URL`.
-- Funciones incluidas: selección de perfil, PIN, restauración de sesión, cierre de sesión, catálogo, filtros por tipo, búsqueda local, sincronización manual, carátulas/fondos, ficha informativa y navegación inicial con flechas/Enter.
-- Se incluye manifest e icono SVG. El diseño usa español (España) y estilos adaptables a pantalla de televisión y móvil.
-- La ficha es informativa; la reproducción todavía no está conectada. Tampoco se ha implementado aún service worker/offline, paginación incremental, ni validación en TV.
-- **Pendiente de ejecutar por el usuario en WSL:** instalar Node.js 20.9+ si no está disponible; en `~/projects/viewtv/frontend`, ejecutar `npm install`, `npm run typecheck`, `npm run lint`, `npm run build`, después `npm run dev` y abrir `http://localhost:3000`.
-- Tras las pruebas de escritorio, validar foco, cruceta, Enter, Atrás y lectura de carátulas en Fire TV/TV Bro. No abrir el servicio a la LAN hasta configurar bind y firewall de forma restringida.
+- Agregador elegido: Jackett.
+- Protocolo: Torznab.
+- Formato de respuesta: XML RSS.
+- Adaptador: genérico, mediante cliente HTTP.
+- No implementar parseo de páginas HTML.
+- No utilizar Prowlarr como integración aprobada de esta fase.
+- Cliente de transferencias: qBittorrent.
+- Utilizar exclusivamente fuentes y contenido cuyo uso esté autorizado.
 
+TMDB puede aportar metadatos, pero no proporciona archivos de vídeo.
 
-### Incidencia del backup diario y corrección (5 de noviembre de 2026)
+La integración técnica debe respetar las condiciones de uso de las fuentes. No se deben incorporar indexers, dominios o mecanismos de acceso sin verificar previamente que su uso está autorizado.
 
-- La tarea de Windows se ejecutó manualmente y generó dos copias SQLite válidas dentro del contenedor API, pero el bind mount `/mnt/c/VIEWTV/backups:/backups` no reflejó los archivos en WSL/Windows. Las pruebas mostraron un filesystem de 7,7 GB dentro del contenedor y visibilidad distinta entre ambos lados. Las afirmaciones anteriores de que el montaje de backups funcionaba quedan supersedidas por esta incidencia.
-- Se recuperaron explícitamente al SSD `viewtv-20261105-131312.db` y `viewtv-20261105-131424.db`. Ambas se verificaron directamente en `/mnt/c/VIEWTV/backups`: `PRAGMA integrity_check=ok`, 2 perfiles y Alembic `0001_initial`. La base activa y el volumen `viewtv_viewtv_data` no se modificaron.
-- Corrección publicada: el API ya no monta `C:\\VIEWTV\\backups` en `/backups`; el backup se crea en `/tmp/viewtv-backups` dentro del contenedor y `scripts/backup-daily.sh` transfiere explícitamente el archivo al SSD, valida allí SQLite y solo entonces publica la copia y aplica retención.
-- Añadida la guía `docs/backup-operativo.md`; enlazada desde README.
-- **Pendiente en el equipo:** hacer `git pull --ff-only`, validar sintaxis Bash y Compose, reconstruir API y ejecutar el lanzador desde PowerShell. La tarea diaria no se considera validada de forma continuada hasta que el archivo nuevo aparezca en Windows y una ejecución programada posterior deje otra copia válida.
-- No borrar volúmenes ni tocar `viewtv_viewtv_data`.
+### Estado de desarrollo
 
+Los clientes HTTP de Jackett y qBittorrent están implementados.
 
-### Disponibilidad del equipo y backups cuando el portátil está apagado
+Esto no significa que la búsqueda funcional, la selección de resultados, el envío de descargas y su seguimiento estén terminados.
 
-VIEWTV funciona en un portátil doméstico; no se presupone que Windows, WSL2 ni Docker Desktop estén disponibles 24/7. El equipo puede apagarse o suspenderse y esto no constituye por sí mismo un fallo del sistema de backup.
+La secuencia de fase 2 está definida en `docs/FASE-2.md`:
 
-- El desencadenador de las 03:00 (Europe/Madrid) es una hora objetivo, no una garantía de ejecución mientras el equipo está apagado.
-- «Activar el equipo para ejecutar esta tarea» puede despertar desde suspensión si hardware, firmware y plan de energía lo permiten; no enciende un portátil apagado. La hibernación también depende de temporizadores compatibles.
-- La tarea está configurada para ejecutarse solo con sesión iniciada. Si el portátil está apagado o no hay sesión, no puede completar el backup en ese momento.
-- «Ejecutar lo antes posible después de que se omita un inicio programado» solicita a Windows recuperar una ejecución perdida cuando vuelva a estar disponible; hay que comprobarlo en la práctica tras arrancar e iniciar sesión.
-- WSL y Docker Desktop deben estar listos. El lanzador reintenta si la API aún no responde y debe dejar error en el log si agota los intentos.
-- No exigir un archivo nuevo por cada fecha natural si el equipo estuvo apagado. El criterio es una copia SQLite válida tras la siguiente oportunidad real de ejecución, con comprobación del archivo final en C:\\VIEWTV\\backups.
-- Un LastTaskResult=0 sin archivo nuevo no basta para considerar que hubo backup. No aplicar retención ni borrar copias antiguas si no se ha publicado y validado una copia nueva.
-- Mantener una copia adicional fuera del portátil para cubrir la pérdida del propio equipo o SSD.
+- Entregable 5: procesador de solicitudes en el worker.
+- Entregable 6: búsqueda y selección de resultados.
+- Entregable 7: envío y seguimiento mediante qBittorrent.
+- Entregable 8: pruebas de resiliencia e integración.
 
-Consultar docs/backup-operativo.md para los pasos de comprobación y recuperación. No considerar VIEWTV un servidor 24/7.
+No adelantar esos trabajos ni instalar o configurar servicios adicionales sin que formen parte del entregable aprobado.
 
+## 7. Seguridad y red local
 
-### Backup diario — transferencia y validación manual superadas (5 de noviembre de 2026)
+La versión inicial está orientada al uso doméstico en red local.
 
-- Se corrigió `scripts/backup-daily.sh` para emitir saltos de línea reales al procesar la ruta de backup; antes el sufijo literal `\\n` impedía identificar el archivo generado.
-- El usuario actualizó la rama y validó sintaxis Bash. Ejecución desde PowerShell completada en el primer intento.
-- Archivo final en el SSD: `C:\\VIEWTV\\backups\\viewtv-20261105-133137.db`, 90.112 bytes, visible desde Windows.
-- Validación realizada después de la transferencia: SQLite `integrity_check=ok`, 2 perfiles, Alembic `0001_initial`. El script informó `Backup VIEWTV completado y verificado en SSD`.
-- Estado: prueba manual completa superada (crear → transferir → validar en SSD → publicar). Pendiente comprobar una ejecución diaria automática real posterior. No se ha modificado la base activa ni el volumen `viewtv_viewtv_data`.
-- Detalle operativo en `docs/backup-operativo.md`.
+Criterios:
+
+1. No abrir puertos en el router.
+2. No publicar API, Jellyfin ni paneles de administración en Internet.
+3. Restringir los servicios a los dispositivos y redes necesarios.
+4. Mantener las credenciales fuera del repositorio.
+5. Utilizar sesiones y permisos validados en backend.
+6. No confiar exclusivamente en los controles de la interfaz.
+7. No compartir PIN, contraseñas, claves API, cookies ni tokens por chat.
+8. No incluir archivos `.env`, bases de datos locales o copias con información sensible en commits.
+
+Cualquier ampliación del acceso desde la LAN debe incluir una revisión del bind de los servicios, firewall y autenticación.
+
+No se debe asumir que un nombre `.local` o una dirección IP siguen siendo válidos sin comprobar su resolución desde el dispositivo de destino.
+
+## 8. Fire TV y validación en televisión
+
+El cliente previsto incluye Android TV y Fire TV mediante un navegador compatible.
+
+La validación en televisión debe comprobar, cuando el entregable afecte a la interfaz:
+
+- Navegación con cruceta.
+- Gestión del foco.
+- Activación mediante Enter.
+- Navegación hacia atrás.
+- Desplazamiento.
+- Legibilidad y disposición en pantalla.
+- Acceso a carátulas e imágenes.
+
+TV Bro se documentó como navegador de prueba para Fire TV.
+
+La validación en TV no debe confundirse con las pruebas automatizadas del frontend.
+
+No realizar modificaciones visuales ni cambios de diseño sin autorización expresa. La decisión de orientación de portadas está aceptada en el ADR 0001, pero su implementación visual requiere autorización dentro del alcance de trabajo correspondiente.
+
+## 9. Plan de desarrollo vigente
+
+La fase 1 está cerrada.
+
+La fase 2 está en curso y se divide en ocho entregables:
+
+| Entregable | Trabajo | Estado |
+|---|---|---|
+| 1 | Configuración de servicios de descarga | Cerrado |
+| 2 | Clientes HTTP de Jackett y qBittorrent | Cerrado |
+| 3 | Modelo de descarga y migración | Cerrado |
+| 4 | Endpoint autenticado de solicitudes | Cerrado |
+| 5 | Procesador de solicitudes en el worker | Pendiente |
+| 6 | Búsqueda y selección de resultados | Pendiente |
+| 7 | Envío y seguimiento mediante qBittorrent | Pendiente |
+| 8 | Pruebas de resiliencia e integración | Pendiente |
+
+El siguiente trabajo es el entregable 5.
+
+Antes de modificar el worker se debe:
+
+1. Inspeccionar su implementación actual.
+2. Revisar los modelos de solicitudes y descargas.
+3. Revisar la persistencia y las transacciones existentes.
+4. Definir recuperación, concurrencia y responsabilidades.
+5. Revisar la integración con los clientes HTTP existentes.
+6. Presentar el diseño técnico para aprobación.
+
+No adelantar los entregables 6, 7 u 8.
+
+El seguimiento detallado está en `docs/FASE-2.md` y el estado resumido en `docs/ESTADO.md`.
+
+## 10. Pruebas y criterios de aceptación
+
+Cada entregable debe contar con comprobaciones adecuadas a su alcance.
+
+Como mínimo:
+
+- Pruebas automatizadas de la funcionalidad modificada.
+- Ruff para el código Python cuando corresponda.
+- Typecheck, lint y build para cambios de frontend.
+- Validación de migraciones sobre una base temporal cuando corresponda.
+- `git diff --check`.
+- Revisión del diff para detectar cambios ajenos al alcance.
+
+Las pruebas deben documentar sus límites. Una prueba concreta de concurrencia no demuestra la ausencia de todas las condiciones de carrera.
+
+No ejecutar pruebas destructivas sobre la base de datos real.
+
+Las pruebas funcionales con medios deben utilizar contenido propio o autorizado.
+
+## 11. Copias de seguridad y recuperación
+
+La documentación especializada es `docs/backup-operativo.md`.
+
+Los registros históricos de noviembre de 2026 incluyen:
+
+- Copias online de SQLite mediante `sqlite3.Connection.backup()`.
+- Validación de integridad mediante `PRAGMA integrity_check`.
+- Verificación de perfiles y revisión Alembic.
+- Transferencia explícita de archivos al SSD anfitrión.
+- Lanzadores Bash y PowerShell.
+- Pruebas del Programador de tareas de Windows.
+
+También se documentó una incidencia en el montaje de backups que obligó a sustituir la transferencia mediante bind mount por una copia explícita al SSD y validación posterior.
+
+Estos registros acreditan las operaciones realizadas en aquellas fechas, no la ejecución continuada de la tarea en la actualidad.
+
+Antes de considerar operativo el backup periódico, comprobar:
+
+1. Que la tarea programada existe.
+2. Que el lanzador funciona.
+3. Que se crea un archivo nuevo en el destino esperado.
+4. Que la copia supera la comprobación de integridad.
+5. Que los errores quedan registrados.
+6. Que se conserva una copia adicional fuera del portátil.
+
+El equipo no es un servidor 24/7. Si está apagado, no puede ejecutar la tarea programada.
+
+No sobrescribir `/data/viewtv.db` para probar una restauración. Utilizar un entorno aislado conforme al procedimiento especializado.
+
+## 12. Repositorio y flujo Git
+
+El repositorio privado es `wizzadrds/viewtv`.
+
+Rama de trabajo vigente: `inventario-trabajo-local`.
+
+Reglas obligatorias:
+
+- No cambiar de rama sin autorización.
+- No hacer push sin autorización.
+- No crear PR ni fusionar a `main` sin autorización.
+- No hacer pull, reset, checkout ni limpiar archivos sin autorización.
+- No eliminar archivos auxiliares sin revisar su contenido e historial.
+- No incluir secretos ni datos locales en commits.
+- Realizar commits pequeños en español, con un entregable por commit.
+- Revisar `git status`, `git diff` y `git diff --check` antes de preparar un commit.
+
+La revisión documental actual debe completarse antes de realizar commits.
+
+## 13. Documentación de referencia
+
+| Documento | Uso |
+|---|---|
+| `README.md` | Presentación y navegación del proyecto |
+| `docs/CONTEXTO.md` | Contexto general y decisiones |
+| `docs/ESTADO.md` | Estado actual y siguiente tarea |
+| `docs/FASE-2.md` | Seguimiento detallado de fase 2 |
+| `docs/REVISION-IMPLEMENTACION.md` | Revisiones técnicas y validaciones históricas |
+| `docs/arquitectura.md` | Arquitectura y componentes |
+| `docs/especificacion-y-estado.md` | Especificación funcional |
+| `docs/backup-operativo.md` | Copias de seguridad y recuperación |
+| `docs/reproduccion-jellyfin.md` | Reproducción mediante Jellyfin |
+| `docs/adr/0001-orientacion-de-portadas.md` | Decisión de orientación de portadas |
+
+Los README de `backend`, `frontend` y `worker` deben conservar sus instrucciones específicas.
+
+## 14. Historial operativo del entorno
+
+Este apartado resume operaciones documentadas en noviembre de 2026. Se conserva como referencia histórica y no como inventario de disponibilidad actual.
+
+### 14.1. Almacenamiento y Docker — 3 de noviembre
+
+Se documentaron:
+
+- Carpetas de medios, caché, datos y backups bajo `C:\VIEWTV`.
+- Acceso desde WSL mediante `/mnt/c/VIEWTV/`.
+- Montaje compartido de caché para API y worker.
+- Base SQLite en el volumen Docker `viewtv_viewtv_data`.
+- Verificación de escritura desde los contenedores.
+- Arranque de API y worker.
+- Respuesta HTTP 200 de `/health`.
+- Persistencia de dos perfiles tras reiniciar los servicios.
+
+También se eliminó un volumen de caché antiguo después de comprobar que ningún contenedor lo utilizaba.
+
+Estas operaciones no autorizan a eliminar volúmenes actuales ni demuestran el estado presente de Docker.
+
+### 14.2. Integración Jellyfin — 4 de noviembre
+
+Se documentó:
+
+- Creación de una clave API de servicio almacenada en configuración local.
+- Conectividad desde el contenedor API hacia Jellyfin instalado en Windows.
+- Cliente HTTP de solo lectura.
+- Endpoints de estado y sincronización de catálogo.
+- Sincronización de metadatos de películas y series.
+- Pruebas automatizadas de autenticación y normalización.
+
+Posteriormente se validó una sincronización con una biblioteca inicialmente vacía.
+
+Más tarde se añadió un medio propio o autorizado y se comprobó:
+
+- Inicio de sesión VIEWTV.
+- Sincronización de un elemento.
+- Lectura del catálogo.
+- Respuesta correcta del proxy privado de imagen con `image/jpeg`.
+
+Estas pruebas acreditaron el recorrido de catálogo e imagen en aquel entorno. No acreditaron por sí solas la reproducción completa desde VIEWTV.
+
+### 14.3. Proxy de imágenes y catálogo
+
+Se documentó un proxy privado de imágenes Jellyfin con:
+
+- Sesión VIEWTV obligatoria.
+- Identificador local del medio.
+- Tipos de imagen permitidos.
+- Límite de tamaño.
+- Rechazo de tipos no permitidos.
+- Cabeceras de seguridad.
+- Caché privada.
+
+También se incorporó un endpoint de lectura del catálogo con filtros y paginación.
+
+Las pruebas históricas incluyen respuestas de autenticación, catálogo vacío y posteriormente una imagen real.
+
+### 14.4. Primera interfaz PWA
+
+En noviembre se documentó una primera iteración basada en Next.js, React y TypeScript.
+
+Incluía selección de perfil, PIN, restauración de sesión, catálogo, búsqueda local, sincronización, ficha informativa y navegación inicial con mando.
+
+La ficha era informativa y la reproducción no estaba conectada en aquella iteración.
+
+La documentación histórica indicaba que quedaban pendientes validaciones en TV y varias capacidades de PWA. No se debe utilizar esa descripción como inventario actual sin inspeccionar el frontend.
+
+### 14.5. Copias de seguridad — 4 y 5 de noviembre
+
+Se realizaron pruebas de copia y restauración aislada de SQLite.
+
+Se detectó una incidencia en el montaje de backups mediante bind mount, que se corrigió mediante transferencia explícita desde el contenedor al SSD y validación posterior.
+
+Se incorporaron scripts Bash y PowerShell y se realizaron pruebas manuales de transferencia.
+
+También se documentó una ejecución satisfactoria desde el Programador de tareas de Windows el 4 de noviembre y una prueba posterior de transferencia y validación manual el 5 de noviembre.
+
+El procedimiento completo, sus limitaciones y las comprobaciones necesarias están en `docs/backup-operativo.md`.
+
+No se debe inferir que la tarea diaria continúa funcionando sin una comprobación reciente.
+
+---
+
+**Regla operativa principal:** antes de actuar, comprobar el estado real del repositorio y del entorno. La documentación histórica explica cómo se llegó al estado actual, pero las operaciones futuras deben basarse en el código, las pruebas y las decisiones vigentes.

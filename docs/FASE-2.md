@@ -242,7 +242,7 @@ Commit local:
 | 1. Configuración | Cerrado |
 | 2. Clientes HTTP | Cerrado |
 | 3. Modelo Descarga y migración | Cerrado |
-| 4. Endpoint autenticado | Pendiente |
+| 4. Endpoint autenticado | Cerrado |
 | 5. Procesador del worker | Pendiente |
 | 6. Búsqueda y selección | Pendiente |
 | 7. Envío y seguimiento qBittorrent | Pendiente |
@@ -250,19 +250,20 @@ Commit local:
 
 ## Siguiente entregable
 
-Diseñar e implementar el endpoint autenticado para crear solicitudes de descarga.
+**Entregable 5 — Procesador de solicitudes en el worker.**
+
+El endpoint autenticado del entregable 4 está implementado y validado. El siguiente trabajo consiste en diseñar el procesador que recogerá las solicitudes pendientes y coordinará su procesamiento.
 
 Antes de modificar código:
 
-1. Inspeccionar los endpoints existentes y sus convenciones.
-2. Revisar autenticación, autorización y resolución del perfil autenticado.
-3. Revisar los modelos `Medio`, `Solicitud` y `Descarga`.
-4. Revisar cómo se inserta trabajo en la cola durable y cómo se asignan prioridades.
-5. Verificar las firmas reales de dependencias y funciones que intervengan.
-6. Proponer el contrato HTTP, validaciones, respuestas y transacciones.
-7. Presentar el diseño técnico para aprobación antes de modificar código.
+1. Inspeccionar el worker actual y sus responsabilidades.
+2. Revisar cómo reclama y confirma trabajos de la cola durable.
+3. Revisar la interacción con los modelos `Solicitud` y `Descarga`.
+4. Identificar los límites transaccionales y las condiciones de recuperación ante errores.
+5. Definir las responsabilidades del procesador y su integración con los clientes HTTP existentes.
+6. Presentar el diseño técnico para aprobación antes de modificar código.
 
-No se debe empezar el procesador del worker ni adelantar los entregables posteriores.
+El procesador no debe adelantar por su cuenta la implementación completa de los entregables 6, 7 u 8.
 
 ## Límites de trabajo
 

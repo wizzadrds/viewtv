@@ -1,80 +1,160 @@
+
 # Estado del proyecto VIEWTV
 
-Este documento describe lo que existe en el repositorio remoto `main` en el momento del inventario. Se ha revisado el árbol completo de archivos versionados y el contenido de los documentos de referencia.
+**Fecha de actualización:** 15 de noviembre de 2026
+**Rama de referencia:** `inventario-trabajo-local`
+**Último commit revisado:** `f050115`
 
-> **Límite del inventario:** este inventario solo puede confirmar lo que está subido a GitHub. El contexto menciona trabajo local todavía no subido; ese contenido no aparece en el árbol remoto y no es posible describirlo ni verificarlo desde aquí.
+Este documento resume el estado conocido del proyecto VIEWTV en la rama de trabajo. Para conocer las decisiones técnicas y el contexto completo, consultar `docs/CONTEXTO.md`.
 
 ## Resumen
 
-El repositorio contiene el andamiaje documental y los archivos de configuración iniciales. Todavía no hay implementación ejecutable: no aparecen código de backend, frontend o worker, configuración de contenedores, migraciones ni pruebas.
+VIEWTV es una aplicación doméstica autohospedada orientada a descubrir y solicitar contenido multimedia desde una interfaz adaptada a televisión, con Jellyfin como servidor multimedia.
 
-La fase 1 sigue abierta. No se considera que el proyecto esté listo para ejecutar.
+El proyecto ya dispone de una base funcional de backend, persistencia, cola de trabajos, worker independiente, frontend y configuración de servicios.
 
-## Árbol actual
+- **Fase 1: cerrada.**
+- **Fase 2: en curso.**
+- **Entregables 1 a 4 de fase 2: cerrados.**
+- **Siguiente entregable: procesador del worker.**
 
-```text
-viewtv/
-├── .env.example
-├── .gitignore
-├── README.md
-├── backend/
-│   └── README.md
-├── docs/
-│   ├── CONTEXTO.md
-│   └── arquitectura.md
-├── frontend/
-│   └── README.md
-└── worker/
-    └── README.md
-```
+El estado descrito aquí corresponde a la rama local `inventario-trabajo-local`. En la fecha de actualización contiene seis commits que todavía no están en su rama remota correspondiente.
 
-## Inventario archivo por archivo
+## Estado de las fases
 
-| Archivo | Para qué sirve | Estado |
-| --- | --- | --- |
-| `.env.example` | Muestra los nombres de los ajustes necesarios para la aplicación, con valores de ejemplo y sin credenciales reales. | Inicial; todavía no hay servicios que consuman estos ajustes. |
-| `.gitignore` | Evita subir secretos, entornos virtuales, dependencias, datos locales, bases de datos y cachés. | Presente; revisar si aparecen nuevas carpetas al implementar servicios. |
-| `README.md` | Explica qué pretende ser VIEWTV, su arquitectura, el entorno de desarrollo, la seguridad y las fases. | Documentación inicial; advierte correctamente de que el repositorio aún no funciona como instalación. |
-| `backend/README.md` | Describe las responsabilidades previstas de la API y sus tecnologías. | Solo documentación; no hay implementación del backend. |
-| `docs/CONTEXTO.md` | Documento principal de traspaso: propósito, decisiones cerradas, reglas, estado y próximos trabajos. | Referencia vigente para ejecutar las tareas. |
-| `docs/arquitectura.md` | Resume los límites entre interfaz, API, base de datos, worker e integraciones, además de persistencia, cola y seguridad. | Arquitectura inicial; todavía faltan detalles y la sección de fuentes indicada en el contexto. |
-| `frontend/README.md` | Describe la PWA prevista y sus requisitos para televisión y mando a distancia. | Solo documentación; no hay aplicación frontend. |
-| `worker/README.md` | Describe el proceso independiente y la cola persistente que deberá procesar. | Solo documentación; no hay worker implementado. |
+### Fase 1 — Base de la aplicación
 
-## Qué está hecho
+**Estado: cerrada.**
 
-- Existe una descripción del producto y de sus límites.
-- Las decisiones principales de arquitectura están recogidas en `docs/CONTEXTO.md`.
-- Se han creado los directorios de los tres componentes y un README para cada uno.
-- Hay una plantilla de variables de entorno sin secretos reales.
-- El archivo de exclusiones contempla los artefactos habituales de Python, Node y los datos locales.
-- La documentación inicial separa expresamente la base de datos persistente de la caché multimedia.
+La fase estableció la infraestructura y los fundamentos necesarios para continuar el desarrollo:
 
-## Qué falta
+- Servicios y entorno de desarrollo con Docker Compose.
+- Backend basado en FastAPI y SQLModel.
+- Persistencia SQLite y migraciones con Alembic.
+- Cola durable de trabajos y reclamación transaccional.
+- Infraestructura de worker independiente; el procesamiento del flujo real de descargas corresponde al entregable 5 de fase 2.
+- Estructura de frontend.
+- Pruebas automatizadas y herramientas de calidad.
+- Makefile de desarrollo y licencia del proyecto.
 
-Según el alcance de la fase 1 y las fases posteriores:
+El cierre de esta fase está documentado en el historial del proyecto. No debe reabrirse por la existencia de documentos de inventario antiguos.
 
-- Backend ejecutable con FastAPI y SQLModel.
-- Modelos de datos y primera migración de Alembic.
-- Base SQLite persistente y configuración real de volúmenes.
-- Worker independiente y reclamación transaccional de trabajos mediante lease.
-- Frontend Next.js y estructura PWA.
-- Compose para levantar los servicios.
-- Pruebas automatizadas y configuración de Ruff y pytest en CI.
-- Makefile con las tareas de desarrollo y verificación.
-- Licencia MIT, pendiente de incorporar según el contexto.
-- Completar en `docs/arquitectura.md` la sección de fuentes.
-- Resolver la orientación de las portadas mediante el ADR pendiente.
+### Fase 2 — Primera descarga real controlada
 
-## Qué sobra o conviene revisar
+**Estado: en curso.**
 
-- No se ha identificado ningún archivo que sobre y deba borrarse.
-- Los README de backend, frontend y worker son marcadores documentales, no implementaciones. Deben conservarse mientras sirvan para explicar el propósito de cada componente.
-- No se debe confundir la presencia de `.env.example` con una configuración ejecutable.
-- No se puede confirmar ni descartar trabajo local sin subir: no forma parte del árbol remoto revisado.
+El objetivo es completar el recorrido desde una solicitud autenticada hasta la gestión controlada de una descarga, respetando las fuentes autorizadas y manteniendo la persistencia del estado.
 
-## Estado de la fase
+| Entregable | Descripción | Estado |
+|---|---|---|
+| 1 | Configuración de servicios de descarga | Cerrado |
+| 2 | Clientes HTTP de Jackett y qBittorrent | Cerrado |
+| 3 | Modelo de descarga y migración | Cerrado |
+| 4 | Endpoint autenticado para crear solicitudes | Cerrado |
+| 5 | Procesador del worker | Pendiente |
+| 6 | Búsqueda y selección de resultados | Pendiente |
+| 7 | Envío y seguimiento en qBittorrent | Pendiente |
+| 8 | Pruebas de resiliencia | Pendiente |
 
-**Fase 1 abierta.** Este inventario no cierra la fase ni acredita criterios de aceptación. No se han ejecutado servicios ni pruebas porque todavía no existe la implementación correspondiente.
+El seguimiento detallado, los contratos técnicos y los criterios de aceptación están en `docs/FASE-2.md`.
 
-Siguiente punto de esta tarea: registrar las alternativas de orientación de portadas en el ADR y esperar la elección del propietario antes de aplicar una decisión.
+## Avances confirmados en la rama de trabajo
+
+Los seis commits locales posteriores a la referencia remota son:
+
+| Commit | Descripción |
+|---|---|
+| `e3b4676` | Configurar servicios de descarga |
+| `c51f3b7` | Añadir clientes HTTP de Jackett y qBittorrent |
+| `ad2add4` | Documentar avance de fase 2 |
+| `dfb00f7` | Añadir modelo y migración de descargas |
+| `59e4d5e` | Documentar cierre del modelo de descargas |
+| `f050115` | Añadir endpoint autenticado de solicitudes |
+
+### Configuración e integraciones
+
+- Configuración de Jackett y qBittorrent para el entorno de desarrollo.
+- Cliente HTTP independiente para Jackett mediante Torznab.
+- Cliente HTTP independiente para qBittorrent.
+- La integración prevista utiliza Jackett; no requiere Prowlarr.
+- No se contempla el análisis de páginas HTML.
+
+### Persistencia de descargas
+
+- Modelo `Descarga`.
+- Migración Alembic `0004`.
+- Estados de descarga definidos.
+- Persistencia de hash, título, indexador, progreso, tamaño, errores y marcas temporales.
+- Índice parcial único para evitar duplicados por `info_hash`.
+
+### Solicitudes autenticadas
+
+Se ha incorporado `POST /solicitudes`:
+
+- El perfil se obtiene de la sesión autenticada.
+- Se comprueba que el medio existe en Jellyfin.
+- Se evita duplicar solicitudes activas.
+- La operación utiliza una transacción `BEGIN IMMEDIATE`.
+- Se contemplan respuestas para medios inexistentes, conflictos y solicitudes inválidas.
+- Se permite volver a solicitar un medio cuando la solicitud anterior ha fallado.
+
+La validación documentada para el entregable 4 incluye 73 pruebas de backend superadas, Ruff correcto y `git diff --check` correcto. Esta cifra corresponde a esa validación, no necesariamente al total actual de pruebas del proyecto. No se considera acreditada una prueba específica de concurrencia HTTP.
+
+## Siguiente trabajo
+
+El siguiente paso aprobado es el **entregable 5: procesador del worker**.
+
+Antes de modificar código:
+
+1. Inspeccionar el worker actual y sus responsabilidades.
+2. Revisar la interacción con la cola y el modelo `Descarga`.
+3. Acordar el diseño técnico del procesador.
+4. Implementar únicamente el alcance de este entregable.
+5. Añadir las pruebas correspondientes y documentar su cierre.
+
+No adelantar los entregables 6, 7 u 8 sin cerrar previamente el diseño y el trabajo del entregable 5.
+
+## Decisiones y restricciones vigentes
+
+- Intel Quick Sync (QSV) como tecnología de aceleración de vídeo; no NVENC.
+- Jackett como integración de búsqueda para esta fase.
+- Cliente Torznab genérico, sin parseo HTML.
+- Utilizar únicamente fuentes de contenido cuya autorización esté acreditada.
+- No incluir credenciales, tokens, archivos `.env` ni bases de datos locales en Git.
+- No modificar la interfaz visual, portadas o estilos sin autorización expresa.
+
+Las decisiones arquitectónicas y sus justificaciones se mantienen en los documentos de contexto y ADR.
+
+## Documentación del proyecto
+
+| Documento | Responsabilidad |
+|---|---|
+| `README.md` | Presentación del proyecto, puesta en marcha y enlaces principales |
+| `docs/ESTADO.md` | Resumen del estado actual y próximos pasos |
+| `docs/CONTEXTO.md` | Contexto de traspaso, decisiones y seguimiento general |
+| `docs/FASE-2.md` | Alcance, contratos y seguimiento de los entregables de fase 2 |
+| `docs/arquitectura.md` | Arquitectura y límites entre componentes |
+| `docs/plan-operativo.md` | Planificación y decisiones operativas |
+| `docs/backup-operativo.md` | Copias de seguridad y recuperación |
+| `docs/reproduccion-jellyfin.md` | Integración y reproducción mediante Jellyfin |
+| `docs/especificacion-y-estado.md` | Especificación funcional e historial de planificación |
+| `docs/REVISION-IMPLEMENTACION.md` | Registro histórico de revisiones de implementación |
+| `docs/adr/` | Decisiones de arquitectura aceptadas |
+
+Los documentos históricos se conservan para trazabilidad. Si un diagnóstico antiguo contradice una implementación posterior, prevalece el estado confirmado más reciente y debe indicarse expresamente en el documento histórico.
+
+## Estado Git de referencia
+
+En la revisión del 15 de noviembre de 2026:
+
+- Rama activa: `inventario-trabajo-local`.
+- Rama remota de seguimiento: `origin/inventario-trabajo-local`.
+- Diferencia: seis commits locales por delante.
+- Árbol de trabajo: limpio en la revisión previa a la edición de este documento.
+- Último commit local revisado: `f050115`.
+
+Este estado Git debe actualizarse cuando se publique la rama o se incorporen nuevos cambios.
+
+---
+
+**Regla de mantenimiento:** actualizar este documento al cerrar entregables o fases, y mantenerlo como resumen breve. Los detalles de implementación deben permanecer en sus documentos especializados.

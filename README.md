@@ -1,45 +1,73 @@
 # VIEWTV
 
-Aplicación multimedia doméstica autohospedada, con interfaz PWA optimizada para Android TV y Fire TV.
+Aplicación multimedia doméstica autohospedada, con una experiencia PWA en español de España, diseñada para Android TV y Fire TV y manejable mediante mando a distancia.
 
-> **Estado actual:** API, worker y autenticación operativos; integración Jellyfin validada con un medio real, catálogo sincronizado y proxy de carátulas comprobado. Primera etapa del backend de reproducción añadida en una rama de trabajo: negociación Direct Play y proxy HTTP con soporte Range; aún pendiente validación local y conexión del reproductor PWA. La primera interfaz PWA con Next.js/React/TypeScript ya está implementada en `frontend`: selección de perfil/PIN, catálogo, filtros, búsqueda, detalles y navegación espacial inicial. Falta instalar dependencias y validar el frontend en navegador y Fire TV. Consulta el estado detallado en la documentación del proyecto.
+VIEWTV separa el catálogo y los metadatos persistentes de los archivos multimedia temporales. Utiliza Jellyfin como servidor de biblioteca y reproducción, y contempla un flujo de solicitudes y transferencias controlado desde una API y un worker independiente.
+
+**Estado del proyecto:** fase 1 cerrada. Fase 2 en curso, con sus cuatro primeros entregables cerrados. El siguiente trabajo previsto es implementar el procesador de solicitudes en el worker.
+
+Consulta [`docs/ESTADO.md`](docs/ESTADO.md) para conocer el estado actualizado y el siguiente paso autorizado.
 
 ## Objetivos
 
-- Interfaz tipo centro multimedia, en español (España), navegable con mando a distancia.
+- Interfaz doméstica en español, optimizada para pantallas de televisión.
 - Perfiles protegidos mediante PIN.
 - Catálogo y metadatos persistentes, independientes de la caché temporal de vídeo.
 - Integración con Jellyfin para consultar la biblioteca y reproducir contenido.
 - API con FastAPI, SQLModel y SQLite.
-- Trabajador separado para tareas asíncronas y una cola duradera con concesiones temporales (leases).
-- PWA instalable y adaptable a pantallas de televisión.
+- Worker independiente y cola durable para procesar trabajos.
+- Integración con Jackett mediante un adaptador Torznab genérico.
+- Integración con qBittorrent para transferencias controladas.
+- PWA instalable, con navegación espacial y soporte para mando a distancia.
 
-## Documentación principal
+Las funcionalidades descritas como objetivos no deben interpretarse como implementadas. El estado de cada entrega y sus validaciones se recoge en la documentación del proyecto.
 
-- [Plan operativo y decisiones del entorno](docs/plan-operativo.md)
-- [Especificación funcional, progreso y tareas pendientes](docs/especificacion-y-estado.md)
+## Documentación
+
+### Estado y planificación
+
+- [Estado actual del proyecto](docs/ESTADO.md)
+- [Plan y entregables de fase 2](docs/FASE-2.md)
+- [Contexto técnico y decisiones vigentes](docs/CONTEXTO.md)
+
+### Diseño y operación
+
 - [Arquitectura técnica](docs/arquitectura.md)
-- [Procedimiento y estado del backup diario](docs/backup-operativo.md)
-- [Implementación y estado de reproducción Jellyfin](docs/reproduccion-jellyfin.md)
+- [Plan operativo y entorno](docs/plan-operativo.md)
+- [Especificación funcional e historial](docs/especificacion-y-estado.md)
 
-Antes de continuar una tarea, revisar estos documentos para conocer las decisiones ya tomadas y el estado real. Actualizarlos al completar hitos.
+### Revisiones e integraciones
 
-## Arquitectura prevista
+- [Revisión de implementación](docs/REVISION-IMPLEMENTACION.md)
+- [Procedimiento y estado del backup](docs/backup-operativo.md)
+- [Integración y reproducción con Jellyfin](docs/reproduccion-jellyfin.md)
 
-| Componente | Tecnología prevista | Responsabilidad |
+Antes de modificar código, revisa el estado actual, las decisiones vigentes y el entregable correspondiente. Actualiza la documentación cuando completes un hito.
+
+## Arquitectura
+
+| Componente | Tecnología | Responsabilidad |
 | --- | --- | --- |
-| Interfaz | Next.js, React, TypeScript | PWA, navegación espacial y experiencia de TV |
-| API | FastAPI, SQLModel | Autenticación, catálogo, solicitudes y configuración |
-| Persistencia | SQLite | Perfiles, catálogo, solicitudes y estado de tareas |
-| Worker | Python + APScheduler | Procesamiento y recuperación de tareas |
-| Reproducción | Jellyfin | Biblioteca y reproducción multimedia |
-| Fuentes externas | Adaptadores configurables | Metadatos y fuentes autorizadas |
+| Interfaz | Next.js, React y TypeScript | PWA, catálogo y navegación |
+| API | FastAPI y SQLModel | Autenticación, catálogo y solicitudes |
+| Persistencia | SQLite | Perfiles, metadatos y estado de trabajos |
+| Procesamiento | Worker independiente | Ejecución de tareas fuera del ciclo HTTP |
+| Biblioteca y reproducción | Jellyfin | Gestión de biblioteca y reproducción |
+| Fuentes autorizadas | Jackett y Torznab | Consulta estructurada de fuentes |
+| Transferencias | qBittorrent | Gestión de transferencias autorizadas |
 
-La base de datos y sus volúmenes persistentes no deben estar dentro del directorio de caché. La caché de vídeo será temporal y tendrá una cuota inicial de **80 GB**, configurable mediante variables de entorno.
+La base de datos y los datos persistentes deben mantenerse separados de la caché de vídeo. La cuota inicial prevista para esta caché es de **80 GB**, configurable.
 
-## Desarrollo local
+La aceleración de vídeo adoptada es Intel Quick Sync (QSV), no NVIDIA NVENC. Su funcionamiento efectivo debe validarse en el entorno.
 
-El entorno actual es Windows 11 con WSL2 (Ubuntu 24.04) y Docker Desktop con integración WSL habilitada. Trabaja desde el sistema de archivos Linux de WSL (por ejemplo, `~/projects/viewtv`) para evitar penalizaciones de rendimiento de montajes bajo `/mnt/c`.
+## Entorno de desarrollo
+
+Entorno documentado:
+
+- Windows 11.
+- WSL2 con Ubuntu 24.04.
+- Docker Desktop y Docker Compose.
+- Repositorio ubicado en el sistema de archivos Linux de WSL, por ejemplo `~/projects/viewtv`.
 
 ### Arranque del entorno base
 
@@ -52,31 +80,53 @@ docker compose up --build -d
 docker compose ps
 ```
 
-La API queda disponible inicialmente solo en el propio equipo: `http://localhost:8000/health`. La primera ejecución aplica las migraciones de SQLite automáticamente. Los servicios `api` y `worker` se ejecutan por separado y comparten volúmenes distintos para datos persistentes y caché. El worker todavía no procesa solicitudes ni transferencias reales.
+La API se publica inicialmente para acceso local en:
 
-Para ver los registros: `docker compose logs -f api worker`. Para detener los servicios: `docker compose down`. No uses `docker compose down -v`, porque eliminaría los volúmenes persistentes.
+```text
+http://localhost:8000/health
+```
 
-Si más adelante se desea acceder desde el televisor por la LAN, habrá que configurar el bind de la API y el cortafuegos de Windows para permitir solo la red doméstica. No abras el puerto en el router ni publiques el servicio en Internet.
+Para consultar los registros:
+
+```bash
+docker compose logs -f api worker
+```
+
+Para detener los servicios:
+
+```bash
+docker compose down
+```
+
+**Precaución:** no ejecutes `docker compose down -v` como operación rutinaria. La opción `-v` puede eliminar volúmenes persistentes, incluida la base de datos.
+
+La configuración efectiva de los servicios, los montajes y las migraciones debe comprobarse en el entorno antes de realizar operaciones de mantenimiento.
+
+Si se habilita el acceso desde un televisor por la LAN, habrá que configurar expresamente la publicación de la API y el cortafuegos de Windows para limitar el acceso a la red doméstica. No abras puertos en el router ni expongas el servicio directamente a Internet.
 
 ## Configuración y secretos
 
-1. Copia `.env.example` a `.env` cuando prepares un entorno nuevo.
-2. Sustituye los valores de ejemplo por valores locales seguros.
-3. No subas nunca `.env`, contraseñas, PIN, tokens ni claves API al repositorio ni los compartas por chat.
+1. Copia `.env.example` a `.env` al preparar un entorno nuevo.
+2. Sustituye los valores de ejemplo por credenciales y valores locales seguros.
+3. Conserva los secretos exclusivamente en la configuración local.
+4. No subas `.env`, contraseñas, PIN, tokens, cookies ni claves API al repositorio.
+5. No compartas archivos de configuración privados ni bases de datos locales.
 
 ## Fuentes y derechos
 
-Los adaptadores de búsqueda/transferencia se utilizarán únicamente con contenido propio, autorizado o de dominio público. TMDB aporta metadatos, no archivos de vídeo.
+Las integraciones de consulta y transferencia se utilizarán exclusivamente con contenido propio, autorizado o de dominio público.
 
-## Fases
+- Jackett se consulta mediante Torznab estructurado.
+- No se implementará parseo HTML ni automatización de páginas web.
+- TMDB aporta metadatos, no archivos de vídeo.
+- La compatibilidad técnica de una fuente no acredita los derechos sobre su contenido.
 
-1. Estructura del repositorio, configuración, persistencia, cola inicial, autenticación y CI.
-2. Integración con Jellyfin y catálogo de solo lectura.
-3. Solicitudes y procesamiento de cola para fuentes autorizadas, con reproducción.
-4. Ciclo de vida de caché, cuotas y lista de espera.
-5. Asistente conversacional con confirmación explícita.
-6. PWA instalable, navegación con mando y pulido.
+## Desarrollo
+
+El trabajo se organiza por fases y entregables. La planificación vigente está en [`docs/FASE-2.md`](docs/FASE-2.md).
+
+La rama de trabajo actual es `inventario-trabajo-local`. No se debe cambiar de rama, publicar cambios ni integrar trabajo en `main` sin autorización expresa.
 
 ## Licencia
 
-Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo LICENSE.
+Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo [`LICENSE`](LICENSE).
