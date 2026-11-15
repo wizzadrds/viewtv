@@ -272,3 +272,38 @@ No se debe empezar el procesador del worker ni adelantar los entregables posteri
 - Documentación, logs y mensajes de commit en español de España.
 - No incorporar secretos ni archivos `.env`.
 - No reabrir decisiones cerradas sin un ADR.
+
+## Entregable 4 — Endpoint autenticado para crear solicitudes
+
+**Estado: implementación y pruebas cerradas.**
+
+Se implementó `POST /solicitudes`, que recibe `medio_id` (identificador interno de `Medio`) y exige un perfil autenticado.
+
+Comportamiento:
+- Devuelve 422 para identificadores inválidos.
+- Devuelve 404 si el medio no existe o no está disponible en Jellyfin.
+- Asocia la solicitud al perfil autenticado, sin permitir que el cliente elija el perfil.
+- Persiste el identificador de Jellyfin y el título del medio.
+- Mantiene los valores predeterminados del modelo: estado `pendiente`, prioridad 50, intentos 0 y máximo de intentos 5.
+- No expone `jellyfin_item_id` en la respuesta.
+- Devuelve 409 si ya existe una solicitud activa del mismo perfil para ese medio.
+- Permite volver a solicitar medios con solicitudes fallidas y permite solicitudes de perfiles distintos.
+- Serializa la comprobación e inserción mediante `BEGIN IMMEDIATE` en SQLite.
+
+Archivos añadidos:
+- `backend/app/solicitudes.py`
+- `backend/tests/test_solicitudes.py`
+
+Archivo modificado:
+- `backend/app/main.py`
+
+Validación:
+- `make backend-lint`: correcto.
+- `make backend-test`: 73 pruebas superadas.
+- `git diff --check`: correcto.
+
+Las pruebas cubren duplicados secuenciales; no se ha añadido una prueba específica de concurrencia HTTP.
+
+**Siguiente entregable:** procesador del worker. Requiere acordar su diseño antes de implementarlo.
+
+No se ha realizado push, PR ni merge a `main`.

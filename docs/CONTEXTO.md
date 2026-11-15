@@ -139,12 +139,13 @@ PIN con Argon2, JWT en cookie `httpOnly`, rate limit en login, chat y panel, val
 ## 17. Estado actual
 
 - **Rama principal remota (`origin/main`)**: contiene el inventario documental y el ADR 0001 aceptado. No contiene todavía la implementación local de la fase 1.
-- **Rama de trabajo local**: `inventario-trabajo-local`. Incluye la implementación, las correcciones, las pruebas y los entregables de cierre de fase 1.
-- **Último commit local verificado**: `dfb00f7` (`Añadir modelo y migración de descargas`).
+- **Rama de trabajo local**: `inventario-trabajo-local`.
+- **Último commit local confirmado**: entregable 4, endpoint autenticado de solicitudes. El entregable 4 está implementado, probado y confirmado en el commit `3a868c0`.
 - **Último commit conocido en `origin/inventario-trabajo-local`**: `005e0ef`. Los commits posteriores siguen únicamente en el repositorio local.
-- **Árbol de trabajo**: el código está confirmado hasta `dfb00f7`; la documentación del entregable 3 está modificada y pendiente de commit.
-- **Fase 1**: cerrada tras superar las verificaciones locales de backend, frontend, Docker Compose, salud de API, migraciones y concurrencia de la cola.
-- No se ha realizado push, PR ni merge de los últimos cambios a `main`.
+- **Árbol de trabajo**: árbol de trabajo limpio tras confirmar el entregable 4 en `3a868c0`.
+- **Fase 1**: cerrada.
+- **Fase 2**: en curso; entregables 1 a 4 implementados y probados.
+- No se ha realizado push, PR ni merge de estos cambios a `main`.
 
 ## 18. ADR pendientes
 
@@ -159,11 +160,13 @@ No hay ADR pendientes conocidos.
 
 La fase 1 está cerrada. La fase 2, «Primera descarga real controlada», está aprobada y en curso.
 
-Los entregables 1, 2 y 3 están cerrados. El siguiente es el entregable 4: endpoint autenticado para crear solicitudes de descarga.
+Los entregables 1, 2, 3 y 4 están cerrados a nivel de implementación y pruebas.
 
-Antes de modificar código se deben inspeccionar los endpoints existentes, autenticación, autorización, modelos y cola durable; verificar las firmas reales y presentar el diseño técnico para aprobación.
+El siguiente es el entregable 5: procesador del worker. Antes de modificar código hay que inspeccionar el worker existente y acordar el diseño técnico concreto.
 
-No adelantar el worker ni los entregables posteriores. No reabrir decisiones cerradas sin un ADR que lo justifique.
+No adelantar entregables posteriores ni reabrir decisiones cerradas sin un ADR.
+
+No realizar push, PR ni merge a `main` sin autorización expresa.
 
 Antes de integrar el trabajo local en `main`, se deberá revisar y autorizar expresamente el procedimiento de publicación.
 
@@ -186,20 +189,40 @@ Sin reproductor propio. Sin scraper de HTML. Sin cola en memoria. Sin base de da
 
 ## 22. Estado actualizado de fase 2
 
+
 La fase 1 está cerrada. La fase 2, «Primera descarga real controlada», está aprobada y en curso.
 
-Seguimiento detallado, decisiones técnicas, validaciones y commits locales: `docs/FASE-2.md`.
+Seguimiento detallado: `docs/FASE-2.md`.
 
 Entregables cerrados:
 
 1. Configuración de Jackett y qBittorrent (`e3b4676`).
-2. Clientes HTTP independientes de Jackett y qBittorrent (`c51f3b7`).
-3. Modelo `Descarga`, migración Alembic y pruebas (`dfb00f7`).
+2. Clientes HTTP independientes (`c51f3b7`).
+3. Modelo `Descarga` y migración Alembic (`dfb00f7`), documentados en `59e4d5e`.
+4. Endpoint autenticado para crear solicitudes: implementación y pruebas completadas.
 
-Validación del entregable 3: 64 pruebas de backend superadas, Ruff correcto, migración `0004_descarga` aplicada y tabla, restricciones, índices y clave foránea verificadas en la base SQLite del contenedor.
+Validación del entregable 4: 73 pruebas de backend superadas, Ruff correcto y `git diff --check` correcto. No se ha añadido una prueba específica de concurrencia HTTP.
 
-Siguiente entregable: endpoint autenticado para crear solicitudes. Antes de implementarlo hay que inspeccionar los endpoints, autenticación, autorización, modelos y cola durable, y aprobar el diseño técnico.
+Siguiente entregable: procesador del worker. Requiere inspección y acuerdo de diseño antes de implementar.
 
-El trabajo continúa en la rama local `inventario-trabajo-local`. No hacer push, PR ni merge a `main` sin autorización expresa.
+No se ha autorizado push, PR ni merge a `main`.
 
 La integración debe utilizar exclusivamente fuentes y contenido cuyo uso esté autorizado. No incluir claves API ni secretos en el repositorio.
+
+## 23. Actualización de fase 2 — Entregable 4
+
+El entregable 4, endpoint autenticado para crear solicitudes, está implementado y probado.
+
+- Endpoint: `POST /solicitudes`.
+- Requiere perfil autenticado y recibe el identificador interno `medio_id`.
+- Valida existencia y disponibilidad del medio en Jellyfin.
+- Evita solicitudes activas duplicadas por perfil y medio mediante una transacción SQLite `BEGIN IMMEDIATE`.
+- Devuelve 404 para medios inexistentes o no disponibles y 409 para duplicados activos.
+- Pruebas: 73 superadas; Ruff correcto.
+- No se ha añadido una prueba específica de concurrencia HTTP.
+
+El código y la documentación del entregable 4 están confirmados en `inventario-trabajo-local`.
+
+Siguiente tarea: diseñar el entregable 5, procesador del worker. No implementarlo hasta acordar el diseño.
+
+No se ha autorizado push, PR ni merge a `main`.
