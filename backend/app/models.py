@@ -196,5 +196,12 @@ class Descarga(SQLModel, table=True):
     progreso: float = Field(default=0.0, ge=0.0, le=1.0)
     tamano_bytes: int | None = Field(default=None, ge=0)
     ultimo_error: str | None = Field(default=None, sa_type=Text)
+    estado_verificacion: str = Field(
+        default="pendiente",
+        max_length=20,
+        index=True,
+    )
+    verificada_en: datetime | None = None
+    error_verificacion: str | None = Field(default=None, sa_type=Text)
     creado_en: datetime = Field(default_factory=utc_now)
     actualizado_en: datetime = Field(default_factory=utc_now)
