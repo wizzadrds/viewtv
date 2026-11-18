@@ -592,3 +592,108 @@ def fail_download(
     except Exception:
         session.rollback()
         raise
+
+
+
+def update_download_progress(
+    session: Session,
+    download_id: int,
+    qbittorrent_hash: str,
+    estado: str,
+    progreso: float,
+    tamano_bytes: int | None = None,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Actualiza una descarga identificada sin alterar estados terminales."""
+    import math
+
+    if estado not in {"enviada", "descargando", "pausada", "completada"}:
+        raise ValueError("Estado de descarga no válido")
+
+    if (
+        isinstance(progreso, bool)
+        or not isinstance(progreso, (int, float))
+        or not math.isfinite(progreso)
+        or not 0 <= progreso <= 1
+    ):
+        raise ValueError("Progreso de descarga no válido")
+
+    if tamano_bytes is not None and (
+        isinstance(tamano_bytes, bool)
+        or not isinstance(tamano_bytes, int)
+        or tamano_bytes < 0
+    ):
+        raise ValueError("Tamaño de descarga no válido")
+
+    if estado == "completada" and progreso != 1:
+        raise ValueError("Una descarga completada requiere progreso 1")
+
+    if not qbittorrent_hash:
+        raise ValueError("Falta el hash del torrent")
+
+    current_time = _now(now)
+    _begin_write(session)
+
+    try:
+        descarga = session.exec(
+            select(Descarga).where(
+                Descarga.id == download_id,
+                Descarga.qbittorrent_hash == qbittorrent_hash,
+                Descarga.estado.in_(
+                    ["enviada", "descargando", "pausada"]
+                ),
+            )
+        ).first()
+
+        if descarga is None:
+            session.commit()
+            return False
+
+        if progreso < descarga.progreso:
+            session.commit()
+            return False
+
+        # Una lectura atrasada no debe devolver una descarga activa
+        # al estado inicial de envio.
+        if descarga.estado in {"descargando", "pausada"} and estado == "enviada":
+            session.commit()
+            return False
+
+        nuevo_tamano = (
+            tamano_bytes
+            if tamano_bytes is not None
+            else descarga.tamano_bytes
+        )
+
+        if (
+            descarga.estado == estado
+            and descarga.progreso == progreso
+            and descarga.tamano_bytes == nuevo_tamano
+        ):
+            session.commit()
+            return False
+
+        session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.qbittorrent_hash == qbittorrent_hash,
+                Descarga.estado.in_(
+                    ["enviada", "descargando", "pausada"]
+                ),
+            )
+            .values(
+                estado=estado,
+                progreso=progreso,
+                tamano_bytes=nuevo_tamano,
+                actualizado_en=current_time,
+            )
+        )
+
+        session.commit()
+        return True
+
+    except Exception:
+        session.rollback()
+        raise

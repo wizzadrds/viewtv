@@ -6,6 +6,7 @@ import socket
 import time
 
 from sqlmodel import Session
+from worker.download_monitor import monitor_downloads_once
 from worker.download_processor import process_one_download
 from worker.processor import process_one_request
 
@@ -35,6 +36,18 @@ def main():
         try:
             download_processed = process_one_download(WORKER_ID)
             request_processed = process_one_request(WORKER_ID)
+
+            try:
+                updated = monitor_downloads_once()
+                if updated:
+                    logger.info(
+                        "Supervisor: %s descargas actualizadas",
+                        updated,
+                    )
+            except Exception:
+                logger.exception(
+                    "Error consultando el progreso de descargas."
+                )
 
             if not download_processed and not request_processed:
                 report_worker_status()

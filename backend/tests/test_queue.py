@@ -728,3 +728,182 @@ def test_permanent_download_failure_does_not_consume_attempt():
         assert saved_download.estado == "fallida"
         assert saved_download.intentos_envio == 0
         assert saved_request.estado == "esperando_seleccion"
+
+
+def test_update_download_progress_lifecycle():
+    from app.queue import update_download_progress
+
+    with make_session() as session:
+        solicitud = add_request(session)
+        descarga = Descarga(
+            solicitud_id=solicitud.id,
+            titulo="Descarga de prueba",
+            estado="enviada",
+            qbittorrent_hash="a" * 40,
+        )
+        session.add(descarga)
+        session.commit()
+        session.refresh(descarga)
+        download_id = descarga.id
+
+        assert update_download_progress(
+            session, download_id, "a" * 40, "pausada", 0
+        )
+        assert update_download_progress(
+            session, download_id, "a" * 40, "descargando", 0.45, 1000
+        )
+        assert update_download_progress(
+            session, download_id, "a" * 40, "descargando", 0.6
+        )
+
+        saved = session.get(Descarga, download_id)
+        assert saved.estado == "descargando"
+        assert saved.progreso == 0.6
+        assert saved.tamano_bytes == 1000
+
+        assert update_download_progress(
+            session, download_id, "a" * 40, "completada", 1
+        )
+        assert not update_download_progress(
+            session, download_id, "a" * 40, "pausada", 0.5
+        )
+
+        session.expire_all()
+        saved = session.get(Descarga, download_id)
+        assert saved.estado == "completada"
+        assert saved.progreso == 1
+
+
+def test_update_download_progress_rejects_wrong_hash():
+    from app.queue import update_download_progress
+
+    with make_session() as session:
+        solicitud = add_request(session)
+        descarga = Descarga(
+            solicitud_id=solicitud.id,
+            titulo="Descarga protegida",
+            estado="enviada",
+            qbittorrent_hash="a" * 40,
+        )
+        session.add(descarga)
+        session.commit()
+        session.refresh(descarga)
+
+        assert not update_download_progress(
+            session, descarga.id, "b" * 40, "descargando", 0.5
+        )
+        session.expire_all()
+        assert session.get(Descarga, descarga.id).estado == "enviada"
+
+
+def test_update_download_progress_rejects_invalid_values():
+    import pytest
+
+    from app.queue import update_download_progress
+
+    with make_session() as session:
+        for estado, progreso, tamano in (
+            ("descargando", -0.1, None),
+            ("descargando", 1.1, None),
+            ("completada", 0.5, None),
+            ("descargando", 0.5, -1),
+            ("estado_desconocido", 0.5, None),
+        ):
+            with pytest.raises(ValueError):
+                update_download_progress(
+                    session, 1, "a" * 40, estado, progreso, tamano
+                )
+
+
+def test_update_download_progress_never_goes_backwards():
+    from app.queue import update_download_progress
+
+    with make_session() as session:
+        solicitud = add_request(session)
+        descarga = Descarga(
+            solicitud_id=solicitud.id,
+            titulo="Prueba de progreso",
+            estado="descargando",
+            qbittorrent_hash="c" * 40,
+            progreso=0.60,
+            tamano_bytes=2000,
+        )
+        session.add(descarga)
+        session.commit()
+        session.refresh(descarga)
+
+        assert not update_download_progress(
+            session,
+            descarga.id,
+            "c" * 40,
+            "descargando",
+            0.45,
+            1000,
+        )
+
+        session.expire_all()
+        guardada = session.get(Descarga, descarga.id)
+        assert guardada.estado == "descargando"
+        assert guardada.progreso == 0.60
+        assert guardada.tamano_bytes == 2000
+
+
+def test_update_download_progress_rejects_invalid_types():
+    import math
+
+    import pytest
+
+    from app.queue import update_download_progress
+
+    invalidos = (
+        (True, None),
+        (False, None),
+        (math.nan, None),
+        (math.inf, None),
+        (-math.inf, None),
+        ("0.5", None),
+        (0.5, True),
+        (0.5, 1.5),
+    )
+
+    with make_session() as session:
+        for progreso, tamano in invalidos:
+            with pytest.raises(ValueError):
+                update_download_progress(
+                    session,
+                    1,
+                    "c" * 40,
+                    "descargando",
+                    progreso,
+                    tamano,
+                )
+
+
+def test_update_download_progress_does_not_return_to_sent():
+    from app.queue import update_download_progress
+
+    with make_session() as session:
+        solicitud = add_request(session)
+        descarga = Descarga(
+            solicitud_id=solicitud.id,
+            titulo="Descarga activa",
+            estado="descargando",
+            qbittorrent_hash="e" * 40,
+            progreso=0.60,
+        )
+        session.add(descarga)
+        session.commit()
+        session.refresh(descarga)
+
+        assert not update_download_progress(
+            session,
+            descarga.id,
+            "e" * 40,
+            "enviada",
+            0.60,
+        )
+
+        session.expire_all()
+        guardada = session.get(Descarga, descarga.id)
+        assert guardada.estado == "descargando"
+        assert guardada.progreso == 0.60
