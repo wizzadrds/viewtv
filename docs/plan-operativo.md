@@ -504,3 +504,24 @@ del indexador mediante procedimientos oficiales.
   frontend/components/viewtv-app.tsx
   frontend/app/globals.css
 - Backend, worker y SQLite sin cambios en esta tarea.
+
+## Validacion de errores Torznab de Jackett - 2026-11-18
+
+- Jackett Windows accesible desde Docker por el puerto 9117.
+- API Torznab: capacidades XML validas, HTTP 200.
+- DonTorrent: prueba interna de Jackett correcta.
+- Busqueda manual de DonTorrent: devuelve resultados.
+- Busqueda Torznab de "Nadie 2": HTTP 400, error 900.
+- Diagnostico del registro: DonTorrent devolvio una pagina
+  HTML con el aviso "Estamos saturados".
+- Causa externa observada: saturacion temporal del sitio.
+- Correccion en backend/app/jackett.py:
+  deteccion de errores XML Torznab con HTTP 200 o 400.
+- El cliente comunica el codigo Torznab sin exponer
+  descripciones, HTML, claves ni trazas internas.
+- Regresion: 85 pruebas superadas, 1 aviso no bloqueante.
+- Ruff y git diff --check: correctos.
+- No se modificaron la cola, el worker ni SQLite.
+- No se iniciaron descargas.
+- Pendiente: validar busquedas reales cuando el indexador
+  vuelva a responder y revisar la politica de reintentos.

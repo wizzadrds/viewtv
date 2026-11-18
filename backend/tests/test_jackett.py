@@ -130,3 +130,36 @@ def test_missing_configuration_is_reported(monkeypatch):
 
     with pytest.raises(JackettError, match="no está configurado"):
         client.search("prueba")
+
+
+@pytest.mark.parametrize("http_status", [200, 400])
+def test_search_reports_torznab_indexer_error(
+    monkeypatch, http_status
+):
+    settings = _settings(monkeypatch)
+
+    xml = (
+        b'<error code="900" '
+        b'description="Error interno: jackett-secret" />'
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            http_status,
+            content=xml,
+            request=request,
+        )
+
+    client = JackettClient(
+        settings,
+        transport=httpx.MockTransport(handler),
+    )
+
+    with pytest.raises(JackettError) as error:
+        client.search("contenido de prueba")
+
+    message = str(error.value)
+
+    assert "Torznab 900" in message
+    assert "jackett-secret" not in message
+    assert "Error interno" not in message

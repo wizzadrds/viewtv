@@ -84,8 +84,26 @@ class JackettClient:
                     "/api/v2.0/indexers/all/results/torznab/api",
                     params={"apikey": self._api_key, **params},
                 )
+                try:
+                    root = ET.fromstring(response.content)
+                except ET.ParseError:
+                    response.raise_for_status()
+                    raise JackettError(
+                        "Jackett devolvió una respuesta XML no válida."
+                    ) from None
+
+                if _local_name(root.tag).lower() == "error":
+                    code = root.attrib.get("code", "")
+                    if code.isdecimal() and len(code) <= 5:
+                        raise JackettError(
+                            f"Jackett notificó un error (Torznab {code})."
+                        )
+                    raise JackettError(
+                        "Jackett notificó un error del indexador."
+                    )
+
                 response.raise_for_status()
-                return ET.fromstring(response.content)
+                return root
         except httpx.HTTPError:
             raise JackettError("Error de comunicación con Jackett.") from None
         except ET.ParseError:
