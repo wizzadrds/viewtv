@@ -1,160 +1,169 @@
+# VIEWTV — Estado real del proyecto
 
-# Estado del proyecto VIEWTV
+**Fecha de revisión:** 18 de noviembre de 2026
+**Rama local:** `inventario-trabajo-local`
+**Commit local:** `482071b`
 
-**Fecha de actualización:** 15 de noviembre de 2026
-**Rama de referencia:** `inventario-trabajo-local`
-**Último commit revisado:** `f050115`
-
-Este documento resume el estado conocido del proyecto VIEWTV en la rama de trabajo. Para conocer las decisiones técnicas y el contexto completo, consultar `docs/CONTEXTO.md`.
+> Inventario generado desde la carpeta local de Ubuntu/WSL.
+> La presencia de un archivo no significa que su
+> funcionamiento completo esté validado.
+> No describe la rama main.
 
 ## Resumen
 
-VIEWTV es una aplicación doméstica autohospedada orientada a descubrir y solicitar contenido multimedia desde una interfaz adaptada a televisión, con Jellyfin como servidor multimedia.
+- API FastAPI, SQLite, autenticación y perfiles implementados.
+- Catálogo Jellyfin y proxy de imágenes validados con un medio real.
+- Backend de reproducción Direct Play implementado, pendiente
+  de integración y validación real de respuestas HTTP 206.
+- PWA Next.js implementada inicialmente, sin validación completa
+  en navegador ni Fire TV.
+- Solicitudes, búsqueda Torznab, selección manual y worker
+  de descargas presentes en el código local.
+- Integración qBittorrent probada parcialmente; no se ha
+  completado una descarga real de extremo a extremo.
+- Jackett instalado en Windows y FlareSolverr en Docker.
+- Las pruebas locales del backend devolvieron 129 correctas
+  y 2 advertencias el 18/11/2026.
 
-El proyecto ya dispone de una base funcional de backend, persistencia, cola de trabajos, worker independiente, frontend y configuración de servicios.
+## Estado por fases
 
-- **Fase 1: cerrada.**
-- **Fase 2: en curso.**
-- **Entregables 1 a 4 de fase 2: cerrados.**
-- **Siguiente entregable: procesador del worker.**
+| Fase | Estado | Pendiente principal |
+| --- | --- | --- |
+| 1. Base | Muy avanzada | Cierre formal y verificaciones restantes |
+| 2. Catálogo Jellyfin | Validado parcialmente | Revisión funcional completa |
+| 3. Solicitudes y reproducción | Parcial | Descarga integral y Direct Play real |
+| 4. Caché y cuota | Pendiente de cierre | Ciclo de vida, expulsión y pruebas |
+| 5. Asistente conversacional | Pendiente | Implementación y pruebas |
+| 6. PWA y televisión | Parcial | Validación navegador, mando y Fire TV |
 
-El estado descrito aquí corresponde a la rama local `inventario-trabajo-local`. En la fecha de actualización contiene seis commits que todavía no están en su rama remota correspondiente.
+## Infraestructura comprobada
 
-## Estado de las fases
+- Docker Compose validado mediante `docker compose config --quiet`.
+- API funcionando con estado `healthy`.
+- Worker arrancado.
+- FlareSolverr 3.5.2 en Docker, `healthy`, puerto local 8191.
+- Jackett nativo en Windows, puerto 9117.
+- Jackett tiene configurada la URL local de FlareSolverr.
+- FlareSolverr devolvió HTTP 200 al navegar a Wikipedia.
+- No se ha demostrado aún resolución efectiva de Cloudflare
+  desde un indexador Jackett.
+- MejorTorrent no se pudo añadir por fallo durante TLS.
+- La incidencia y sus registros están documentados
+  en `docs/plan-operativo.md`.
 
-### Fase 1 — Base de la aplicación
+## Árbol de componentes
 
-**Estado: cerrada.**
+```text
+viewtv/
+├── backend/ (43 archivos inventariados)
+├── worker/ (5 archivos inventariados)
+├── frontend/ (12 archivos inventariados)
+├── docs/ (10 archivos inventariados)
+├── scripts/ (2 archivos inventariados)
+├── .github/ (1 archivos inventariados)
+├── compose.yaml
+├── .env.example
+├── Makefile
+└── README.md
+```
 
-La fase estableció la infraestructura y los fundamentos necesarios para continuar el desarrollo:
+## Inventario archivo por archivo
 
-- Servicios y entorno de desarrollo con Docker Compose.
-- Backend basado en FastAPI y SQLModel.
-- Persistencia SQLite y migraciones con Alembic.
-- Cola durable de trabajos y reclamación transaccional.
-- Infraestructura de worker independiente; el procesamiento del flujo real de descargas corresponde al entregable 5 de fase 2.
-- Estructura de frontend.
-- Pruebas automatizadas y herramientas de calidad.
-- Makefile de desarrollo y licencia del proyecto.
+| Archivo | Función | Estado en Git |
+| --- | --- | --- |
+| `.github/workflows/backend-ci.yml` | Automatización GitHub | Versionado |
+| `README.md` | Configuración del proyecto | Versionado |
+| `backend/README.md` | Componente del backend | Versionado |
+| `backend/app/__init__.py` | Componente del backend | Versionado |
+| `backend/app/auth.py` | Componente del backend | Versionado |
+| `backend/app/config.py` | Configuración del backend | Versionado |
+| `backend/app/database.py` | Componente del backend | Versionado |
+| `backend/app/jackett.py` | Componente del backend | Versionado |
+| `backend/app/jellyfin.py` | Integración de catálogo Jellyfin | Versionado |
+| `backend/app/jellyfin_playback.py` | Negociación y proxy de reproducción | Versionado |
+| `backend/app/main.py` | Punto de entrada de la API | Versionado |
+| `backend/app/metadatos_resultado.py` | Metadatos de resultados | Nuevo local; sin seguimiento |
+| `backend/app/models.py` | Modelos de datos | Modificado localmente |
+| `backend/app/qbittorrent.py` | Cliente de qBittorrent | Modificado localmente |
+| `backend/app/queue.py` | Componente del backend | Modificado localmente |
+| `backend/app/solicitudes.py` | API de solicitudes y selección | Modificado localmente |
+| `backend/app/tmdb.py` | Componente del backend | Versionado |
+| `backend/migrations/env.py` | Componente del backend | Versionado |
+| `backend/migrations/versions/0001_initial.py` | Migración de base de datos | Versionado |
+| `backend/migrations/versions/0002_medio_disponible_en_jellyfin.py` | Migración de base de datos | Versionado |
+| `backend/migrations/versions/0003_metadatos_tmdb.py` | Migración de base de datos | Versionado |
+| `backend/migrations/versions/0004_descarga.py` | Migración de base de datos | Versionado |
+| `backend/migrations/versions/0005_resultados_busqueda.py` | Migración de base de datos | Nuevo local; sin seguimiento |
+| `backend/migrations/versions/0006_resultado_descarga.py` | Migración de base de datos | Nuevo local; sin seguimiento |
+| `backend/migrations/versions/0007_leases_descarga.py` | Migración de base de datos | Nuevo local; sin seguimiento |
+| `backend/migrations/versions/0008_solicitud_jellyfin_nullable.py` | Migración de base de datos | Nuevo local; sin seguimiento |
+| `backend/pyproject.toml` | Componente del backend | Modificado localmente |
+| `backend/scripts/__init__.py` | Componente del backend | Versionado |
+| `backend/scripts/backup_db.py` | Componente del backend | Versionado |
+| `backend/scripts/create_profile.py` | Componente del backend | Versionado |
+| `backend/tests/test_auth.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_backup.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_integrations_config.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_jackett.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_jellyfin.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_jellyfin_catalog.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_jellyfin_images.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_jellyfin_playback.py` | Prueba automatizada | Versionado |
+| `backend/tests/test_metadatos_resultado.py` | Prueba automatizada | Nuevo local; sin seguimiento |
+| `backend/tests/test_models.py` | Prueba automatizada | Modificado localmente |
+| `backend/tests/test_qbittorrent.py` | Prueba automatizada | Modificado localmente |
+| `backend/tests/test_queue.py` | Prueba automatizada | Modificado localmente |
+| `backend/tests/test_solicitudes.py` | Prueba automatizada | Modificado localmente |
+| `backend/tests/test_worker_download_processor.py` | Prueba automatizada | Nuevo local; sin seguimiento |
+| `backend/tests/test_worker_processor.py` | Prueba automatizada | Nuevo local; sin seguimiento |
+| `compose.yaml` | Servicios y almacenamiento Docker | Modificado localmente |
+| `docs/CONTEXTO.md` | Documentación | Versionado |
+| `docs/ESTADO.md` | Documentación | Versionado |
+| `docs/FASE-2.md` | Documentación | Versionado |
+| `docs/REVISION-IMPLEMENTACION.md` | Documentación | Versionado |
+| `docs/adr/0001-orientacion-de-portadas.md` | Documentación | Versionado |
+| `docs/arquitectura.md` | Documentación | Modificado localmente |
+| `docs/backup-operativo.md` | Documentación | Versionado |
+| `docs/especificacion-y-estado.md` | Documentación | Versionado |
+| `docs/plan-operativo.md` | Documentación | Modificado localmente |
+| `docs/reproduccion-jellyfin.md` | Documentación | Versionado |
+| `frontend/README.md` | Interfaz web/PWA | Versionado |
+| `frontend/app/globals.css` | Interfaz web/PWA | Versionado |
+| `frontend/app/layout.tsx` | Interfaz web/PWA | Versionado |
+| `frontend/app/manifest.ts` | Interfaz web/PWA | Versionado |
+| `frontend/app/page.tsx` | Interfaz web/PWA | Versionado |
+| `frontend/components/viewtv-app.tsx` | Interfaz web/PWA | Versionado |
+| `frontend/lib/api.ts` | Interfaz web/PWA | Versionado |
+| `frontend/next-env.d.ts` | Interfaz web/PWA | Versionado |
+| `frontend/next.config.ts` | Interfaz web/PWA | Versionado |
+| `frontend/package-lock.json` | Interfaz web/PWA | Versionado |
+| `frontend/package.json` | Dependencias y comandos de la PWA | Versionado |
+| `frontend/tsconfig.json` | Interfaz web/PWA | Versionado |
+| `scripts/backup-daily.ps1` | Script operativo | Versionado |
+| `scripts/backup-daily.sh` | Script operativo | Versionado |
+| `worker/README.md` | Componente del worker | Modificado localmente |
+| `worker/download_processor.py` | Procesamiento de descargas | Nuevo local; sin seguimiento |
+| `worker/main.py` | Punto de entrada del worker | Modificado localmente |
+| `worker/processor.py` | Procesamiento de solicitudes | Nuevo local; sin seguimiento |
+| `worker/tmdb_enrichment.py` | Componente del worker | Versionado |
 
-El cierre de esta fase está documentado en el historial del proyecto. No debe reabrirse por la existencia de documentos de inventario antiguos.
+## Pendientes prioritarios
 
-### Fase 2 — Primera descarga real controlada
+1. Proteger y revisar los cambios locales antes de subirlos.
+2. Verificar el adaptador Torznab y el worker en el despliegue real.
+3. Validar una transferencia autorizada completa con qBittorrent.
+4. Integrar y probar Direct Play con HTTP Range y respuesta 206.
+5. Validar la PWA en navegador y en Fire TV.
+6. Completar la gestión de caché, cuota y recuperación de tareas.
+7. Completar el asistente conversacional y las pruebas finales.
+8. Mantener la documentación actualizada después de cada avance.
 
-**Estado: en curso.**
+## Límites de esta revisión
 
-El objetivo es completar el recorrido desde una solicitud autenticada hasta la gestión controlada de una descarga, respetando las fuentes autorizadas y manteniendo la persistencia del estado.
-
-| Entregable | Descripción | Estado |
-|---|---|---|
-| 1 | Configuración de servicios de descarga | Cerrado |
-| 2 | Clientes HTTP de Jackett y qBittorrent | Cerrado |
-| 3 | Modelo de descarga y migración | Cerrado |
-| 4 | Endpoint autenticado para crear solicitudes | Cerrado |
-| 5 | Procesador del worker | Pendiente |
-| 6 | Búsqueda y selección de resultados | Pendiente |
-| 7 | Envío y seguimiento en qBittorrent | Pendiente |
-| 8 | Pruebas de resiliencia | Pendiente |
-
-El seguimiento detallado, los contratos técnicos y los criterios de aceptación están en `docs/FASE-2.md`.
-
-## Avances confirmados en la rama de trabajo
-
-Los seis commits locales posteriores a la referencia remota son:
-
-| Commit | Descripción |
-|---|---|
-| `e3b4676` | Configurar servicios de descarga |
-| `c51f3b7` | Añadir clientes HTTP de Jackett y qBittorrent |
-| `ad2add4` | Documentar avance de fase 2 |
-| `dfb00f7` | Añadir modelo y migración de descargas |
-| `59e4d5e` | Documentar cierre del modelo de descargas |
-| `f050115` | Añadir endpoint autenticado de solicitudes |
-
-### Configuración e integraciones
-
-- Configuración de Jackett y qBittorrent para el entorno de desarrollo.
-- Cliente HTTP independiente para Jackett mediante Torznab.
-- Cliente HTTP independiente para qBittorrent.
-- La integración prevista utiliza Jackett; no requiere Prowlarr.
-- No se contempla el análisis de páginas HTML.
-
-### Persistencia de descargas
-
-- Modelo `Descarga`.
-- Migración Alembic `0004`.
-- Estados de descarga definidos.
-- Persistencia de hash, título, indexador, progreso, tamaño, errores y marcas temporales.
-- Índice parcial único para evitar duplicados por `info_hash`.
-
-### Solicitudes autenticadas
-
-Se ha incorporado `POST /solicitudes`:
-
-- El perfil se obtiene de la sesión autenticada.
-- Se comprueba que el medio existe en Jellyfin.
-- Se evita duplicar solicitudes activas.
-- La operación utiliza una transacción `BEGIN IMMEDIATE`.
-- Se contemplan respuestas para medios inexistentes, conflictos y solicitudes inválidas.
-- Se permite volver a solicitar un medio cuando la solicitud anterior ha fallado.
-
-La validación documentada para el entregable 4 incluye 73 pruebas de backend superadas, Ruff correcto y `git diff --check` correcto. Esta cifra corresponde a esa validación, no necesariamente al total actual de pruebas del proyecto. No se considera acreditada una prueba específica de concurrencia HTTP.
-
-## Siguiente trabajo
-
-El siguiente paso aprobado es el **entregable 5: procesador del worker**.
-
-Antes de modificar código:
-
-1. Inspeccionar el worker actual y sus responsabilidades.
-2. Revisar la interacción con la cola y el modelo `Descarga`.
-3. Acordar el diseño técnico del procesador.
-4. Implementar únicamente el alcance de este entregable.
-5. Añadir las pruebas correspondientes y documentar su cierre.
-
-No adelantar los entregables 6, 7 u 8 sin cerrar previamente el diseño y el trabajo del entregable 5.
-
-## Decisiones y restricciones vigentes
-
-- Intel Quick Sync (QSV) como tecnología de aceleración de vídeo; no NVENC.
-- Jackett como integración de búsqueda para esta fase.
-- Cliente Torznab genérico, sin parseo HTML.
-- Utilizar únicamente fuentes de contenido cuya autorización esté acreditada.
-- No incluir credenciales, tokens, archivos `.env` ni bases de datos locales en Git.
-- No modificar la interfaz visual, portadas o estilos sin autorización expresa.
-
-Las decisiones arquitectónicas y sus justificaciones se mantienen en los documentos de contexto y ADR.
-
-## Documentación del proyecto
-
-| Documento | Responsabilidad |
-|---|---|
-| `README.md` | Presentación del proyecto, puesta en marcha y enlaces principales |
-| `docs/ESTADO.md` | Resumen del estado actual y próximos pasos |
-| `docs/CONTEXTO.md` | Contexto de traspaso, decisiones y seguimiento general |
-| `docs/FASE-2.md` | Alcance, contratos y seguimiento de los entregables de fase 2 |
-| `docs/arquitectura.md` | Arquitectura y límites entre componentes |
-| `docs/plan-operativo.md` | Planificación y decisiones operativas |
-| `docs/backup-operativo.md` | Copias de seguridad y recuperación |
-| `docs/reproduccion-jellyfin.md` | Integración y reproducción mediante Jellyfin |
-| `docs/especificacion-y-estado.md` | Especificación funcional e historial de planificación |
-| `docs/REVISION-IMPLEMENTACION.md` | Registro histórico de revisiones de implementación |
-| `docs/adr/` | Decisiones de arquitectura aceptadas |
-
-Los documentos históricos se conservan para trazabilidad. Si un diagnóstico antiguo contradice una implementación posterior, prevalece el estado confirmado más reciente y debe indicarse expresamente en el documento histórico.
-
-## Estado Git de referencia
-
-En la revisión del 15 de noviembre de 2026:
-
-- Rama activa: `inventario-trabajo-local`.
-- Rama remota de seguimiento: `origin/inventario-trabajo-local`.
-- Diferencia: seis commits locales por delante.
-- Árbol de trabajo: limpio en la revisión previa a la edición de este documento.
-- Último commit local revisado: `f050115`.
-
-Este estado Git debe actualizarse cuando se publique la rama o se incorporen nuevos cambios.
-
----
-
-**Regla de mantenimiento:** actualizar este documento al cerrar entregables o fases, y mantenerlo como resumen breve. Los detalles de implementación deben permanecer en sus documentos especializados.
+- Los archivos nuevos locales no están necesariamente
+  disponibles en GitHub.
+- El inventario registra existencia y estado de Git,
+  no certifica el comportamiento individual de cada archivo.
+- No se ha ejecutado aquí una reproducción real ni una descarga.
+- No se ha realizado un commit ni un push.
+- No se ha cambiado de rama.
