@@ -193,3 +193,35 @@ Consultar versiones compatibles con las dependencias declaradas en el proyecto.
 - No documentar fuentes no verificadas ni contenido sin autorización.
 - No incluir secretos, claves API, tokens, cookies, bases de datos locales ni archivos de configuración privados.
 - No modificar estilos, portadas ni componentes visuales del frontend como parte de una tarea documental.
+
+## Arquitectura desplegada de Jackett y FlareSolverr
+
+Componentes:
+- API y worker VIEWTV: Docker.
+- Jackett: Windows nativo, puerto 9117.
+- FlareSolverr: Docker, puerto 8191.
+- Jellyfin: servicio externo de biblioteca y reproducción.
+
+La aplicación utiliza un adaptador Torznab genérico para
+resultados estructurados. No analiza HTML de las fuentes.
+
+Desde los contenedores, Jackett es accesible mediante
+host.docker.internal:9117. La prueba de conectividad necesitó
+la cabecera Host: localhost:9117; falta validar Torznab real.
+
+Jackett accede a FlareSolverr por http://127.0.0.1:8191.
+FlareSolverr solo debe utilizarse con fuentes que lo necesiten.
+
+Filtros previstos:
+- Seeders.
+- Idioma declarado.
+- Calidad.
+- Tamaño máximo.
+
+Resiliencia prevista:
+- Enfriamiento de 30 minutos por fuente ante 429, 503 o timeout.
+- No detener las demás fuentes.
+- Panel de estado e interruptor por fuente.
+
+Los foros de descarga directa quedan fuera del alcance.
+No se declara validada la integración completa.

@@ -394,3 +394,66 @@ No se debe inferir que la tarea diaria continúa funcionando sin una comprobaci�
 ---
 
 **Regla operativa principal:** antes de actuar, comprobar el estado real del repositorio y del entorno. La documentación histórica explica cómo se llegó al estado actual, pero las operaciones futuras deben basarse en el código, las pruebas y las decisiones vigentes.
+
+## Jackett y FlareSolverr — instalación comprobada
+
+Fecha: 18 de noviembre de 2026.
+
+- Jackett se ejecuta directamente en Windows, puerto 9117.
+- El proceso identificado es JackettConsole.
+- Desde Docker se alcanza mediante host.docker.internal:9117.
+- La prueba HTTP necesitó Host: localhost:9117 y devolvió 302.
+- FlareSolverr se ejecuta en Docker, puerto 8191.
+- Se publica solamente en 127.0.0.1:8191.
+- Docker Compose fue validado correctamente.
+- El contenedor FlareSolverr aparece healthy.
+- Su endpoint /health devolvió {"status":"ok"}.
+- Jackett tiene configurada la URL http://127.0.0.1:8191.
+- No se ha instalado un segundo Jackett en Docker.
+
+Pendiente:
+- Probar una consulta real que necesite FlareSolverr.
+- Validar el circuito completo de búsqueda y descarga.
+- No compartir claves API, PIN, tokens ni archivos .env.
+
+Comprobaciones desde Ubuntu/WSL:
+- docker compose config --quiet
+- docker compose ps flaresolverr
+- curl -fsS http://127.0.0.1:8191/health
+
+
+### Validación de navegación de FlareSolverr — 18/11/2026
+
+- FlareSolverr 3.5.2 con Chromium 152.
+- El servicio HTTP y el healthcheck funcionan.
+- Primera prueba con example.com: HTTP 500.
+- El registro mostró net::ERR_CONNECTION_CLOSED.
+- example.com también falló desde Windows y WSL.
+- La conexión HTTPS desde WSL a Wikipedia respondió HTTP 200.
+- Prueba mediante POST /v1 con request.get a
+  https://www.wikipedia.org/: superada.
+- FlareSolverr devolvió status=ok y HTTP destino=200.
+- Mensaje recibido: Challenge not detected!
+- Conclusión: navegación HTTPS mediante Chromium validada.
+- Pendiente: probar un desafío real de Cloudflare
+  mediante una fuente autorizada configurada en Jackett.
+
+
+### Incidencia TLS de MejorTorrent — 18/11/2026
+
+- Jackett: version 0.24.3065.0, instalado en Windows.
+- La direccion principal del indexador funciona en navegador,
+  segun comprobacion del propietario.
+- Al configurar el indexador, Jackett intenta consultar /torrents.
+- La conexion falla durante la negociacion TLS.
+- Excepcion: HttpRequestException / SslStream.
+- Jackett responde HTTP 500.
+- FlareSolverr no registro peticiones durante ese intento.
+- FlareSolverr funciona con otras paginas HTTPS.
+- Existe una incidencia similar: Jackett GitHub #17190.
+- Resultado: indexador no operativo; causa de red pendiente.
+- No se han desactivado certificados ni protecciones TLS.
+- No se han realizado descargas.
+
+Pendiente: estudiar la conectividad TLS y la configuracion
+del indexador mediante procedimientos oficiales.

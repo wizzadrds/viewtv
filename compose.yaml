@@ -50,6 +50,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    environment:
+      TZ: Europe/Madrid
+      LOG_LEVEL: info
+    ports:
+      - "127.0.0.1:8191:8191"
+    volumes:
+      - flaresolverr_config:/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8191/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 volumes:
   # Datos persistentes: SQLite y metadatos, nunca se purgan al limpiar la caché.
   viewtv_data:
+  flaresolverr_config:
