@@ -40,3 +40,29 @@ La validación de integración debe ejecutarse en el equipo del usuario con el v
 2. Añadir reproducción adaptativa para fuentes no compatibles con Direct Play (HLS/remux/transcodificación), manteniendo el proxy y las credenciales en el backend.
 3. Conectar el reproductor HTML5 de la PWA y los controles de mando.
 4. Reportar estado/progreso a Jellyfin y probar reanudación, pistas de audio/subtítulos y Fire TV.
+
+## Validación real de Direct Play — 2026-11-18
+
+- API VIEWTV reconstruida y saludable; Alembic en revisión
+  `0008_solicitud_jellyfin_nullable`.
+- Jellyfin utilizado: instancia Docker, puerto 8097.
+- Fallo original: HTTP 400, `Guid can't be empty`, por ausencia
+  de contexto `UserId` en la negociación de reproducción.
+- Corrección: configuración `JELLYFIN_USER_ID` y envío de
+  `UserId` a `/Items/{id}/PlaybackInfo`.
+- Pruebas automatizadas: 5 superadas; Ruff y `git diff --check` correctos.
+- Respaldo SQLite persistente comprobado: integridad `ok`.
+- Sincronización del catálogo: 1 elemento procesado.
+- `videoplayback`: registro antiguo VIEWTV ID 1 no disponible;
+  registro actual VIEWTV ID 2 disponible.
+- Autenticación de perfil VIEWTV: HTTP 200.
+- `POST /jellyfin/media/2/playback-info`: HTTP 200,
+  estado `listo`, 1 fuente Direct Play.
+- `GET /jellyfin/media/2/stream` con `Range: bytes=0-1023`:
+  HTTP 206, `Content-Type: video/mp4`,
+  `Content-Range: bytes 0-1023/756644`,
+  `Accept-Ranges: bytes`, 1024 bytes recibidos.
+- Resultado: proxy de Direct Play y entrega parcial HTTP 206
+  validados mediante prueba real.
+- Pendiente: prueba visual de reproducción continuada en la PWA,
+  si se requiere como aceptación adicional.

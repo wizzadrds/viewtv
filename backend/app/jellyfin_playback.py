@@ -54,7 +54,8 @@ class JellyfinPlaybackClient:
         self.api_key = self.settings.jellyfin_api_key
         self.timeout = self.settings.jellyfin_timeout_seconds
         self.transport = transport
-        if not self.base_url or not self.api_key:
+        self.user_id = self.settings.jellyfin_user_id.strip()
+        if not self.base_url or not self.api_key or not self.user_id:
             raise JellyfinError("Jellyfin no está configurado.")
 
     @property
@@ -84,7 +85,11 @@ class JellyfinPlaybackClient:
             ) as client:
                 response = client.post(
                     f"/Items/{encoded_id}/PlaybackInfo",
-                    params={"IsPlayback": "true", "AutoOpenLiveStream": "true"},
+                    params={
+                        "UserId": self.user_id,
+                        "IsPlayback": "true",
+                        "AutoOpenLiveStream": "true",
+                    },
                     json=payload,
                 )
                 response.raise_for_status()

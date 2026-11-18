@@ -12,6 +12,7 @@ def make_settings() -> Settings:
     return Settings(
         jellyfin_base_url="http://jellyfin.test:8096",
         jellyfin_api_key="private-test-key",
+        jellyfin_user_id="test-user-id",
         jellyfin_timeout_seconds=5,
     )
 
@@ -22,6 +23,7 @@ def test_playback_info_posts_device_profile_and_sanitizes_server_urls():
         assert request.url.path == "/Items/jf-item-1/PlaybackInfo"
         assert request.headers["Authorization"] == 'MediaBrowser Token="private-test-key"'
         assert request.url.params["IsPlayback"] == "true"
+        assert request.url.params["UserId"] == "test-user-id"
         payload = json.loads(request.content)
         assert payload["DeviceProfile"]["Name"] == "VIEWTV Web"
         assert payload["EnableTranscoding"] is True
