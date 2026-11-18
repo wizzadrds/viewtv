@@ -66,3 +66,24 @@ La validación de integración debe ejecutarse en el equipo del usuario con el v
   validados mediante prueba real.
 - Pendiente: prueba visual de reproducción continuada en la PWA,
   si se requiere como aceptación adicional.
+
+## Validacion visual del modo cine - 2026-11-18
+
+- Frontend Next.js operativo en localhost:3000.
+- Reproductor integrado con la API de VIEWTV.
+- Negociacion Direct Play mediante PlaybackInfo.
+- Streaming del video a traves del proxy de VIEWTV.
+- Reproductor separado de la ficha de pelicula.
+- Modo cine con video grande y fondo oscuro.
+- Ficha mejorada y poster vertical 2:3.
+- Controles de reproduccion, pausa, avance y volumen.
+- Pantalla completa y regreso a la ficha comprobados.
+- Prueba visual realizada en Windows: correcta.
+- TypeScript: correcto.
+- ESLint: correcto.
+- git diff --check: correcto.
+- Docker Compose: configuracion valida.
+- Archivos de frontend:
+  frontend/components/viewtv-app.tsx
+  frontend/app/globals.css
+- Backend, worker y SQLite sin cambios en esta tarea.

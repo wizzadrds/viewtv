@@ -66,9 +66,13 @@ export default function ViewTVApp() {
   const [busy, setBusy] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [playbackBusy, setPlaybackBusy] = useState(false);
+  const [playbackError, setPlaybackError] = useState("");
+  const playbackRequest = useRef(0);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  useSpatialNavigation(view === "catalog" || view === "login");
+  useSpatialNavigation((view === "catalog" || view === "login") && !playbackUrl);
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -131,7 +135,7 @@ export default function ViewTVApp() {
     );
   }, [items, search]);
 
-  const selectedPoster = selectedItem?.imagen_fondo ?? selectedItem?.imagen_portada;
+  const selectedPoster = selectedItem?.imagen_portada ?? selectedItem?.imagen_fondo;
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,12 +187,92 @@ export default function ViewTVApp() {
     }
   }
 
+  function closeDetails() {
+    playbackRequest.current += 1;
+    setPlaybackUrl(null);
+    setPlaybackBusy(false);
+    setPlaybackError("");
+    setSelectedItem(null);
+  }
+
+  function openDetails(item: MediaItem) {
+    closeDetails();
+    setSelectedItem(item);
+  }
+
+  async function handlePlay() {
+    if (!selectedItem || playbackBusy) return;
+
+    const id = selectedItem.id;
+    const requestId = ++playbackRequest.current;
+    setPlaybackBusy(true);
+    setPlaybackError("");
+    setPlaybackUrl(null);
+
+    try {
+      const result = await apiRequest<{
+        estado: string;
+        fuentes: Array<{
+          reproduccion_directa: boolean;
+          url: string | null;
+        }>;
+      }>(`/jellyfin/media/${id}/playback-info`, {
+        method: "POST",
+      });
+
+      if (playbackRequest.current !== requestId) return;
+
+      const source = result.fuentes.find(
+        (item) =>
+          item.reproduccion_directa === true
+          && typeof item.url === "string"
+          && item.url.startsWith(`/jellyfin/media/${id}/stream?`)
+      );
+
+      if (!source?.url) {
+        setPlaybackError("No hay una fuente Direct Play disponible.");
+        return;
+      }
+
+      setPlaybackUrl(apiPath(source.url));
+    } catch (error) {
+      if (playbackRequest.current !== requestId) return;
+      setPlaybackError(
+        (error as Error).message || "No se pudo iniciar la reproducción."
+      );
+    } finally {
+      if (playbackRequest.current === requestId) {
+        setPlaybackBusy(false);
+      }
+    }
+  }
+
   function onPinKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       const form = event.currentTarget.form;
       form?.requestSubmit();
     }
   }
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [selectedItem]);
+
+  useEffect(() => {
+    if (!playbackUrl) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPlaybackUrl(null);
+        setPlaybackError("");
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [playbackUrl]);
 
   if (view === "loading") {
     return <main className="boot-screen"><div className="brand-mark">V</div><p>Iniciando VIEWTV…</p></main>;
@@ -302,7 +386,7 @@ export default function ViewTVApp() {
 
         <div className="media-grid">
           {visibleItems.map((item) => (
-            <button className="media-card" data-spatial key={item.id} onClick={() => setSelectedItem(item)} type="button">
+            <button className="media-card" data-spatial key={item.id} onClick={() => openDetails(item)} type="button">
               <span className="poster-wrap">
                 {item.imagen_portada ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -317,16 +401,16 @@ export default function ViewTVApp() {
         </div>
       </section>
 
-      {selectedItem && (
-        <div className="dialog-backdrop" role="presentation" onClick={() => setSelectedItem(null)}>
+      {selectedItem && !playbackUrl && (
+        <div className="dialog-backdrop" role="presentation" onClick={closeDetails}>
           <section aria-labelledby="detail-title" aria-modal="true" className="detail-dialog" onClick={(event) => event.stopPropagation()} role="dialog">
-            <button aria-label="Cerrar detalles" className="dialog-close" data-spatial onClick={() => setSelectedItem(null)} type="button">×</button>
+            <button aria-label="Cerrar detalles" className="dialog-close" data-spatial onClick={closeDetails} type="button">×</button>
             {selectedItem.imagen_fondo && (
               // eslint-disable-next-line @next/next/no-img-element
               <img alt="" className="detail-backdrop" src={apiPath(selectedItem.imagen_fondo)} />
             )}
             <div className="detail-content">
-              <div className="detail-layout">
+              <div className={selectedPoster ? "detail-layout has-poster" : "detail-layout"}>
                 {selectedPoster && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -340,13 +424,79 @@ export default function ViewTVApp() {
                   <h2 id="detail-title">{selectedItem.titulo}</h2>
                   <p className="detail-meta">{selectedItem.anio ?? "Año desconocido"}{selectedItem.generos.length ? ` · ${selectedItem.generos.join(" · ")}` : ""}</p>
                   <p className="detail-synopsis">{selectedItem.sinopsis || "No hay sinopsis disponible para este título."}</p>
-                  <p className="muted small-note">La reproducción se integrará en la siguiente etapa.</p>
-                  <button className="primary-button compact" data-spatial onClick={() => setSelectedItem(null)} type="button">Volver a la biblioteca</button>
+                  {!playbackUrl && (
+                    <button
+                      className="primary-button compact"
+                      data-spatial
+                      disabled={playbackBusy}
+                      onClick={handlePlay}
+                      type="button"
+                    >
+                      {playbackBusy ? "Preparando vídeo…" : "Reproducir"}
+                    </button>
+                  )}
+                  {playbackError && (
+                    <p className="error-message" role="alert">
+                      {playbackError}
+                    </p>
+                  )}
+                  <button className="quiet-button" data-spatial onClick={closeDetails} type="button">Volver a la biblioteca</button>
                 </div>
               </div>
             </div>
           </section>
         </div>
+      )}
+      {selectedItem && playbackUrl && (
+        <section className="theater-screen" role="dialog" aria-modal="true" aria-labelledby="theater-title">
+          <header className="theater-header">
+            <button
+              autoFocus
+              className="theater-back"
+              data-spatial
+              onClick={() => { setPlaybackUrl(null); setPlaybackError(""); }}
+              type="button"
+            >
+              <span aria-hidden="true">←</span> Volver a la ficha
+            </button>
+            <div className="theater-brand" aria-label="VIEWTV Cine">
+              <span className="theater-brand-mark">V</span>
+              <span>VIEWTV</span>
+              <span className="theater-brand-label">CINE</span>
+            </div>
+          </header>
+
+          <div className="theater-stage">
+            <video
+              aria-label={`Reproducción de ${selectedItem.titulo}`}
+              autoPlay
+              className="theater-video"
+              controls
+              playsInline
+              preload="metadata"
+              src={playbackUrl}
+              onError={() => setPlaybackError("No se pudo reproducir este vídeo en el navegador.")}
+            />
+          </div>
+
+          <footer className="theater-footer">
+            <div className="theater-description">
+              <span className="theater-kicker">AHORA REPRODUCIENDO</span>
+              <h2 id="theater-title">{selectedItem.titulo}</h2>
+              <p>{selectedItem.anio ?? ""} {selectedItem.tipo === "pelicula" ? "· Película" : "· Serie"}</p>
+            </div>
+            <span className="theater-direct"><span aria-hidden="true" /> DIRECT PLAY</span>
+          </footer>
+
+          {playbackError && (
+            <div className="theater-error" role="alert">
+              <p>{playbackError}</p>
+              <button className="theater-back" onClick={() => { setPlaybackUrl(null); setPlaybackError(""); }} type="button">
+                Volver a la ficha
+              </button>
+            </div>
+          )}
+        </section>
       )}
     </main>
   );
