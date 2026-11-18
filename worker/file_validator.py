@@ -44,10 +44,19 @@ def validate_torrent_files(
 
     validated = []
     seen = set()
+    total_validado = 0
 
     for item in files:
         if not isinstance(item, dict):
             raise InvalidTorrentFiles("Entrada de archivo no válida.")
+
+        priority = item.get("priority")
+        if priority is not None and (
+            isinstance(priority, bool)
+            or not isinstance(priority, int)
+            or priority <= 0
+        ):
+            raise InvalidTorrentFiles("Archivo excluido o prioridad inválida.")
 
         name = item.get("name")
         size = item.get("size")
@@ -107,5 +116,20 @@ def validate_torrent_files(
             ) from exc
 
         validated.append(resolved)
+        total_validado += size
+
+    total_esperado = torrent.get("total_size")
+    if total_esperado is not None:
+        if (
+            isinstance(total_esperado, bool)
+            or not isinstance(total_esperado, int)
+            or total_esperado < -1
+        ):
+            raise InvalidTorrentFiles("Tamaño total no válido.")
+
+        if total_esperado >= 0 and total_validado != total_esperado:
+            raise InvalidTorrentFiles(
+                "El tamaño total no coincide con los archivos."
+            )
 
     return validated

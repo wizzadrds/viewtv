@@ -172,3 +172,84 @@ def test_rejects_symlink_inside_authorized_root(tmp_path):
             [entry(name="Enlace/video.mkv")],
             tmp_path,
         )
+
+def test_rejects_excluded_file(tmp_path):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+
+    archivo = entry()
+    archivo["priority"] = 0
+
+    with pytest.raises(InvalidTorrentFiles):
+        validate_torrent_files(
+            torrent(),
+            [archivo],
+            tmp_path,
+        )
+
+
+def test_rejects_inconsistent_total_size(tmp_path):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+
+    with pytest.raises(InvalidTorrentFiles):
+        validate_torrent_files(
+            torrent(total_size=100),
+            [entry(size=4)],
+            tmp_path,
+        )
+
+
+def test_accepts_consistent_total_size(tmp_path):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+
+    result = validate_torrent_files(
+        torrent(total_size=4),
+        [entry(size=4)],
+        tmp_path,
+    )
+
+    assert result == [(tmp_path / "pelicula.mkv").resolve()]
+
+@pytest.mark.parametrize("priority", [-1, True, "1", 1.5])
+def test_rejects_invalid_priority(tmp_path, priority):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+    archivo = entry()
+    archivo["priority"] = priority
+
+    with pytest.raises(InvalidTorrentFiles):
+        validate_torrent_files(
+            torrent(), [archivo], tmp_path
+        )
+
+
+@pytest.mark.parametrize("total_size", [-1, None])
+def test_accepts_unknown_total_size(tmp_path, total_size):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+
+    result = validate_torrent_files(
+        torrent(total_size=total_size),
+        [entry()],
+        tmp_path,
+    )
+
+    assert result == [(tmp_path / "pelicula.mkv").resolve()]
+
+
+@pytest.mark.parametrize("total_size", [-2, True, "4", 4.5])
+def test_rejects_invalid_total_size(tmp_path, total_size):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+
+    with pytest.raises(InvalidTorrentFiles):
+        validate_torrent_files(
+            torrent(total_size=total_size),
+            [entry()],
+            tmp_path,
+        )
+
+
+def test_rejects_negative_file_size(tmp_path):
+    (tmp_path / "pelicula.mkv").write_bytes(b"test")
+
+    with pytest.raises(InvalidTorrentFiles):
+        validate_torrent_files(
+            torrent(), [entry(size=-1)], tmp_path
+        )
