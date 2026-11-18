@@ -211,3 +211,40 @@ def test_empty_download_queue_does_not_call_qbittorrent(monkeypatch):
     assert not processor.process_one_download("worker-test", qbittorrent)
     assert qbittorrent.info_calls == []
     assert qbittorrent.add_calls == []
+
+
+def test_ambiguous_add_response_reconciles_registered_torrent(monkeypatch):
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+
+    with Session(test_engine) as session:
+        _, download_id = add_selected_download(session)
+
+    qbittorrent = FakeQBittorrent(
+        responses=[
+            [],
+            [{"hash": "d" * 40}],
+        ],
+        add_error=QBittorrentError(
+            "qBittorrent no confirmó el alta del torrent."
+        ),
+    )
+
+    assert processor.process_one_download("worker-test", qbittorrent)
+
+    with Session(test_engine) as session:
+        saved = session.get(Descarga, download_id)
+
+        assert saved is not None
+        assert saved.estado == "enviada"
+        assert saved.qbittorrent_hash == "d" * 40
+        assert saved.intentos_envio == 1
+        assert saved.locked_by is None
+
+    assert len(qbittorrent.add_calls) == 1
+    assert qbittorrent.add_calls[0]["stopped"] is True
+    assert len(qbittorrent.info_calls) == 2
+    assert all(
+        call["tag"] == f"viewtv-descarga-{download_id}"
+        for call in qbittorrent.info_calls
+    )

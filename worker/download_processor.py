@@ -163,11 +163,16 @@ def process_one_download(
             )
             return True
 
-        qbittorrent.add_torrent(
-            torrent_url,
-            tags=[tag],
-            stopped=True,
-        )
+        add_error: QBittorrentError | None = None
+        try:
+            qbittorrent.add_torrent(
+                torrent_url,
+                tags=[tag],
+                stopped=True,
+            )
+        except QBittorrentError as error:
+            # Una respuesta ambigua no garantiza que el alta fallara.
+            add_error = error
 
         # Confirmamos mediante la etiqueta, no suponiendo que el alta
         # HTTP equivale a que el torrent ya esté registrado.
@@ -175,6 +180,8 @@ def process_one_download(
         torrent_hash = _torrent_hash(submitted)
 
         if torrent_hash is None:
+            if add_error is not None:
+                raise add_error
             raise QBittorrentError(
                 "qBittorrent aceptó el envío, pero todavía no aparece "
                 "el torrent con su etiqueta."
