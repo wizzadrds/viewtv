@@ -45,6 +45,7 @@ services:
     volumes:
       - viewtv_data:/data
       - /mnt/c/VIEWTV/cache:/cache
+      - /mnt/c/VIEWTV/media:/media:ro
     depends_on:
       api:
         condition: service_healthy
