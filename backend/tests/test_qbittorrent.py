@@ -207,3 +207,72 @@ def test_add_torrent_can_start_stopped(monkeypatch):
         "magnet:?xt=urn:btih:abc123",
         stopped=True,
     )
+
+def test_torrent_files_returns_file_list(monkeypatch):
+    settings = _settings(monkeypatch)
+    torrent_hash = "a" * 40
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v2/torrents/files"
+        assert request.url.params["hash"] == torrent_hash
+        return httpx.Response(
+            200,
+            json=[{
+                "name": "pelicula.mkv",
+                "size": 100,
+                "progress": 1.0,
+            }],
+        )
+
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.torrent_files(torrent_hash) == [
+        {"name": "pelicula.mkv", "size": 100, "progress": 1.0}
+    ]
+
+
+@pytest.mark.parametrize(
+    "torrent_hash",
+    ["", " ", "../etc/passwd", "abc"],
+)
+def test_torrent_files_rejects_invalid_hash(monkeypatch, torrent_hash):
+    client = QBittorrentClient(_settings(monkeypatch))
+
+    with pytest.raises(ValueError):
+        client.torrent_files(torrent_hash)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{}, "incorrecto", [None], [{"name": "ok"}, 3]],
+)
+def test_torrent_files_rejects_invalid_structure(monkeypatch, payload):
+    settings = _settings(monkeypatch)
+
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=payload)
+        ),
+    )
+
+    with pytest.raises(QBittorrentError, match="lista de archivos"):
+        client.torrent_files("a" * 40)
+
+
+def test_torrent_files_rejects_invalid_json(monkeypatch):
+    settings = _settings(monkeypatch)
+
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, text="invalid json")
+        ),
+    )
+
+    with pytest.raises(QBittorrentError, match="JSON"):
+        client.torrent_files("a" * 40)

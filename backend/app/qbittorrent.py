@@ -97,6 +97,38 @@ class QBittorrentClient:
             )
         return payload
 
+    def torrent_files(self, torrent_hash: str) -> list[dict]:
+        """Consulta los archivos asociados a un torrent."""
+        if not isinstance(torrent_hash, str) or not torrent_hash.strip():
+            raise ValueError("El hash del torrent no puede estar vacío.")
+
+        import re
+
+        if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", torrent_hash) is None:
+            raise ValueError("El hash del torrent no es válido.")
+
+        response = self._request(
+            "GET",
+            "/api/v2/torrents/files",
+            params={"hash": torrent_hash},
+        )
+
+        try:
+            payload = response.json()
+        except ValueError:
+            raise QBittorrentError(
+                "qBittorrent devolvió una respuesta JSON no válida."
+            ) from None
+
+        if not isinstance(payload, list) or not all(
+            isinstance(item, dict) for item in payload
+        ):
+            raise QBittorrentError(
+                "qBittorrent devolvió una lista de archivos no válida."
+            )
+
+        return payload
+
     def add_torrent(
         self,
         url: str,
