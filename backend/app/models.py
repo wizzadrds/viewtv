@@ -70,8 +70,14 @@ class Solicitud(SQLModel, table=True):
     __table_args__ = (
         CheckConstraint(
             "estado IN ('pendiente', 'procesando', 'completada', "
-            "'fallida', 'cancelada', 'vigilando')",
+            "'fallida', 'cancelada', 'vigilando', "
+            "'esperando_seleccion', 'sin_resultados')",
             name="ck_solicitud_estado",
+        ),
+        CheckConstraint(
+            "tipo_medio IS NULL OR tipo_medio IN "
+            "('pelicula', 'serie', 'temporada', 'episodio')",
+            name="ck_solicitud_tipo_medio",
         ),
         CheckConstraint("intentos >= 0 AND max_intentos > 0", name="ck_solicitud_intentos"),
         CheckConstraint("prioridad BETWEEN 0 AND 100", name="ck_solicitud_prioridad"),
@@ -79,8 +85,10 @@ class Solicitud(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     perfil_id: int = Field(foreign_key="perfil.id", index=True)
-    jellyfin_item_id: str = Field(max_length=128, index=True)
+    jellyfin_item_id: str | None = Field(default=None, max_length=128, index=True)
     titulo: str = Field(max_length=500)
+    tipo_medio: str | None = Field(default=None, max_length=20)
+    anio: int | None = Field(default=None, ge=1870, le=2200)
     estado: str = Field(default="pendiente", max_length=20, index=True)
     prioridad: int = Field(default=50, ge=0, le=100, index=True)
     intentos: int = Field(default=0, ge=0)
@@ -93,6 +101,44 @@ class Solicitud(SQLModel, table=True):
     creado_en: datetime = Field(default_factory=utc_now, index=True)
     actualizado_en: datetime = Field(default_factory=utc_now)
 
+class ResultadoBusqueda(SQLModel, table=True):
+    """Resultado persistente de Jackett; las URL son exclusivamente internas."""
+
+    __tablename__ = "resultado_busqueda"
+    __table_args__ = (
+        UniqueConstraint(
+            "solicitud_id",
+            "clave",
+            name="uq_resultado_solicitud_clave",
+        ),
+        CheckConstraint(
+            "tamano_bytes IS NULL OR tamano_bytes >= 0",
+            name="ck_resultado_tamano_bytes",
+        ),
+        CheckConstraint(
+            "(download_url IS NOT NULL AND length(trim(download_url)) > 0) "
+            "OR (magnet_url IS NOT NULL AND length(trim(magnet_url)) > 0)",
+            name="ck_resultado_url",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    solicitud_id: int = Field(foreign_key="solicitud.id", index=True)
+    clave: str = Field(max_length=64)
+    info_hash: str | None = Field(default=None, max_length=128, index=True)
+    titulo: str = Field(max_length=500)
+    indexador: str = Field(max_length=128)
+    download_url: str | None = Field(default=None, sa_type=Text)
+    magnet_url: str | None = Field(default=None, sa_type=Text)
+    seeders: int | None = Field(default=None, ge=0)
+    peers: int | None = Field(default=None, ge=0)
+    tamano_bytes: int | None = Field(default=None, ge=0)
+    categorias: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False),
+    )
+    publicado_en: datetime | None = None
+    creado_en: datetime = Field(default_factory=utc_now)
 
 class Descarga(SQLModel, table=True):
     """Seguimiento durable de un resultado enviado al gestor de descargas."""
@@ -102,6 +148,10 @@ class Descarga(SQLModel, table=True):
         CheckConstraint(
             "tamano_bytes IS NULL OR tamano_bytes >= 0",
             name="ck_descarga_tamano_bytes",
+        ),
+        CheckConstraint(
+            "intentos_envio >= 0 AND max_intentos_envio > 0",
+            name="ck_descarga_intentos_envio",
         ),
         CheckConstraint(
             "estado IN ('seleccionada', 'enviada', 'descargando', "
@@ -116,12 +166,28 @@ class Descarga(SQLModel, table=True):
             "uq_descarga_info_hash",
             "info_hash",
             unique=True,
-            sqlite_where=text("info_hash IS NOT NULL"),
+            sqlite_where=text(
+                "info_hash IS NOT NULL "
+                "AND estado IN ('seleccionada', 'enviada', "
+                "'descargando', 'pausada')"
+            ),
         ),
     )
 
+    intentos_envio: int = Field(default=0, ge=0)
+    max_intentos_envio: int = Field(default=5, gt=0)
+    disponible_desde: datetime = Field(default_factory=utc_now, index=True)
+    locked_by: str | None = Field(default=None, max_length=128)
+    locked_until: datetime | None = None
+    heartbeat: datetime | None = None
+
     id: int | None = Field(default=None, primary_key=True)
     solicitud_id: int = Field(foreign_key="solicitud.id", index=True)
+    resultado_busqueda_id: int | None = Field(
+        default=None,
+        foreign_key="resultado_busqueda.id",
+        index=True,
+    )
     info_hash: str | None = Field(default=None, max_length=128)
     titulo: str = Field(max_length=500)
     indexador: str | None = Field(default=None, max_length=128)

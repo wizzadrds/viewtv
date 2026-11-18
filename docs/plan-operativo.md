@@ -540,3 +540,23 @@ del indexador mediante procedimientos oficiales.
 - No se modificaron el worker ni SQLite.
 - Pendiente: validar de forma controlada el envio de una
   descarga autorizada y su seguimiento por el worker.
+
+## Consolidacion de solicitudes y descargas - 2026-11-18
+
+- Modelos, cola durable, solicitudes y resultados de busqueda
+  implementados en el arbol de trabajo local.
+- Worker de busqueda y procesador de descargas disponibles.
+- Migraciones encadenadas desde 0005 hasta 0008.
+- Alembic reconoce 0008_solicitud_jellyfin_nullable como head.
+- qBittorrent v5.3.0 y Web API 2.16.2 comprobados.
+- Cliente qBittorrent actualizado para admitir stopped=True.
+- Worker actualizado localmente para solicitar envios detenidos.
+- La reconciliacion por etiqueta y el envio detenido tienen pruebas.
+- Suite completa del backend: 132 pruebas superadas.
+- Ruff y git diff --check correctos.
+- Dos advertencias de deprecacion no bloqueantes.
+- APScheduler no se utiliza en backend/app ni worker.
+- El worker Docker activo aun no incorpora estos cambios locales.
+- No se han iniciado descargas reales durante la validacion.
+- Pendiente: consolidar los archivos en Git, desplegar de forma
+  controlada y validar un envio autorizado y su seguimiento.

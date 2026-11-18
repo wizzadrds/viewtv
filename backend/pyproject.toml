@@ -13,7 +13,6 @@ dependencies = [
   "sqlmodel>=0.0.22,<1.0",
   "pydantic-settings>=2.6,<3.0",
   "alembic>=1.14,<2.0",
-  "apscheduler>=3.10,<4.0",
   "argon2-cffi>=23.1,<26.0",
   "PyJWT>=2.10,<3.0",
   "slowapi>=0.1.9,<1.0",
@@ -25,7 +24,7 @@ dev = ["pytest>=8.3,<9.0", "ruff>=0.8,<1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", ".."]
 
 [tool.ruff]
 line-length = 100

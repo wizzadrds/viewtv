@@ -64,8 +64,17 @@ class QBittorrentClient:
     def torrents_info(
         self,
         hashes: list[str] | None = None,
-    ) -> list[dict[str, object]]:
-        params = {"hashes": "|".join(hashes)} if hashes else None
+        *,
+        tag: str | None = None,
+    ) -> list[dict]:
+        params = {}
+
+        if hashes:
+            params["hashes"] = "|".join(hashes)
+
+        if tag:
+            params["tag"] = tag
+
         response = self._request(
             "GET",
             "/api/v2/torrents/info",
@@ -95,11 +104,16 @@ class QBittorrentClient:
         category: str | None = None,
         tags: list[str] | None = None,
         paused: bool = False,
+        stopped: bool | None = None,
     ) -> None:
         if not url.strip():
             raise ValueError("La URL del torrent no puede estar vacía.")
 
-        data = {"urls": url.strip(), "paused": str(paused).lower()}
+        data = {"urls": url.strip()}
+        if stopped is None:
+            data["paused"] = str(paused).lower()
+        else:
+            data["stopped"] = str(stopped).lower()
         if save_path:
             data["savepath"] = save_path
         if category:

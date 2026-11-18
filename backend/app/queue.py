@@ -7,10 +7,10 @@ Las funciones requieren una Session sin una transacción previa activa.
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import case, func, text, update
+from sqlalchemy import case, delete, func, or_, text, update
 from sqlmodel import Session, select
 
-from app.models import Solicitud
+from app.models import Descarga, ResultadoBusqueda, Solicitud
 
 LEASE_SECONDS_DEFAULT = 120
 RETRY_BASE_SECONDS_DEFAULT = 30
@@ -193,6 +193,67 @@ def complete_request(
         session.rollback()
         raise
 
+def finish_search_request(
+    session: Session,
+    request_id: int,
+    worker_id: str,
+    results: list[ResultadoBusqueda],
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Guarda resultados y libera el lease de una búsqueda vigente."""
+    current_time = _now(now)
+
+    if any(result.solicitud_id != request_id for result in results):
+        raise ValueError("Todos los resultados deben pertenecer a la solicitud")
+
+    _begin_write(session)
+    try:
+        owned_request = session.exec(
+            select(Solicitud.id).where(
+                Solicitud.id == request_id,
+                Solicitud.estado == "procesando",
+                Solicitud.locked_by == worker_id,
+                Solicitud.locked_until > current_time,
+            )
+        ).first()
+
+        if owned_request is None:
+            session.rollback()
+            return False
+
+        session.exec(
+            delete(ResultadoBusqueda).where(
+                ResultadoBusqueda.solicitud_id == request_id
+            )
+        )
+
+        session.add_all(results)
+
+        updated = session.exec(
+            update(Solicitud)
+            .where(
+                Solicitud.id == request_id,
+                Solicitud.estado == "procesando",
+                Solicitud.locked_by == worker_id,
+                Solicitud.locked_until > current_time,
+            )
+            .values(
+                estado="esperando_seleccion" if results else "sin_resultados",
+                actualizado_en=current_time,
+                **_clear_lease_values(),
+            )
+        )
+
+        if updated.rowcount != 1:
+            session.rollback()
+            return False
+
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        raise
 
 def fail_request(
     session: Session,
@@ -264,6 +325,270 @@ def get_queue_counts(session: Session) -> dict[str, int]:
         "fallida": 0,
         "cancelada": 0,
         "vigilando": 0,
+	"esperando_seleccion": 0,
+	"sin_resultados": 0,
     }
     counts.update({estado: total for estado, total in rows})
     return counts
+
+def claim_next_download(
+    session: Session,
+    worker_id: str,
+    *,
+    lease_seconds: int = LEASE_SECONDS_DEFAULT,
+    now: datetime | None = None,
+) -> Descarga | None:
+    """Reclama una descarga seleccionada sin consumir intentos de envío."""
+    if not worker_id or len(worker_id) > 128:
+        raise ValueError("worker_id debe tener entre 1 y 128 caracteres")
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds debe ser mayor que cero")
+
+    current_time = _now(now)
+    _begin_write(session)
+    try:
+        download_id = session.exec(
+            select(Descarga.id)
+            .where(
+                Descarga.estado == "seleccionada",
+                Descarga.disponible_desde <= current_time,
+                or_(
+                    (
+                        Descarga.locked_by.is_(None)
+                        & Descarga.locked_until.is_(None)
+                    ),
+                    Descarga.locked_until <= current_time,
+                ),
+            )
+            .order_by(
+                Descarga.disponible_desde.asc(),
+                Descarga.creado_en.asc(),
+                Descarga.id.asc(),
+            )
+            .limit(1)
+        ).first()
+
+        if download_id is None:
+            session.commit()
+            return None
+
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "seleccionada",
+                or_(
+                    (
+                        Descarga.locked_by.is_(None)
+                        & Descarga.locked_until.is_(None)
+                    ),
+                    Descarga.locked_until <= current_time,
+                ),
+            )
+            .values(
+                locked_by=worker_id,
+                locked_until=current_time + timedelta(seconds=lease_seconds),
+                heartbeat=current_time,
+                actualizado_en=current_time,
+            )
+        )
+        if result.rowcount != 1:
+            session.rollback()
+            return None
+
+        session.commit()
+        return session.get(Descarga, download_id)
+    except Exception:
+        session.rollback()
+        raise
+
+
+def renew_download_lease(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    *,
+    lease_seconds: int = LEASE_SECONDS_DEFAULT,
+    now: datetime | None = None,
+) -> bool:
+    """Renueva el lease de una descarga seleccionada."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds debe ser mayor que cero")
+
+    current_time = _now(now)
+    _begin_write(session)
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "seleccionada",
+                Descarga.locked_by == worker_id,
+                Descarga.locked_until > current_time,
+            )
+            .values(
+                locked_until=current_time + timedelta(seconds=lease_seconds),
+                heartbeat=current_time,
+                actualizado_en=current_time,
+            )
+        )
+        session.commit()
+        return result.rowcount == 1
+    except Exception:
+        session.rollback()
+        raise
+
+
+def record_download_attempt(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Consume un intento justo antes de enviar el torrent."""
+    current_time = _now(now)
+    _begin_write(session)
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "seleccionada",
+                Descarga.locked_by == worker_id,
+                Descarga.locked_until > current_time,
+                Descarga.intentos_envio < Descarga.max_intentos_envio,
+            )
+            .values(
+                intentos_envio=Descarga.intentos_envio + 1,
+                heartbeat=current_time,
+                actualizado_en=current_time,
+            )
+        )
+        session.commit()
+        return result.rowcount == 1
+    except Exception:
+        session.rollback()
+        raise
+
+
+def mark_download_submitted(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    qbittorrent_hash: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Confirma que qBittorrent ya contiene el torrent y libera el lease."""
+    if not qbittorrent_hash or len(qbittorrent_hash) > 128:
+        raise ValueError("qbittorrent_hash no es válido")
+
+    current_time = _now(now)
+    _begin_write(session)
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "seleccionada",
+                Descarga.locked_by == worker_id,
+                Descarga.locked_until > current_time,
+            )
+            .values(
+                estado="enviada",
+                qbittorrent_hash=qbittorrent_hash,
+                ultimo_error=None,
+                actualizado_en=current_time,
+                **_clear_lease_values(),
+            )
+        )
+        session.commit()
+        return result.rowcount == 1
+    except Exception:
+        session.rollback()
+        raise
+
+
+def fail_download(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    error: str,
+    *,
+    retry_base_seconds: int = RETRY_BASE_SECONDS_DEFAULT,
+    retry_max_seconds: int = RETRY_MAX_SECONDS_DEFAULT,
+    permanent: bool = False,
+    now: datetime | None = None,
+) -> bool:
+    """Reintenta el envío o reabre la selección al agotar los intentos."""
+    if retry_base_seconds <= 0 or retry_max_seconds < retry_base_seconds:
+        raise ValueError("Los límites de reintento no son válidos")
+
+    current_time = _now(now)
+    _begin_write(session)
+    try:
+        download = session.exec(
+            select(Descarga).where(
+                Descarga.id == download_id,
+                Descarga.estado == "seleccionada",
+                Descarga.locked_by == worker_id,
+                Descarga.locked_until > current_time,
+            )
+        ).first()
+
+        if download is None:
+            session.rollback()
+            return False
+
+        terminal = permanent or (
+            download.intentos_envio >= download.max_intentos_envio
+        )
+        error_message = (error or "Error no especificado")[:ERROR_MAX_LENGTH]
+
+        delay = min(
+            retry_base_seconds * (2 ** max(download.intentos_envio - 1, 0)),
+            retry_max_seconds,
+        )
+
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "seleccionada",
+                Descarga.locked_by == worker_id,
+                Descarga.locked_until > current_time,
+            )
+            .values(
+                estado="fallida" if terminal else "seleccionada",
+                disponible_desde=current_time + timedelta(seconds=delay),
+                ultimo_error=error_message,
+                actualizado_en=current_time,
+                **_clear_lease_values(),
+            )
+        )
+
+        if result.rowcount != 1:
+            session.rollback()
+            return False
+
+        if terminal:
+            session.exec(
+                update(Solicitud)
+                .where(
+                    Solicitud.id == download.solicitud_id,
+                    Solicitud.estado == "completada",
+                )
+                .values(
+                    estado="esperando_seleccion",
+                    ultimo_error=error_message,
+                    actualizado_en=current_time,
+                    **_clear_lease_values(),
+                )
+            )
+
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        raise

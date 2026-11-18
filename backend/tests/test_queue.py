@@ -1,14 +1,20 @@
 import multiprocessing
 from datetime import UTC, datetime, timedelta
 
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from app.models import Perfil, Solicitud
+from app.models import Descarga, Perfil, ResultadoBusqueda, Solicitud
 from app.queue import (
+    claim_next_download,
     claim_next_request,
     complete_request,
+    fail_download,
     fail_request,
+    finish_search_request,
     get_queue_counts,
+    mark_download_submitted,
+    record_download_attempt,
+    renew_download_lease,
     renew_lease,
 )
 
@@ -287,3 +293,438 @@ def test_two_processes_cannot_claim_the_same_request(tmp_path):
                 worker.join()
         results.close()
         results.join_thread()
+def test_finish_search_request_saves_results_and_releases_lease():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        request = add_request(session)
+        claimed = claim_next_request(session, "worker-a", now=now)
+        assert claimed is not None
+
+        result = ResultadoBusqueda(
+            solicitud_id=request.id,
+            clave="resultado-1",
+            titulo="Película 1080p",
+            indexador="Jackett",
+            download_url="https://example.com/download/1",
+        )
+
+        assert finish_search_request(
+            session, request.id, "worker-a", [result], now=now
+        )
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "esperando_seleccion"
+        assert saved.locked_by is None
+        assert saved.locked_until is None
+        assert saved.heartbeat is None
+
+        results = session.exec(
+            select(ResultadoBusqueda).where(
+                ResultadoBusqueda.solicitud_id == request.id
+            )
+        ).all()
+        assert len(results) == 1
+        assert results[0].titulo == "Película 1080p"
+
+
+def test_finish_search_request_without_results():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        request = add_request(session)
+        assert claim_next_request(session, "worker-a", now=now) is not None
+
+        assert finish_search_request(
+            session, request.id, "worker-a", [], now=now
+        )
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "sin_resultados"
+        assert saved.locked_by is None
+        assert saved.locked_until is None
+        assert saved.heartbeat is None
+
+
+def test_finish_search_request_rejects_another_worker():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        request = add_request(session)
+        assert claim_next_request(session, "worker-a", now=now) is not None
+
+        assert not finish_search_request(
+            session, request.id, "worker-b", [], now=now
+        )
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "procesando"
+        assert saved.locked_by == "worker-a"
+
+
+def test_finish_search_request_rejects_expired_lease():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        request = add_request(session)
+        assert claim_next_request(
+            session, "worker-a", lease_seconds=10, now=now
+        ) is not None
+
+        expired_at = now + timedelta(seconds=11)
+
+        assert not finish_search_request(
+            session, request.id, "worker-a", [], now=expired_at
+        )
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "procesando"
+        assert saved.locked_by == "worker-a"
+
+def test_failure_backoff_respects_maximum_delay():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        request = add_request(session, max_attempts=5)
+
+        first = claim_next_request(session, "worker-a", now=now)
+        assert first is not None
+
+        assert fail_request(
+            session,
+            request.id,
+            "worker-a",
+            "primer fallo",
+            retry_base_seconds=30,
+            retry_max_seconds=45,
+            now=now,
+        )
+
+        second_time = now + timedelta(seconds=30)
+        second = claim_next_request(
+            session,
+            "worker-a",
+            now=second_time,
+        )
+        assert second is not None
+
+        assert fail_request(
+            session,
+            request.id,
+            "worker-a",
+            "segundo fallo",
+            retry_base_seconds=30,
+            retry_max_seconds=45,
+            now=second_time,
+        )
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "pendiente"
+        assert saved.disponible_desde == second_time + timedelta(seconds=45)
+
+def test_old_worker_cannot_fail_request_after_reclaim():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        request = add_request(session)
+
+        first = claim_next_request(
+            session,
+            "worker-a",
+            lease_seconds=10,
+            now=now,
+        )
+        assert first is not None
+
+        reclaimed_time = now + timedelta(seconds=11)
+        second = claim_next_request(
+            session,
+            "worker-b",
+            now=reclaimed_time,
+        )
+        assert second is not None
+        assert second.locked_by == "worker-b"
+
+        assert not fail_request(
+            session,
+            request.id,
+            "worker-a",
+            "fallo tardío",
+            now=reclaimed_time,
+        )
+
+        saved = session.get(Solicitud, request.id)
+        assert saved is not None
+        assert saved.estado == "procesando"
+        assert saved.locked_by == "worker-b"
+        assert saved.intentos == 2
+        assert saved.ultimo_error == "Lease caducado; trabajo recuperado"
+
+def add_download(session: Session, *, max_attempts: int = 5) -> Descarga:
+    request = add_request(session)
+    download = Descarga(
+        solicitud_id=request.id,
+        titulo="Descarga de prueba",
+        info_hash="a" * 40,
+        max_intentos_envio=max_attempts,
+        disponible_desde=datetime(2026, 11, 2, 19, 0, tzinfo=UTC),
+    )
+    session.add(download)
+    session.commit()
+    session.refresh(download)
+    return download
+
+
+def test_download_claim_does_not_consume_send_attempts():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session)
+
+        claimed = claim_next_download(session, "worker-a", now=now)
+
+        assert claimed is not None
+        assert claimed.id == download.id
+        assert claimed.locked_by == "worker-a"
+        assert claimed.locked_until == now + timedelta(seconds=120)
+        assert claimed.intentos_envio == 0
+        assert claim_next_download(session, "worker-b", now=now) is None
+
+
+def test_download_attempt_requires_valid_lease():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session)
+        assert claim_next_download(session, "worker-a", now=now)
+
+        assert not record_download_attempt(
+            session, download.id, "worker-b", now=now
+        )
+        assert record_download_attempt(
+            session, download.id, "worker-a", now=now
+        )
+
+        saved = session.get(Descarga, download.id)
+        assert saved is not None
+        assert saved.intentos_envio == 1
+
+
+def test_download_submission_releases_lease():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session)
+        assert claim_next_download(session, "worker-a", now=now)
+
+        assert mark_download_submitted(
+            session,
+            download.id,
+            "worker-a",
+            "a" * 40,
+            now=now,
+        )
+
+        saved = session.get(Descarga, download.id)
+        assert saved is not None
+        assert saved.estado == "enviada"
+        assert saved.qbittorrent_hash == "a" * 40
+        assert saved.locked_by is None
+        assert saved.locked_until is None
+
+
+def test_download_failure_uses_exponential_backoff():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session, max_attempts=2)
+        assert claim_next_download(session, "worker-a", now=now)
+        assert record_download_attempt(
+            session, download.id, "worker-a", now=now
+        )
+
+        assert fail_download(
+            session,
+            download.id,
+            "worker-a",
+            "fallo temporal",
+            retry_base_seconds=30,
+            now=now,
+        )
+
+        saved = session.get(Descarga, download.id)
+        assert saved is not None
+        assert saved.estado == "seleccionada"
+        assert saved.intentos_envio == 1
+        assert saved.disponible_desde == now + timedelta(seconds=30)
+        assert saved.locked_by is None
+
+        retry_time = now + timedelta(seconds=30)
+        assert claim_next_download(
+            session, "worker-a", now=retry_time
+        )
+        assert record_download_attempt(
+            session, download.id, "worker-a", now=retry_time
+        )
+        assert fail_download(
+            session,
+            download.id,
+            "worker-a",
+            "fallo definitivo",
+            now=retry_time,
+        )
+
+        saved = session.get(Descarga, download.id)
+        assert saved is not None
+        assert saved.estado == "fallida"
+
+
+def test_expired_download_lease_is_recovered_without_consuming_attempt():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session)
+        assert claim_next_download(
+            session, "worker-a", lease_seconds=10, now=now
+        )
+
+        recovered = claim_next_download(
+            session,
+            "worker-b",
+            now=now + timedelta(seconds=11),
+        )
+
+        assert recovered is not None
+        assert recovered.id == download.id
+        assert recovered.locked_by == "worker-b"
+        assert recovered.intentos_envio == 0
+
+def test_download_lease_renewal_checks_worker_ownership():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session)
+        assert claim_next_download(
+            session, "worker-a", lease_seconds=10, now=now
+        )
+
+        assert not renew_download_lease(
+            session, download.id, "worker-b", now=now
+        )
+        assert renew_download_lease(
+            session,
+            download.id,
+            "worker-a",
+            lease_seconds=30,
+            now=now,
+        )
+
+        saved = session.get(Descarga, download.id)
+        assert saved is not None
+        assert saved.locked_until == now + timedelta(seconds=30)
+        assert saved.heartbeat == now
+
+def test_terminal_download_failure_reopens_request_for_selection():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session, max_attempts=1)
+        request = session.get(Solicitud, download.solicitud_id)
+        assert request is not None
+
+        request.estado = "completada"
+        session.add(request)
+        session.commit()
+
+        assert claim_next_download(session, "worker-a", now=now)
+        assert record_download_attempt(
+            session, download.id, "worker-a", now=now
+        )
+        assert fail_download(
+            session,
+            download.id,
+            "worker-a",
+            "No se pudo enviar",
+            now=now,
+        )
+
+        saved_download = session.get(Descarga, download.id)
+        saved_request = session.get(Solicitud, download.solicitud_id)
+
+        assert saved_download is not None
+        assert saved_request is not None
+        assert saved_download.estado == "fallida"
+        assert saved_download.locked_by is None
+        assert saved_download.locked_until is None
+        assert saved_request.estado == "esperando_seleccion"
+        assert saved_request.ultimo_error == "No se pudo enviar"
+
+
+def test_non_terminal_download_failure_does_not_reopen_request():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session, max_attempts=3)
+        request = session.get(Solicitud, download.solicitud_id)
+        assert request is not None
+
+        request.estado = "completada"
+        session.add(request)
+        session.commit()
+
+        assert claim_next_download(session, "worker-a", now=now)
+        assert record_download_attempt(
+            session, download.id, "worker-a", now=now
+        )
+        assert fail_download(
+            session,
+            download.id,
+            "worker-a",
+            "Fallo temporal",
+            now=now,
+        )
+
+        saved_download = session.get(Descarga, download.id)
+        saved_request = session.get(Solicitud, download.solicitud_id)
+
+        assert saved_download is not None
+        assert saved_request is not None
+        assert saved_download.estado == "seleccionada"
+        assert saved_request.estado == "completada"
+
+def test_permanent_download_failure_does_not_consume_attempt():
+    now = datetime(2026, 11, 2, 20, 0, tzinfo=UTC)
+
+    with make_session() as session:
+        download = add_download(session, max_attempts=5)
+        request = session.get(Solicitud, download.solicitud_id)
+        assert request is not None
+
+        request.estado = "completada"
+        session.add(request)
+        session.commit()
+
+        assert claim_next_download(session, "worker-a", now=now)
+
+        assert fail_download(
+            session,
+            download.id,
+            "worker-a",
+            "El resultado seleccionado no tiene un enlace válido",
+            permanent=True,
+            now=now,
+        )
+
+        saved_download = session.get(Descarga, download.id)
+        saved_request = session.get(Solicitud, download.solicitud_id)
+
+        assert saved_download is not None
+        assert saved_request is not None
+        assert saved_download.estado == "fallida"
+        assert saved_download.intentos_envio == 0
+        assert saved_request.estado == "esperando_seleccion"

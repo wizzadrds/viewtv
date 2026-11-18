@@ -1,61 +1,51 @@
-"""Proceso independiente de supervisión de la cola durable de VIEWTV.
-
-Este worker observa la cola y registra su estado. No reclama solicitudes hasta
-que exista un procesador multimedia configurado, para no consumir intentos ni
-marcar como completadas tareas que todavía no puede ejecutar.
-"""
+"""Proceso independiente de procesamiento de la cola durable de VIEWTV."""
 
 import logging
+import os
 import socket
+import time
 
-from apscheduler.schedulers.blocking import BlockingScheduler
 from sqlmodel import Session
+from worker.download_processor import process_one_download
+from worker.processor import process_one_request
 
-from app.config import get_settings
 from app.database import engine
 from app.queue import get_queue_counts
+
+POLL_INTERVAL_SECONDS = 10
+WORKER_ID = f"{socket.gethostname()[:80]}-{os.getpid()}"
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger("viewtv.worker")
-WORKER_ID = socket.gethostname()
 
 
 def report_worker_status() -> None:
-    """Comprueba conectividad con SQLite e informa de la cola sin alterarla."""
+    """Informa del estado de la cola sin modificarla."""
     with Session(engine) as session:
         counts = get_queue_counts(session)
 
-    pending = counts["pendiente"]
-    processing = counts["procesando"]
-    logger.info(
-        "Worker %s activo; cola: %s pendientes, %s procesando",
-        WORKER_ID,
-        pending,
-        processing,
-    )
-    if pending:
-        logger.warning(
-            "Hay %s solicitudes pendientes; el procesador multimedia aún no está configurado",
-            pending,
-        )
+    logger.info("Worker %s activo; estado de la cola: %s", WORKER_ID, counts)
 
 
-def main() -> None:
-    settings = get_settings()
-    scheduler = BlockingScheduler(timezone=settings.timezone)
-    scheduler.add_job(
-        report_worker_status,
-        trigger="interval",
-        seconds=30,
-        id="worker-queue-status",
-        max_instances=1,
-        coalesce=True,
-    )
-    logger.info("Iniciando worker VIEWTV con zona horaria %s", settings.timezone)
-    scheduler.start()
+def main():
+    while True:
+        try:
+            download_processed = process_one_download(WORKER_ID)
+            request_processed = process_one_request(WORKER_ID)
+
+            if not download_processed and not request_processed:
+                report_worker_status()
+
+            time.sleep(POLL_INTERVAL_SECONDS)
+        except KeyboardInterrupt:
+            logger.info("Worker detenido.")
+            break
+        except Exception:
+            logger.exception("Error inesperado en el ciclo del worker.")
+            time.sleep(POLL_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

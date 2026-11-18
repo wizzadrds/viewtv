@@ -165,3 +165,40 @@ def test_download_rejects_progress_out_of_range(progreso):
         )
         with pytest.raises((IntegrityError, ValueError)):
             session.commit()
+
+def test_download_has_retry_and_lease_defaults():
+    with make_session() as session:
+        solicitud = make_request(session)
+        descarga = Descarga(
+            solicitud_id=solicitud.id,
+            titulo="Descarga con lease",
+        )
+        session.add(descarga)
+        session.commit()
+        session.refresh(descarga)
+
+        assert descarga.intentos_envio == 0
+        assert descarga.max_intentos_envio == 5
+        assert descarga.disponible_desde is not None
+        assert descarga.locked_by is None
+        assert descarga.locked_until is None
+        assert descarga.heartbeat is None
+
+
+@pytest.mark.parametrize(
+    ("intentos", "max_intentos"),
+    [(-1, 5), (0, 0), (1, -1)],
+)
+def test_download_rejects_invalid_retry_limits(intentos, max_intentos):
+    with make_session() as session:
+        solicitud = make_request(session)
+        session.add(
+            Descarga(
+                solicitud_id=solicitud.id,
+                titulo="Reintentos inválidos",
+                intentos_envio=intentos,
+                max_intentos_envio=max_intentos,
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.commit()

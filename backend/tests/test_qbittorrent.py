@@ -144,3 +144,66 @@ def test_missing_configuration_is_reported(monkeypatch):
 
     with pytest.raises(QBittorrentError, match="no está configurado"):
         client.version()
+
+def test_torrents_info_filters_by_tag(monkeypatch):
+    settings = _settings(monkeypatch)
+    expected_tag = "viewtv-descarga-123"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v2/torrents/info"
+        assert request.url.params["tag"] == expected_tag
+        assert "hashes" not in request.url.params
+        return httpx.Response(
+            200,
+            json=[{"hash": "0123456789abcdef", "progress": 0.5}],
+        )
+
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.torrents_info(tag=expected_tag) == [
+        {"hash": "0123456789abcdef", "progress": 0.5}
+    ]
+
+
+def test_torrents_info_filters_by_hash_and_tag(monkeypatch):
+    settings = _settings(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["hashes"] == "0123456789abcdef"
+        assert request.url.params["tag"] == "viewtv-descarga-123"
+        return httpx.Response(200, json=[])
+
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.torrents_info(
+        ["0123456789abcdef"],
+        tag="viewtv-descarga-123",
+    ) == []
+
+
+def test_add_torrent_can_start_stopped(monkeypatch):
+    settings = _settings(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        fields = parse_qs(request.content.decode())
+
+        assert fields["stopped"] == ["true"]
+        assert "paused" not in fields
+
+        return httpx.Response(200, text="Ok.")
+
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(handler),
+    )
+
+    client.add_torrent(
+        "magnet:?xt=urn:btih:abc123",
+        stopped=True,
+    )
