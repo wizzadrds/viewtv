@@ -560,3 +560,19 @@ del indexador mediante procedimientos oficiales.
 - No se han iniciado descargas reales durante la validacion.
 - Pendiente: consolidar los archivos en Git, desplegar de forma
   controlada y validar un envio autorizado y su seguimiento.
+
+## Despliegue controlado del worker - 2026-11-18
+
+- Respaldo SQLite previo verificado con PRAGMA integrity_check: ok.
+- Imagen viewtv:local reconstruida correctamente.
+- Worker recreado de forma aislada con --no-deps y --no-build.
+- API y FlareSolverr permanecen operativos.
+- SHA-256 del procesador de descargas coincidente con el codigo local.
+- SHA-256 del cliente qBittorrent coincidente con el codigo local.
+- Worker activo y consultando la cola sin errores visibles.
+- Cola comprobada: cero solicitudes y descargas pendientes.
+- Permanece una solicitud fallida historica, sin modificar.
+- La proteccion stopped=True esta desplegada, pero aun no se
+  ha validado mediante un envio real a qBittorrent.
+- Pendiente: prueba autorizada de envio detenido, seguimiento
+  de progreso e incorporacion del archivo a Jellyfin.
