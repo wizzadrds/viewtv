@@ -525,3 +525,18 @@ del indexador mediante procedimientos oficiales.
 - No se iniciaron descargas.
 - Pendiente: validar busquedas reales cuando el indexador
   vuelva a responder y revisar la politica de reintentos.
+
+## Validacion de lectura de qBittorrent - 2026-11-18
+
+- qBittorrent funciona de forma nativa en Windows.
+- Conexion desde Docker: host.docker.internal:8080.
+- Cliente VIEWTV: QBittorrentClient.
+- Consulta real de version: correcta, v5.3.0.
+- Consulta real de torrents con etiqueta de diagnostico:
+  respuesta valida, cero elementos coincidentes.
+- La configuracion y autenticacion existentes funcionan
+  para las dos operaciones de lectura comprobadas.
+- No se añadieron, modificaron ni eliminaron torrents.
+- No se modificaron el worker ni SQLite.
+- Pendiente: validar de forma controlada el envio de una
+  descarga autorizada y su seguimiento por el worker.
