@@ -113,3 +113,11 @@ sola operaciones sobre bibliotecas reales.
 Validación posterior: **39 tests específicos de la cola**, más los tests
 de copia aislada; **408 tests backend aprobados**, dos avisos de
 compatibilidad conocidos, Ruff limpio. Migración real **sigue en 0012**.
+
+## Nueva integración en sandbox (posterior a renovación de lease)
+
+La coordinación entre cola, planificador y copiador **ya existe solo
+para pruebas** en `worker/organization_runner_sandbox.py`. No se ha
+activado en `worker/main.py` ni en la instalación `0012`.
+La suite completa alcanza **422 pruebas aprobadas**. Ver el alcance
+y los límites en [ORGANIZADOR-ORQUESTACION-SANDBOX.md](ORGANIZADOR-ORQUESTACION-SANDBOX.md).

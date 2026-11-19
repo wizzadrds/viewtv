@@ -10,6 +10,7 @@ import hashlib
 import os
 import stat
 import tempfile
+from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
@@ -64,7 +65,8 @@ def _source_fd(root_fd: int, parts: tuple[str, ...]) -> int:
 
 
 def _copy_one(root_fd: int, parts: tuple[str, ...], target_fd: int,
-              name: str, expected_size: int) -> None:
+              name: str, expected_size: int,
+              progress_callback: Callable[[], None] | None = None) -> None:
     """Copia por descriptores sin symlinks, comprueba estabilidad y SHA-256."""
     if not 0 < expected_size <= MAX_TEST_FILE_BYTES:
         raise UnsafeOrganizationPlan("Tamaño no admitido en la prueba.")
@@ -82,6 +84,8 @@ def _copy_one(root_fd: int, parts: tuple[str, ...], target_fd: int,
             digest = hashlib.sha256()
             copied = 0
             while True:
+                if progress_callback is not None:
+                    progress_callback()
                 chunk = os.read(source_fd, _READ_SIZE)
                 if not chunk:
                     break
@@ -166,7 +170,12 @@ def _publish_noreplace(directory_fd: int, staged: str, final: str) -> None:
     os.fsync(directory_fd)
 
 
-def publish_test_plan(plan: OrganizationPlan, sandbox_root: Path) -> Path:
+def publish_test_plan(
+    plan: OrganizationPlan,
+    sandbox_root: Path,
+    *,
+    progress_callback: Callable[[], None] | None = None,
+) -> Path:
     """Copia una película o serie nueva en un sandbox marcado de /tmp.
 
     El montaje real, cualquier carpeta existente y cualquier staging previo
@@ -258,9 +267,11 @@ def publish_test_plan(plan: OrganizationPlan, sandbox_root: Path) -> Path:
             directory_fd = season_fd
 
         for parts, name, size in sources:
-            _copy_one(root_fd, parts, directory_fd, name, size)
+            _copy_one(root_fd, parts, directory_fd, name, size, progress_callback)
         os.fsync(directory_fd)
         os.fsync(stage_fd)
+        if progress_callback is not None:
+            progress_callback()
         _publish_noreplace(cfd, stage_name, final_name)
 
     return final
