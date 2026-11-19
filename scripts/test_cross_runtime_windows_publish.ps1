@@ -14,6 +14,9 @@ if ([System.IO.Directory]::Exists($root) -or [System.IO.File]::Exists($root)) {
     throw 'El directorio de pruebas ya existe.'
 }
 $publisher = Join-Path $PSScriptRoot 'viewtv_windows_publish_sandbox.ps1'
+$reconciler = Join-Path $PSScriptRoot 'viewtv_windows_reconcile_sandbox.ps1'
+. (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
+$keyPath = New-ViewtvTestKey
 if (-not [System.IO.File]::Exists($publisher)) {
     throw 'Publicador de prueba ausente.'
 }
@@ -53,7 +56,29 @@ try {
     }
     $results['docker_staging_y_sha256'] = 'correcto'
 
-    $publication = & $publisher -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title | ConvertFrom-Json
+    $approval = New-ViewtvTestApproval -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title -KeyPath $keyPath
+
+    # Simulate Docker-stage tampering AFTER Windows has signed its approval.
+    $stagedSubtitle = Join-Path $stage $subtitle
+    $goodSubtitle = [System.IO.File]::ReadAllBytes($stagedSubtitle)
+    $badSubtitle = [byte[]]$goodSubtitle.Clone()
+    $badSubtitle[0] = [byte]($badSubtitle[0] -bxor 1)
+    [System.IO.File]::WriteAllBytes($stagedSubtitle, $badSubtitle)
+    $refusedTampering = $false
+    try {
+        & $publisher -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title -ApprovalName $approval -KeyPath $keyPath | Out-Null
+    } catch {
+        $refusedTampering = $true
+    }
+    if (-not $refusedTampering -or
+        -not [System.IO.Directory]::Exists($stage) -or
+        [System.IO.Directory]::Exists((Join-Path $root $title))) {
+        throw 'Una alteración del staging permitió publicar.'
+    }
+    [System.IO.File]::WriteAllBytes($stagedSubtitle, $goodSubtitle)
+    $results['tamper_docker_rechazado'] = 'correcto'
+
+    $publication = & $publisher -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title -ApprovalName $approval -KeyPath $keyPath | ConvertFrom-Json
     if ($publication.estado -ne 'publicada_en_sandbox' -or $publication.archivos -ne 2) {
         throw 'La publicación nativa Windows no fue confirmada.'
     }
@@ -65,12 +90,20 @@ try {
     }
     $results['publicacion_multifichero_ntfs'] = 'correcto'
 
+    $reconciliation = & $reconciler -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title -ApprovalName $approval -KeyPath $keyPath | ConvertFrom-Json
+    if ($reconciliation.estado -ne 'publicada_verificada' -or
+        -not $reconciliation.lectura_solamente) {
+        throw 'No se reconcilió la publicación multifichero.'
+    }
+    $results['reconciliacion_de_lectura'] = 'publicada_verificada'
+
     $duplicate = Join-Path $root '.viewtv-stage-2'
     [System.IO.Directory]::CreateDirectory($duplicate) | Out-Null
     [System.IO.File]::WriteAllBytes((Join-Path $duplicate $video), [byte[]](1,2,3))
+    $approval2 = New-ViewtvTestApproval -SandboxRoot $root -StageName '.viewtv-stage-2' -FinalName $title -KeyPath $keyPath
     $refused = $false
     try {
-        & $publisher -SandboxRoot $root -StageName '.viewtv-stage-2' -FinalName $title | Out-Null
+        & $publisher -SandboxRoot $root -StageName '.viewtv-stage-2' -FinalName $title -ApprovalName $approval2 -KeyPath $keyPath | Out-Null
     } catch {
         $refused = $true
     }
@@ -95,5 +128,14 @@ finally {
         [System.IO.File]::Exists($marker) -and
         [System.IO.File]::ReadAllText($marker) -ceq $markerValue) {
         [System.IO.Directory]::Delete($root, $true)
+    }
+    if ([System.IO.File]::Exists($keyPath)) {
+        $keyDirectory = [System.IO.Path]::GetDirectoryName($keyPath)
+        if (
+            [System.IO.Path]::GetFileName($keyDirectory) -match '^viewtv-test-key-[0-9a-f]{32}$' -and
+            [System.IO.Path]::GetDirectoryName($keyDirectory) -ieq [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
+        ) {
+            [System.IO.Directory]::Delete($keyDirectory, $true)
+        }
     }
 }

@@ -105,3 +105,22 @@ Documentos relacionados:
 [Compatibilidad DrvFS](ORGANIZADOR-COMPATIBILIDAD-WINDOWS.md),
 [Cola 0013](ORGANIZADOR-COLA-0013.md),
 [Orquestación en sandbox](ORGANIZADOR-ORQUESTACION-SANDBOX.md).
+
+## Refuerzo posterior: autorización y recuperación
+
+Se ha incorporado un plan de autorización temporal firmado con
+**HMAC-SHA256**, asociado al sandbox, staging, destino, vencimiento y
+SHA-256 de cada archivo, con la clave temporal fuera del montaje de Docker.
+El publicador Windows exige ese plan, comprueba la integridad antes y
+después de publicar y rechaza datos alterados o autorizaciones caducadas.
+
+Existe además un reconciliador **estrictamente de solo lectura** para
+resultados ambiguos: constata si falta el staging, existe el destino o
+ambos, valida hashes de la carpeta publicada y nunca reintenta ni borra.
+Un destino antiguo puede cotejarse con una firma ya caducada, pero no
+puede ser publicado de nuevo con ella.
+
+**20 pruebas del publicador/reconciliador y seis comprobaciones
+Docker → Windows superadas.** Es un mecanismo de pruebas; todavía NO
+hay un broker de producción con ACL e identidad separadas.
+Ver [ORGANIZADOR-AUTORIZACION-RECUPERACION-SANDBOX.md](ORGANIZADOR-AUTORIZACION-RECUPERACION-SANDBOX.md).

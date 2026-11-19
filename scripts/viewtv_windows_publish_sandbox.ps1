@@ -5,11 +5,14 @@
 param(
     [Parameter(Mandatory=$true)][string]$SandboxRoot,
     [Parameter(Mandatory=$true)][string]$StageName,
-    [Parameter(Mandatory=$true)][string]$FinalName
+    [Parameter(Mandatory=$true)][string]$FinalName,
+    [Parameter(Mandatory=$true)][string]$ApprovalName,
+    [Parameter(Mandatory=$true)][string]$KeyPath
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 
 function Test-LeafName([string]$name) {
     if ([string]::IsNullOrWhiteSpace($name) -or $name.Length -gt 150 -or
@@ -104,10 +107,21 @@ foreach ($subtitle in $subtitles) {
     }
 }
 
+# The exact stage, destination and SHA-256 must match an authorization signed
+# with a key that was NOT mounted in Docker. This is a test-only boundary.
+if (-not (Assert-ViewtvTestApproval -SandboxRoot $root -StageName $StageName -FinalName $FinalName -ApprovalName $ApprovalName -KeyPath $KeyPath -Location Stage)) {
+    throw 'Autorización firmada no válida.'
+}
+
 # Directory.Move uses the native Windows move operation, without replacing
 # destination. Both paths are direct siblings on the SAME NTFS volume.
 # If Windows returns an error, NEVER auto-retry: state may be ambiguous.
 [System.IO.Directory]::Move($staged, $final)
+# If this post-check fails, never roll back or blindly retry; output is
+# ambiguous and requires reconciliation with the signed manifest.
+if (-not (Assert-ViewtvTestApproval -SandboxRoot $root -StageName $StageName -FinalName $FinalName -ApprovalName $ApprovalName -KeyPath $KeyPath -Location Published)) {
+    throw 'Publicación de resultado ambiguo: requiere revisión.'
+}
 [pscustomobject]@{
     estado = 'publicada_en_sandbox'
     archivos = $entries.Count
