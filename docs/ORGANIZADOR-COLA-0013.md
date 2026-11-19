@@ -87,3 +87,11 @@ Fecha: 19 de noviembre de 2026.
    organización desactivados inicialmente.
 
 **Este hito aporta durabilidad y control de concurrencia, NO el ejecutor.**
+
+## Avance posterior: ejecutor aislado de copia
+
+Se ha añadido un prototipo `worker/organization_copy_sandbox.py`, **solo para
+`/tmp`**, que copia y publica en staging con protección contra enlaces y
+sobrescrituras. Tiene **22 pruebas específicas** y la suite general alcanza
+**397 pruebas aprobadas**. **No se conecta aún a esta cola ni a producción**.
+Ver [ORGANIZADOR-COPIA-SANDBOX.md](ORGANIZADOR-COPIA-SANDBOX.md).
