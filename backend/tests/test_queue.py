@@ -1072,3 +1072,368 @@ def test_record_download_verification_rejects_invalid_arguments(
             record_download_verification(
                 session, 1, "a" * 40, **kwargs
             )
+
+def test_claim_next_verification_exclusive(
+    verification_session_factory,
+):
+    from app.queue import claim_next_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        claimed = claim_next_verification(
+            session, "worker-a", now=now
+        )
+        assert claimed is not None
+        assert claimed.id == download_id
+        assert claimed.verificacion_locked_by == "worker-a"
+
+    with verification_session_factory() as session:
+        claimed = claim_next_verification(
+            session, "worker-b", now=now
+        )
+        assert claimed is None
+
+
+def test_claim_next_verification_recovers_expired_lease(
+    verification_session_factory,
+):
+    from app.queue import claim_next_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        first = claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        )
+        assert first is not None
+
+    with verification_session_factory() as session:
+        second = claim_next_verification(
+            session,
+            "worker-b",
+            lease_seconds=30,
+            now=now + timedelta(seconds=31),
+        )
+        assert second is not None
+        assert second.id == download_id
+        assert second.verificacion_locked_by == "worker-b"
+
+
+def test_claim_next_verification_skips_incomplete(
+    verification_session_factory,
+):
+    from app.queue import claim_next_verification
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "descargando"
+        descarga.progreso = 0.5
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a"
+        ) is None
+
+def test_renew_verification_lease_success(
+    verification_session_factory,
+):
+    from app.queue import (
+        claim_next_verification,
+        renew_verification_lease,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert renew_verification_lease(
+            session,
+            download_id,
+            "worker-a",
+            lease_seconds=30,
+            now=now + timedelta(seconds=20),
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.verificacion_locked_by == "worker-a"
+        assert descarga.verificacion_locked_until.replace(
+            tzinfo=UTC
+        ) == now + timedelta(seconds=50)
+
+
+def test_renew_verification_lease_rejects_other_worker(
+    verification_session_factory,
+):
+    from app.queue import (
+        claim_next_verification,
+        renew_verification_lease,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not renew_verification_lease(
+            session,
+            download_id,
+            "worker-b",
+            now=now + timedelta(seconds=10),
+        )
+
+
+def test_renew_verification_lease_rejects_expired(
+    verification_session_factory,
+):
+    from app.queue import (
+        claim_next_verification,
+        renew_verification_lease,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not renew_verification_lease(
+            session,
+            download_id,
+            "worker-a",
+            now=now + timedelta(seconds=31),
+        )
+
+@pytest.fixture
+def claimed_verification_download(verification_session_factory):
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        return descarga.id
+
+
+def test_finish_claimed_verification_success(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import claim_next_verification, finish_claimed_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=60, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-a",
+            verified=True, now=now + timedelta(seconds=10)
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "verificada"
+        assert descarga.verificada_en is not None
+        assert descarga.error_verificacion is None
+        assert descarga.verificacion_locked_by is None
+        assert descarga.verificacion_locked_until is None
+
+
+def test_finish_claimed_verification_rejects_other_worker(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import claim_next_verification, finish_claimed_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=60, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-b",
+            verified=True, now=now + timedelta(seconds=10)
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "pendiente"
+        assert descarga.verificacion_locked_by == "worker-a"
+
+
+def test_finish_claimed_verification_rejects_expired_lease(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import claim_next_verification, finish_claimed_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-a",
+            verified=True, now=now + timedelta(seconds=31)
+        )
+
+
+def test_finish_claimed_verification_rejects_old_worker_after_reclaim(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import claim_next_verification, finish_claimed_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-b",
+            lease_seconds=60,
+            now=now + timedelta(seconds=31)
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-a",
+            verified=True, now=now + timedelta(seconds=32)
+        )
+
+    with verification_session_factory() as session:
+        assert finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-b",
+            verified=True, now=now + timedelta(seconds=33)
+        )
+
+
+def test_finish_claimed_verification_does_not_overwrite_result(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import claim_next_verification, finish_claimed_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=60, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-a",
+            verified=True, now=now + timedelta(seconds=10)
+        )
+        assert not finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-a",
+            verified=False, error="Error posterior",
+            now=now + timedelta(seconds=11)
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "verificada"
+        assert descarga.error_verificacion is None
+
+
+def test_finish_claimed_verification_records_failure_and_releases_lease(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import claim_next_verification, finish_claimed_verification
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=60, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert finish_claimed_verification(
+            session, download_id, "a" * 40, "worker-a",
+            verified=False, error="Archivo incompleto",
+            now=now + timedelta(seconds=10)
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "fallida"
+        assert descarga.error_verificacion == "Archivo incompleto"
+        assert descarga.verificada_en is None
+        assert descarga.verificacion_locked_by is None
+        assert descarga.verificacion_locked_until is None

@@ -699,6 +699,226 @@ def update_download_progress(
         raise
 
 
+
+def claim_next_verification(
+    session: Session,
+    worker_id: str,
+    *,
+    lease_seconds: int = LEASE_SECONDS_DEFAULT,
+    now: datetime | None = None,
+) -> Descarga | None:
+    """Reclama exclusivamente una verificación pendiente o recuperable."""
+    if not worker_id or len(worker_id) > 128:
+        raise ValueError("worker_id debe tener entre 1 y 128 caracteres")
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds debe ser mayor que cero")
+
+    current_time = _now(now)
+    _begin_write(session)
+
+    try:
+        condiciones = (
+            Descarga.estado == "completada",
+            Descarga.progreso == 1,
+            Descarga.estado_verificacion == "pendiente",
+            Descarga.qbittorrent_hash.is_not(None),
+            or_(
+                Descarga.verificacion_disponible_desde.is_(None),
+                Descarga.verificacion_disponible_desde <= current_time,
+            ),
+            or_(
+                (
+                    Descarga.verificacion_locked_by.is_(None)
+                    & Descarga.verificacion_locked_until.is_(None)
+                ),
+                Descarga.verificacion_locked_until <= current_time,
+            ),
+        )
+
+        download_id = session.exec(
+            select(Descarga.id)
+            .where(*condiciones)
+            .order_by(
+                Descarga.verificacion_disponible_desde.asc(),
+                Descarga.creado_en.asc(),
+                Descarga.id.asc(),
+            )
+            .limit(1)
+        ).first()
+
+        if download_id is None:
+            session.commit()
+            return None
+
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                *condiciones,
+            )
+            .values(
+                verificacion_locked_by=worker_id,
+                verificacion_locked_until=(
+                    current_time + timedelta(seconds=lease_seconds)
+                ),
+                verificacion_heartbeat=current_time,
+                actualizado_en=current_time,
+            )
+        )
+
+        if result.rowcount != 1:
+            session.rollback()
+            return None
+
+        session.commit()
+        return session.get(Descarga, download_id)
+
+    except Exception:
+        session.rollback()
+        raise
+
+
+
+def renew_verification_lease(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    *,
+    lease_seconds: int = LEASE_SECONDS_DEFAULT,
+    now: datetime | None = None,
+) -> bool:
+    """Renueva únicamente una reclamación de verificación vigente."""
+    if (
+        isinstance(download_id, bool)
+        or not isinstance(download_id, int)
+        or download_id <= 0
+    ):
+        raise ValueError("Identificador de descarga no válido")
+
+    if (
+        not isinstance(worker_id, str)
+        or not worker_id
+        or len(worker_id) > 128
+    ):
+        raise ValueError("worker_id debe tener entre 1 y 128 caracteres")
+
+    if (
+        isinstance(lease_seconds, bool)
+        or not isinstance(lease_seconds, int)
+        or lease_seconds <= 0
+    ):
+        raise ValueError("lease_seconds debe ser positivo")
+
+    current_time = _now(now)
+    _begin_write(session)
+
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "completada",
+                Descarga.progreso == 1,
+                Descarga.estado_verificacion == "pendiente",
+                Descarga.verificacion_locked_by == worker_id,
+                Descarga.verificacion_locked_until > current_time,
+            )
+            .values(
+                verificacion_locked_until=(
+                    current_time + timedelta(seconds=lease_seconds)
+                ),
+                verificacion_heartbeat=current_time,
+                actualizado_en=current_time,
+            )
+        )
+
+        session.commit()
+        return result.rowcount == 1
+
+    except Exception:
+        session.rollback()
+        raise
+
+
+
+
+def finish_claimed_verification(
+    session: Session,
+    download_id: int,
+    qbittorrent_hash: str,
+    worker_id: str,
+    *,
+    verified: bool,
+    error: str | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Finaliza una verificación solo con un lease vigente y propio."""
+    if (
+        isinstance(download_id, bool)
+        or not isinstance(download_id, int)
+        or download_id <= 0
+    ):
+        raise ValueError("Identificador de descarga no válido")
+
+    if not isinstance(qbittorrent_hash, str) or not qbittorrent_hash.strip():
+        raise ValueError("Hash de qBittorrent no válido")
+
+    if (
+        not isinstance(worker_id, str)
+        or not worker_id
+        or len(worker_id) > 128
+    ):
+        raise ValueError("worker_id no válido")
+
+    if not isinstance(verified, bool):
+        raise ValueError("Resultado de verificación no válido")
+
+    if verified:
+        if error is not None:
+            raise ValueError("Una verificación correcta no admite error")
+        nuevo_estado = "verificada"
+        nuevo_error = None
+    else:
+        if not isinstance(error, str) or not error.strip():
+            raise ValueError("Una verificación fallida requiere un error")
+        nuevo_estado = "fallida"
+        nuevo_error = error.strip()[:ERROR_MAX_LENGTH]
+
+    current_time = _now(now)
+    _begin_write(session)
+
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.qbittorrent_hash == qbittorrent_hash,
+                Descarga.estado == "completada",
+                Descarga.progreso == 1,
+                Descarga.estado_verificacion == "pendiente",
+                Descarga.verificacion_locked_by == worker_id,
+                Descarga.verificacion_locked_until > current_time,
+            )
+            .values(
+                estado_verificacion=nuevo_estado,
+                verificada_en=current_time if verified else None,
+                error_verificacion=nuevo_error,
+                verificacion_locked_by=None,
+                verificacion_locked_until=None,
+                verificacion_heartbeat=None,
+                verificacion_disponible_desde=None,
+                actualizado_en=current_time,
+            )
+        )
+        session.commit()
+        return result.rowcount == 1
+
+    except Exception:
+        session.rollback()
+        raise
+
+
+
 def record_download_verification(
     session: Session,
     download_id: int,
