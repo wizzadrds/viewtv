@@ -1,6 +1,7 @@
 import multiprocessing
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.models import Descarga, Perfil, ResultadoBusqueda, Solicitud
@@ -907,3 +908,167 @@ def test_update_download_progress_does_not_return_to_sent():
         guardada = session.get(Descarga, descarga.id)
         assert guardada.estado == "descargando"
         assert guardada.progreso == 0.60
+
+@pytest.fixture
+def verification_session_factory(tmp_path):
+    """Comparte una SQLite temporal entre sesiones de una misma prueba."""
+    database = tmp_path / "verification.db"
+    engine = create_engine(f"sqlite:///{database}")
+    SQLModel.metadata.create_all(engine)
+
+    try:
+        yield lambda: Session(engine)
+    finally:
+        engine.dispose()
+
+
+def test_record_download_verification_success(verification_session_factory):
+    from app.queue import record_download_verification
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert record_download_verification(
+            session, download_id, "a" * 40, verified=True
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado == "completada"
+        assert descarga.estado_verificacion == "verificada"
+        assert descarga.verificada_en is not None
+        assert descarga.error_verificacion is None
+
+
+def test_record_download_verification_rejects_incomplete(verification_session_factory):
+    from app.queue import record_download_verification
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "descargando"
+        descarga.progreso = 0.5
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert not record_download_verification(
+            session, download_id, "a" * 40, verified=True
+        )
+
+
+def test_record_download_verification_rejects_wrong_hash(verification_session_factory):
+    from app.queue import record_download_verification
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert not record_download_verification(
+            session, download_id, "b" * 40, verified=True
+        )
+
+
+def test_record_download_verification_failure_then_recovery(verification_session_factory):
+    from app.queue import record_download_verification
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert record_download_verification(
+            session,
+            download_id,
+            "a" * 40,
+            verified=False,
+            error="Archivo no encontrado",
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "fallida"
+        assert descarga.error_verificacion == "Archivo no encontrado"
+
+    with verification_session_factory() as session:
+        assert record_download_verification(
+            session, download_id, "a" * 40, verified=True
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "verificada"
+        assert descarga.verificada_en is not None
+        assert descarga.error_verificacion is None
+
+    with verification_session_factory() as session:
+        assert not record_download_verification(
+            session,
+            download_id,
+            "a" * 40,
+            verified=False,
+            error="Error posterior",
+        )
+
+
+def test_record_download_verification_is_idempotent(verification_session_factory):
+    from app.queue import record_download_verification
+
+    with verification_session_factory() as session:
+        descarga = add_download(session)
+        descarga.estado = "completada"
+        descarga.progreso = 1.0
+        descarga.qbittorrent_hash = "a" * 40
+        session.add(descarga)
+        session.commit()
+        download_id = descarga.id
+
+    with verification_session_factory() as session:
+        assert record_download_verification(
+            session, download_id, "a" * 40, verified=True
+        )
+
+    with verification_session_factory() as session:
+        assert not record_download_verification(
+            session, download_id, "a" * 40, verified=True
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"verified": "yes"},
+        {"verified": False},
+        {"verified": True, "error": "No permitido"},
+        {"verified": False, "error": " "},
+    ],
+)
+def test_record_download_verification_rejects_invalid_arguments(
+    kwargs, verification_session_factory
+):
+    from app.queue import record_download_verification
+
+    with verification_session_factory() as session:
+        with pytest.raises(ValueError):
+            record_download_verification(
+                session, 1, "a" * 40, **kwargs
+            )

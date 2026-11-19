@@ -697,3 +697,91 @@ def update_download_progress(
     except Exception:
         session.rollback()
         raise
+
+
+def record_download_verification(
+    session: Session,
+    download_id: int,
+    qbittorrent_hash: str,
+    *,
+    verified: bool,
+    error: str | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Registra una verificación sin alterar el estado de descarga."""
+    if (
+        isinstance(download_id, bool)
+        or not isinstance(download_id, int)
+        or download_id <= 0
+    ):
+        raise ValueError("Identificador de descarga no válido")
+
+    if not isinstance(qbittorrent_hash, str) or not qbittorrent_hash.strip():
+        raise ValueError("Hash de qBittorrent no válido")
+
+    if not isinstance(verified, bool):
+        raise ValueError("Resultado de verificación no válido")
+
+    if verified:
+        if error is not None:
+            raise ValueError("Una verificación correcta no admite error")
+        nuevo_estado = "verificada"
+        nuevo_error = None
+    else:
+        if not isinstance(error, str) or not error.strip():
+            raise ValueError("Una verificación fallida requiere un error")
+        nuevo_estado = "fallida"
+        nuevo_error = error.strip()[:ERROR_MAX_LENGTH]
+
+    current_time = _now(now)
+    _begin_write(session)
+
+    try:
+        descarga = session.exec(
+            select(Descarga).where(
+                Descarga.id == download_id,
+                Descarga.qbittorrent_hash == qbittorrent_hash,
+                Descarga.estado == "completada",
+                Descarga.progreso == 1,
+            )
+        ).first()
+
+        if descarga is None:
+            session.commit()
+            return False
+
+        # Una verificación correcta es terminal para este registro.
+        if descarga.estado_verificacion == "verificada":
+            session.commit()
+            return False
+
+        if (
+            descarga.estado_verificacion == nuevo_estado
+            and descarga.error_verificacion == nuevo_error
+        ):
+            session.commit()
+            return False
+
+        session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.qbittorrent_hash == qbittorrent_hash,
+                Descarga.estado == "completada",
+                Descarga.progreso == 1,
+                Descarga.estado_verificacion != "verificada",
+            )
+            .values(
+                estado_verificacion=nuevo_estado,
+                verificada_en=current_time if verified else None,
+                error_verificacion=nuevo_error,
+                actualizado_en=current_time,
+            )
+        )
+
+        session.commit()
+        return True
+
+    except Exception:
+        session.rollback()
+        raise
