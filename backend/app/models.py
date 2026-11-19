@@ -209,5 +209,8 @@ class Descarga(SQLModel, table=True):
     verificacion_locked_until: datetime | None = None
     verificacion_heartbeat: datetime | None = None
     verificacion_disponible_desde: datetime | None = None
+    verificacion_intentos_temporales: int = Field(
+        default=0, ge=0
+    )
     creado_en: datetime = Field(default_factory=utc_now)
     actualizado_en: datetime = Field(default_factory=utc_now)
