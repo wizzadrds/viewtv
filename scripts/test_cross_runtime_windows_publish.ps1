@@ -1,0 +1,99 @@
+# Windows orchestrates Docker -> NTFS publication. TEST SANDBOX ONLY.
+# Never accesses C:\VIEWTV, real downloads, SQLite or qBittorrent.
+[CmdletBinding()]
+param()
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$public = [System.IO.Path]::GetFullPath($env:PUBLIC)
+if ($public.TrimEnd('\') -ine 'C:\Users\Public') {
+    throw 'Esta prueba solo admite C:\Users\Public.'
+}
+$root = Join-Path $public ('viewtv-win-sandbox-' + [Guid]::NewGuid().ToString('N'))
+if ([System.IO.Directory]::Exists($root) -or [System.IO.File]::Exists($root)) {
+    throw 'El directorio de pruebas ya existe.'
+}
+$publisher = Join-Path $PSScriptRoot 'viewtv_windows_publish_sandbox.ps1'
+if (-not [System.IO.File]::Exists($publisher)) {
+    throw 'Publicador de prueba ausente.'
+}
+[System.IO.Directory]::CreateDirectory($root) | Out-Null
+$marker = Join-Path $root '.viewtv-win-sandbox-only'
+$markerValue = 'VIEWTV_WINDOWS_SANDBOX_ONLY_V1' + [char]10
+[System.IO.File]::WriteAllText($marker, $markerValue)
+
+$title = 'Pelicula ficticia (2026)'
+$video = $title + '.mkv'
+$subtitle = $title + '.es.srt'
+$results = [ordered]@{}
+try {
+    $sources = Join-Path $root 'source'
+    [System.IO.Directory]::CreateDirectory($sources) | Out-Null
+    $data = New-Object byte[] (3 * 1024 * 1024 + 17)
+    $rng = New-Object System.Random 2026
+    $rng.NextBytes($data)
+    [System.IO.File]::WriteAllBytes((Join-Path $sources $video), $data)
+    [System.IO.File]::WriteAllText((Join-Path $sources $subtitle), 'Subtitulo ficticio de VIEWTV')
+    $videoHash = (Get-FileHash (Join-Path $sources $video) -Algorithm SHA256).Hash
+    $subtitleHash = (Get-FileHash (Join-Path $sources $subtitle) -Algorithm SHA256).Hash
+    $linuxRoot = '/mnt/c/Users/Public/' + [System.IO.Path]::GetFileName($root)
+
+    $dockerOutput = & wsl.exe -d Ubuntu-24.04 -e /usr/bin/env PYTHONPATH=/home/viewtv/projects/viewtv/backend:/home/viewtv/projects/viewtv /home/viewtv/projects/viewtv/backend/.venv/bin/python -m worker.organization_cross_runtime_probe --stage $linuxRoot 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "La preparación Docker devolvió código $LASTEXITCODE."
+    }
+    $dockerResult = ($dockerOutput | Out-String).Trim() | ConvertFrom-Json
+    if ($dockerResult.docker_staging -ne 'verificado' -or $dockerResult.archivos -ne '2') {
+        throw 'Docker no verificó los dos ficheros de staging.'
+    }
+    $stage = Join-Path $root '.viewtv-stage-1'
+    if (-not [System.IO.Directory]::Exists($stage) -or
+        [System.IO.Directory]::Exists((Join-Path $root $title))) {
+        throw 'El staging no se creó correctamente.'
+    }
+    $results['docker_staging_y_sha256'] = 'correcto'
+
+    $publication = & $publisher -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title | ConvertFrom-Json
+    if ($publication.estado -ne 'publicada_en_sandbox' -or $publication.archivos -ne 2) {
+        throw 'La publicación nativa Windows no fue confirmada.'
+    }
+    $dest = Join-Path $root $title
+    if ([System.IO.Directory]::Exists($stage) -or
+        (Get-FileHash (Join-Path $dest $video) -Algorithm SHA256).Hash -ne $videoHash -or
+        (Get-FileHash (Join-Path $dest $subtitle) -Algorithm SHA256).Hash -ne $subtitleHash) {
+        throw 'Los archivos publicados no están íntegros.'
+    }
+    $results['publicacion_multifichero_ntfs'] = 'correcto'
+
+    $duplicate = Join-Path $root '.viewtv-stage-2'
+    [System.IO.Directory]::CreateDirectory($duplicate) | Out-Null
+    [System.IO.File]::WriteAllBytes((Join-Path $duplicate $video), [byte[]](1,2,3))
+    $refused = $false
+    try {
+        & $publisher -SandboxRoot $root -StageName '.viewtv-stage-2' -FinalName $title | Out-Null
+    } catch {
+        $refused = $true
+    }
+    if (-not $refused -or
+        -not [System.IO.Directory]::Exists($duplicate) -or
+        (Get-FileHash (Join-Path $dest $video) -Algorithm SHA256).Hash -ne $videoHash) {
+        throw 'La segunda publicación podría sobrescribir contenido.'
+    }
+    $results['segundo_intento_sin_sobrescritura'] = 'correcto'
+
+    if ((Get-FileHash (Join-Path $sources $video) -Algorithm SHA256).Hash -ne $videoHash -or
+        (Get-FileHash (Join-Path $sources $subtitle) -Algorithm SHA256).Hash -ne $subtitleHash) {
+        throw 'La fuente original fue modificada.'
+    }
+    $results['origen_intacto'] = 'correcto'
+    $results | ConvertTo-Json -Compress
+}
+finally {
+    # Only clean this invocation's new, uniquely named and marked folder.
+    if (([System.IO.Path]::GetDirectoryName($root) -ieq $public) -and
+        [System.IO.Path]::GetFileName($root) -match '^viewtv-win-sandbox-[0-9a-f]{32}$' -and
+        [System.IO.File]::Exists($marker) -and
+        [System.IO.File]::ReadAllText($marker) -ceq $markerValue) {
+        [System.IO.Directory]::Delete($root, $true)
+    }
+}

@@ -104,3 +104,29 @@ con `publish_test_existing_episode`, limitado a **`/tmp` con marcador**.
 Ver también [cola 0013](ORGANIZADOR-COLA-0013.md),
 [orquestación aislada](ORGANIZADOR-ORQUESTACION-SANDBOX.md) y
 [copiador de sandbox](ORGANIZADOR-COPIA-SANDBOX.md).
+
+## Hallazgo posterior: publicación nativa de carpetas Windows (solo sandbox)
+
+Se ha comprobado una solución adicional a la incompatibilidad de `renameat2`:
+**`[System.IO.Directory]::Move()` invocado en PowerShell de Windows**.
+En un sandbox temporal de `C:\Users\Public`, publicó una carpeta con
+vídeo y dos subtítulos, rechazó destinos ya existentes (incluidas carpetas
+vacías), colisiones de mayúsculas, rutas peligrosas, archivos no permitidos
+y grupos ambiguos.
+
+**También se ha probado la coordinación Docker → Windows**: el contenedor
+prepara una copia ficticia con verificación SHA-256 en el mismo volumen
+NTFS, PowerShell publica después toda la carpeta y se comprueba que los
+dos archivos y sus originales conservan sus hashes. Un intento repetido
+no sobrescribe el destino. No quedaron carpetas temporales utilizadas
+por el ensayo.
+
+La prueba requiere que **Windows coordine ambos procesos**: invocar
+PowerShell desde el WSL de este entorno devolvía código 1 sin salida;
+el script de Windows sí pudo invocar WSL/Docker y publicar de manera fiable.
+No se han tocado las bibliotecas, qBittorrent o servicios reales.
+
+**Límites:** esto NO equivale a un ejecutor de producción ni certifica
+atomicidad ante fallos físicos; faltan confinamiento, autenticación,
+leases, conciliación y pruebas de medios de tamaño real. Ver
+[ORGANIZADOR-PUBLICACION-WINDOWS-SANDBOX.md](ORGANIZADOR-PUBLICACION-WINDOWS-SANDBOX.md).
