@@ -12,6 +12,7 @@ from app.organization_queue import (
     confirm_organization,
     defer_organization,
     mark_organization_review,
+    renew_organization_lease,
 )
 from app.queue import record_download_verification
 
@@ -330,3 +331,93 @@ def test_failed_verification_with_lease_does_not_enqueue(fixture):
         assert claim_next_organization(
             session, "organizer", now=now + timedelta(seconds=11)
         ) is None
+
+
+def test_renew_lease_extends_and_never_shortens(fixture):
+    engine, did = fixture
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        assert claim_next_organization(session, "a", now=now)
+
+    later = now + timedelta(seconds=80)
+    with Session(engine) as session:
+        assert renew_organization_lease(
+            session, did, "a", lease_seconds=300, now=later
+        )
+        row = session.get(Descarga, did)
+        expiration = row.organizacion_locked_until.replace(tzinfo=UTC)
+        assert expiration == later + timedelta(seconds=300)
+
+        assert renew_organization_lease(
+            session, did, "a", lease_seconds=1, now=later
+        )
+        session.refresh(row)
+        assert row.organizacion_locked_until.replace(tzinfo=UTC) == expiration
+
+    with Session(engine) as session:
+        assert claim_next_organization(
+            session, "b", now=now + timedelta(seconds=LEASE_SECONDS + 1)
+        ) is None
+        assert confirm_organization(
+            session, did, "a", now=now + timedelta(seconds=250)
+        )
+
+
+def test_renew_lease_requires_owner_and_nonexpired_lease(fixture):
+    engine, did = fixture
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        assert claim_next_organization(session, "a", now=now)
+
+    with Session(engine) as session:
+        assert not renew_organization_lease(session, did, "b", now=now)
+        assert not renew_organization_lease(
+            session, did, "a", now=now + timedelta(seconds=LEASE_SECONDS)
+        )
+
+    with Session(engine) as session:
+        row = session.get(Descarga, did)
+        assert row.organizacion_locked_by == "a"
+        assert row.organizacion_locked_until.replace(tzinfo=UTC) == (
+            now + timedelta(seconds=LEASE_SECONDS)
+        )
+
+
+def test_stale_worker_cannot_renew_after_reclaim(fixture):
+    engine, did = fixture
+    now = datetime.now(UTC)
+    later = now + timedelta(seconds=LEASE_SECONDS + 1)
+    with Session(engine) as session:
+        assert claim_next_organization(session, "old", now=now)
+    with Session(engine) as session:
+        assert claim_next_organization(session, "new", now=later)
+    with Session(engine) as session:
+        assert not renew_organization_lease(session, did, "old", now=later)
+        assert renew_organization_lease(session, did, "new", now=later)
+
+
+@pytest.mark.parametrize("invalid", [0, -1, 901, True, None, "180", 2.5])
+def test_renew_rejects_invalid_durations(fixture, invalid):
+    engine, did = fixture
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        assert claim_next_organization(session, "a", now=now)
+    with Session(engine) as session, pytest.raises(ValueError):
+        renew_organization_lease(
+            session, did, "a", lease_seconds=invalid, now=now
+        )
+
+
+def test_renew_fails_if_verification_was_revoked(fixture):
+    engine, did = fixture
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        assert claim_next_organization(session, "a", now=now)
+    with Session(engine) as session:
+        row = session.get(Descarga, did)
+        row.estado_verificacion = "fallida"
+        session.add(row)
+        session.commit()
+    with Session(engine) as session:
+        assert not renew_organization_lease(session, did, "a", now=now)
+        assert not confirm_organization(session, did, "a", now=now)

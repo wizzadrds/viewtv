@@ -95,3 +95,21 @@ Se ha añadido un prototipo `worker/organization_copy_sandbox.py`, **solo para
 sobrescrituras. Tiene **22 pruebas específicas** y la suite general alcanza
 **397 pruebas aprobadas**. **No se conecta aún a esta cola ni a producción**.
 Ver [ORGANIZADOR-COPIA-SANDBOX.md](ORGANIZADOR-COPIA-SANDBOX.md).
+
+## Mejora de concurrencia: renovación de leases (desarrollo)
+
+La función `renew_organization_lease` permite extender una reclamación de
+organización **solo mientras sigue vigente**, por parte del mismo worker.
+Se ejecuta en una transacción exclusiva con las mismas condiciones de
+estado/verificación que la reclamación inicial. Los nuevos leases se limitan
+a **1–900 segundos**, nunca se acorta el vencimiento anterior y un worker
+antiguo, una tarea ya no verificada o un lease expirado no pueden renovarse.
+
+La renovación es una herramienta de la cola, **no un heartbeat activo**:
+el ejecutor real deberá llamarla periódicamente mientras realiza copias
+grandes, y abortar o conciliar si pierde la reserva. No habilita por sí
+sola operaciones sobre bibliotecas reales.
+
+Validación posterior: **39 tests específicos de la cola**, más los tests
+de copia aislada; **408 tests backend aprobados**, dos avisos de
+compatibilidad conocidos, Ruff limpio. Migración real **sigue en 0012**.

@@ -7,7 +7,7 @@ antes de invocar confirm_organization. No se llama desde worker/main.py.
 from datetime import datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import and_, or_, update
+from sqlalchemy import and_, case, or_, update
 from sqlmodel import Session, select
 
 from app.models import Descarga
@@ -128,6 +128,50 @@ def _claimed_conditions(download_id: int, worker_id: str, current: datetime) -> 
         Descarga.organizacion_locked_by == worker_id,
         Descarga.organizacion_locked_until > current,
     )
+
+
+
+def renew_organization_lease(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    *,
+    lease_seconds: int = LEASE_SECONDS,
+    now: datetime | None = None,
+) -> bool:
+    """Extender solo un lease propio todavía válido; no reanimar caducados."""
+    _id(download_id)
+    _worker(worker_id)
+    if (
+        isinstance(lease_seconds, bool)
+        or not isinstance(lease_seconds, int)
+        or not 1 <= lease_seconds <= 900
+    ):
+        raise ValueError("Duración del lease inválida.")
+
+    current = _now(now)
+    new_expiry = current + timedelta(seconds=lease_seconds)
+    _begin_write(session)
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(*_claimed_conditions(download_id, worker_id, current))
+            .values(
+                organizacion_locked_until=case(
+                    (
+                        Descarga.organizacion_locked_until > new_expiry,
+                        Descarga.organizacion_locked_until,
+                    ),
+                    else_=new_expiry,
+                ),
+                actualizado_en=current,
+            )
+        )
+        session.commit()
+        return result.rowcount == 1
+    except Exception:
+        session.rollback()
+        raise
 
 
 def confirm_organization(
