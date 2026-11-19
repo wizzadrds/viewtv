@@ -3,8 +3,6 @@
 
 import logging
 
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.models import ResultadoBusqueda
 from app.qbittorrent import QBittorrentClient, QBittorrentError
@@ -14,6 +12,7 @@ from app.queue import (
     mark_download_submitted,
     record_download_attempt,
 )
+from sqlmodel import Session, select
 
 logger = logging.getLogger("viewtv.worker.download_processor")
 

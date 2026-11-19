@@ -3,12 +3,11 @@
 import logging
 from dataclasses import dataclass
 
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.models import Descarga
 from app.qbittorrent import QBittorrentClient, QBittorrentError
 from app.queue import update_download_progress
+from sqlmodel import Session, select
 
 logger = logging.getLogger("viewtv.download_monitor")
 
@@ -80,6 +79,7 @@ def monitor_downloads_once(
                 Descarga.estado.in_(
                     ["enviada", "descargando", "pausada"]
                 ),
+                Descarga.inicio_estado != "pendiente",
                 Descarga.qbittorrent_hash.is_not(None),
             )
         ).all()

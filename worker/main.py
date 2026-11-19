@@ -5,21 +5,25 @@ import os
 import socket
 import time
 
+from app.database import engine
+from app.queue import get_queue_counts
 from sqlmodel import Session
+
 from worker.download_monitor import monitor_downloads_once
 from worker.download_processor import process_one_download
+from worker.download_starter import process_one_start
 from worker.download_verifier import (
     new_verification_worker_id,
     process_one_verification,
 )
 from worker.processor import process_one_request
 
-from app.database import engine
-from app.queue import get_queue_counts
-
 POLL_INTERVAL_SECONDS = 10
 VERIFICATION_ENABLED = os.environ.get(
     "VIEWTV_ENABLE_DOWNLOAD_VERIFICATION", "false"
+).strip().lower() == "true"
+START_ENABLED = os.environ.get(
+    "VIEWTV_ENABLE_DOWNLOAD_START", "false"
 ).strip().lower() == "true"
 VERIFICATION_WORKER_ID = new_verification_worker_id()
 WORKER_ID = f"{socket.gethostname()[:80]}-{os.getpid()}"
@@ -44,6 +48,15 @@ def main():
         try:
             download_processed = process_one_download(WORKER_ID)
             request_processed = process_one_request(WORKER_ID)
+
+            start_processed = False
+            if START_ENABLED:
+                try:
+                    start_processed = process_one_start(WORKER_ID)
+                except Exception:
+                    logger.exception(
+                        "Error procesando inicio de torrent."
+                    )
 
             try:
                 updated = monitor_downloads_once()
@@ -71,6 +84,7 @@ def main():
             if not any((
                 download_processed,
                 request_processed,
+                start_processed,
                 verification_processed,
             )):
                 report_worker_status()

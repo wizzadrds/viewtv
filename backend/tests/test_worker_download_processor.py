@@ -73,6 +73,8 @@ class FakeQBittorrent:
         self.add_error = add_error
         self.info_calls = []
         self.add_calls = []
+        self.start_calls = []
+        self.start_error = None
 
     def torrents_info(self, hashes=None, *, tag=None):
         self.info_calls.append({"hashes": hashes, "tag": tag})
@@ -84,6 +86,11 @@ class FakeQBittorrent:
         self.add_calls.append({"url": url, **kwargs})
         if self.add_error:
             raise self.add_error
+
+    def start_torrent(self, torrent_hash):
+        self.start_calls.append(torrent_hash)
+        if self.start_error:
+            raise self.start_error
 
 
 def test_existing_torrent_is_reconciled_without_duplicate_submission(monkeypatch):
@@ -248,3 +255,104 @@ def test_ambiguous_add_response_reconciles_registered_torrent(monkeypatch):
         call["tag"] == f"viewtv-descarga-{download_id}"
         for call in qbittorrent.info_calls
     )
+
+
+def test_new_download_registers_start_pending(monkeypatch):
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+
+    with Session(test_engine) as session:
+        _, download_id = add_selected_download(session)
+
+    qbittorrent = FakeQBittorrent(
+        responses=[[], [{"hash": "a" * 40}]]
+    )
+
+    assert processor.process_one_download("worker-test", qbittorrent)
+
+    with Session(test_engine) as session:
+        saved = session.get(Descarga, download_id)
+        assert saved.estado == "enviada"
+        assert saved.qbittorrent_hash == "a" * 40
+
+    assert qbittorrent.start_calls == []
+
+
+def test_reconciled_download_registers_start_pending(monkeypatch):
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+
+    with Session(test_engine) as session:
+        _, download_id = add_selected_download(session)
+
+    qbittorrent = FakeQBittorrent(
+        responses=[[{"hash": "b" * 40}]]
+    )
+
+    assert processor.process_one_download("worker-test", qbittorrent)
+
+    assert qbittorrent.add_calls == []
+    assert qbittorrent.start_calls == []
+
+
+def test_registered_download_waits_for_start_coordinator(monkeypatch):
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+
+    with Session(test_engine) as session:
+        _, download_id = add_selected_download(session)
+
+    qbittorrent = FakeQBittorrent(
+        responses=[[], [{"hash": "c" * 40}]]
+    )
+    qbittorrent.start_error = QBittorrentError(
+        "Error de comunicación con qBittorrent."
+    )
+
+    assert processor.process_one_download("worker-test", qbittorrent)
+
+    with Session(test_engine) as session:
+        saved = session.get(Descarga, download_id)
+        assert saved.estado == "enviada"
+        assert saved.qbittorrent_hash == "c" * 40
+        assert saved.intentos_envio == 1
+
+    assert len(qbittorrent.add_calls) == 1
+    assert qbittorrent.start_calls == []
+
+
+def test_submitted_download_persists_start_pending(monkeypatch):
+    """Guardar el hash deja un inicio pendiente recuperable."""
+    from app.queue import claim_next_download, mark_download_submitted
+
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+
+    with Session(test_engine) as session:
+        _, download_id = add_selected_download(session)
+
+    with Session(test_engine) as session:
+        claimed = claim_next_download(session, "worker-start-test")
+        assert claimed is not None
+        assert claimed.id == download_id
+
+    with Session(test_engine) as session:
+        saved = mark_download_submitted(
+            session,
+            download_id,
+            "worker-start-test",
+            "a" * 40,
+        )
+        assert saved
+
+    with Session(test_engine) as session:
+        download = session.get(Descarga, download_id)
+
+        assert download is not None
+        assert download.estado == "enviada"
+        assert download.qbittorrent_hash == "a" * 40
+        assert download.inicio_estado == "pendiente"
+        assert download.inicio_disponible_desde is not None
+        assert download.inicio_intentos == 0
+        assert download.inicio_locked_by is None
+        assert download.inicio_locked_until is None

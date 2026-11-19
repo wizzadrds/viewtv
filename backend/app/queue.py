@@ -498,6 +498,11 @@ def mark_download_submitted(
             .values(
                 estado="enviada",
                 qbittorrent_hash=qbittorrent_hash,
+                inicio_estado="pendiente",
+                inicio_disponible_desde=current_time,
+                inicio_intentos=0,
+                inicio_locked_by=None,
+                inicio_locked_until=None,
                 ultimo_error=None,
                 actualizado_en=current_time,
                 **_clear_lease_values(),
