@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, text
 from sqlalchemy.exc import IntegrityError
@@ -202,6 +202,58 @@ def listar_solicitudes(
         }
         for solicitud in solicitudes
     ]
+
+
+@router.get("/descargas")
+def listar_descargas(
+    perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> dict[str, object]:
+    """Seguimiento de descargas del perfil, sin datos internos del torrent."""
+    if perfil.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Perfil no autenticado.",
+        )
+
+    filtro_perfil = Solicitud.perfil_id == perfil.id
+    total = session.exec(
+        select(func.count(Descarga.id))
+        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+        .where(filtro_perfil)
+    ).one()
+
+    descargas = session.exec(
+        select(Descarga)
+        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+        .where(filtro_perfil)
+        .order_by(Descarga.creado_en.desc(), Descarga.id.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+
+    return {
+        "elementos": [
+            {
+                "id": descarga.id,
+                "solicitud_id": descarga.solicitud_id,
+                "titulo": descarga.titulo,
+                "estado": descarga.estado,
+                "progreso": descarga.progreso,
+                "tamano_bytes": descarga.tamano_bytes,
+                "inicio_estado": descarga.inicio_estado,
+                "estado_verificacion": descarga.estado_verificacion,
+                "creado_en": descarga.creado_en,
+                "actualizado_en": descarga.actualizado_en,
+            }
+            for descarga in descargas
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{solicitud_id}/resultados")
