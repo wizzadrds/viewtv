@@ -40,3 +40,17 @@ Validación local: **310 passed**, **2 avisos de deprecación** y Ruff sin error
 ## Seguridad operativa
 
 No ejecutar `docker compose down -v`, `git clean`, `git add .`, reiniciar torrents ajenos ni activar la bandera de inicio sin aprobación. Los respaldos se conservan en `~/viewtv-backups`.
+
+
+## Revisión de `stoppedDL` transitorio
+
+Se ha corregido la monitorización cuando qBittorrent acepta una orden de inicio pero todavía responde `stoppedDL` sin progreso.
+
+- El monitor concede **90 segundos** de tolerancia solo a descargas con `inicio_estado=iniciada`, `estado=enviada`, progreso cero y `stoppedDL`; utiliza `actualizado_en` del registro de confirmación de inicio.
+- Si durante ese intervalo aparece actividad, se registra `descargando`; las pausas posteriores se muestran inmediatamente.
+- Si sigue detenido tras ese intervalo, vuelve a aplicarse la interpretación `pausada`; no queda oculto indefinidamente.
+- Los estados de torrents antiguos o con `inicio_estado=no_requerido` siguen interpretándose como antes.
+- Las pruebas nuevas cubren parada transitoria, parada persistente después del margen y pausa manual tras actividad.
+- No se requiere una migración de base de datos adicional ni se activan torrents desde el monitor.
+
+La comprobación completa y el commit de esta mejora se registrarán tras la suite de regresión.

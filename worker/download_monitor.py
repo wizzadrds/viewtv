@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 from app.database import engine
 from app.models import Descarga
@@ -85,13 +86,25 @@ def monitor_downloads_once(
         ).all()
 
         pendientes = [
-            (descarga.id, descarga.qbittorrent_hash)
+            (
+                descarga.id,
+                descarga.qbittorrent_hash,
+                descarga.estado,
+                descarga.inicio_estado,
+                descarga.actualizado_en,
+            )
             for descarga in descargas
         ]
 
     actualizadas = 0
 
-    for download_id, torrent_hash in pendientes:
+    for (
+        download_id,
+        torrent_hash,
+        estado_actual,
+        inicio_estado,
+        actualizado_en,
+    ) in pendientes:
         if download_id is None or not torrent_hash:
             continue
 
@@ -122,6 +135,24 @@ def monitor_downloads_once(
 
         if estado is None:
             continue
+
+        # qBittorrent puede seguir notificando stoppedDL unos instantes
+        # después de aceptar el inicio. El margen solo se aplica antes
+        # de observar actividad; una pausa posterior nunca se oculta.
+        if (
+            inicio_estado == "iniciada"
+            and estado_actual == "enviada"
+            and estado.estado == "pausada"
+            and torrent.get("state") == "stoppedDL"
+            and estado.progreso == 0
+            and actualizado_en is not None
+        ):
+            fecha = actualizado_en
+            if fecha.tzinfo is None:
+                fecha = fecha.replace(tzinfo=UTC)
+            edad = datetime.now(UTC) - fecha
+            if timedelta(0) <= edad < timedelta(seconds=90):
+                continue
 
         with Session(engine) as session:
             changed = update_download_progress(

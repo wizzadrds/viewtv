@@ -233,3 +233,93 @@ def test_monitor_tracks_partial_and_completed_download(monkeypatch):
         descarga = session.get(Descarga, download_id)
         assert descarga.estado == "completada"
         assert descarga.progreso == 1
+
+
+
+def test_inicio_reciente_no_se_confunde_con_pausa(monkeypatch):
+    from datetime import UTC, datetime
+
+    import worker.download_monitor as monitor
+    from sqlmodel import Session
+
+    from app.models import Descarga
+
+    engine, download_id = make_monitor_database(monkeypatch)
+    with Session(engine) as session:
+        descarga = session.get(Descarga, download_id)
+        descarga.inicio_estado = "iniciada"
+        descarga.actualizado_en = datetime.now(UTC)
+        session.add(descarga)
+        session.commit()
+
+    client = FakeMonitorClient([{
+        "hash": "a" * 40,
+        "state": "stoppedDL",
+        "progress": 0,
+        "total_size": 1000,
+    }])
+    assert monitor.monitor_downloads_once(client) == 0
+
+    with Session(engine) as session:
+        assert session.get(Descarga, download_id).estado == "enviada"
+    engine.dispose()
+
+
+def test_inicio_sin_actividad_tras_gracia_muestra_pausa(monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    import worker.download_monitor as monitor
+    from sqlmodel import Session
+
+    from app.models import Descarga
+
+    engine, download_id = make_monitor_database(monkeypatch)
+    with Session(engine) as session:
+        descarga = session.get(Descarga, download_id)
+        descarga.inicio_estado = "iniciada"
+        descarga.actualizado_en = datetime.now(UTC) - timedelta(minutes=3)
+        session.add(descarga)
+        session.commit()
+
+    client = FakeMonitorClient([{
+        "hash": "a" * 40,
+        "state": "stoppedDL",
+        "progress": 0,
+        "total_size": 1000,
+    }])
+    assert monitor.monitor_downloads_once(client) == 1
+
+    with Session(engine) as session:
+        assert session.get(Descarga, download_id).estado == "pausada"
+    engine.dispose()
+
+
+def test_pausa_manual_despues_de_actividad_no_se_oculta(monkeypatch):
+    from datetime import UTC, datetime
+
+    import worker.download_monitor as monitor
+    from sqlmodel import Session
+
+    from app.models import Descarga
+
+    engine, download_id = make_monitor_database(monkeypatch)
+    with Session(engine) as session:
+        descarga = session.get(Descarga, download_id)
+        descarga.inicio_estado = "iniciada"
+        descarga.estado = "descargando"
+        descarga.progreso = 0.3
+        descarga.actualizado_en = datetime.now(UTC)
+        session.add(descarga)
+        session.commit()
+
+    client = FakeMonitorClient([{
+        "hash": "a" * 40,
+        "state": "stoppedDL",
+        "progress": 0.3,
+        "total_size": 1000,
+    }])
+    assert monitor.monitor_downloads_once(client) == 1
+
+    with Session(engine) as session:
+        assert session.get(Descarga, download_id).estado == "pausada"
+    engine.dispose()
