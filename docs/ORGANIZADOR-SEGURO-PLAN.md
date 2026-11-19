@@ -1,5 +1,7 @@
 # VIEWTV — Organizador de archivos: fase 1, planificación sin escritura
 
+> **Avance posterior (0013, desarrollo, NO desplegado):** se ha implementado una cola durable de organización con leases y reintentos, todavía sin ejecutor ni escritura. Ver [ORGANIZADOR-COLA-0013.md](ORGANIZADOR-COLA-0013.md). Producción sigue en `0012`.
+
 Fecha: 19/11/2026. Código de desarrollo; NO desplegado en producción.
 
 ## Estado

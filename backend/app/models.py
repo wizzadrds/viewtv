@@ -222,5 +222,19 @@ class Descarga(SQLModel, table=True):
     inicio_locked_until: datetime | None = None
     inicio_disponible_desde: datetime | None = None
     inicio_intentos: int = Field(default=0, ge=0)
+
+    # Preparación de la futura organización; el worker de producción
+    # NO consume esta cola mientras no exista un ejecutor seguro.
+    organizacion_estado: str = Field(
+        default="no_requerida", max_length=20, index=True
+    )
+    organizacion_locked_by: str | None = Field(
+        default=None, max_length=128
+    )
+    organizacion_locked_until: datetime | None = None
+    organizacion_disponible_desde: datetime | None = None
+    organizacion_intentos: int = Field(default=0, ge=0)
+    organizacion_ultimo_error: str | None = Field(default=None, sa_type=Text)
+
     creado_en: datetime = Field(default_factory=utc_now)
     actualizado_en: datetime = Field(default_factory=utc_now)

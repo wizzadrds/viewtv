@@ -1,5 +1,7 @@
 # VIEWTV — Despliegue controlado de 0012 y PWA real
 
+> **Nota posterior:** el desarrollo local `0013_cola_organizacion` se documenta en [ORGANIZADOR-COLA-0013.md](ORGANIZADOR-COLA-0013.md). **No está desplegado:** este documento continúa describiendo la versión real `0012`.
+
 **Fecha:** 19 de noviembre de 2026. **Estado:** desplegado y comprobado en la instalación Windows/WSL local.
 
 ## Resultado

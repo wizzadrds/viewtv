@@ -912,6 +912,12 @@ def finish_claimed_verification(
                 verificacion_locked_until=None,
                 verificacion_heartbeat=None,
                 verificacion_disponible_desde=None,
+                organizacion_estado=(
+                    "pendiente" if verified else Descarga.organizacion_estado
+                ),
+                organizacion_disponible_desde=(
+                    current_time if verified else Descarga.organizacion_disponible_desde
+                ),
                 actualizado_en=current_time,
             )
         )
@@ -1093,6 +1099,12 @@ def record_download_verification(
                 estado_verificacion=nuevo_estado,
                 verificada_en=current_time if verified else None,
                 error_verificacion=nuevo_error,
+                organizacion_estado=(
+                    "pendiente" if verified else Descarga.organizacion_estado
+                ),
+                organizacion_disponible_desde=(
+                    current_time if verified else Descarga.organizacion_disponible_desde
+                ),
                 actualizado_en=current_time,
             )
         )
