@@ -1,5 +1,7 @@
 # VIEWTV — Previsualización aislada de API y frontend 0012
 
+> **Nota de continuidad (19-11-2026):** la DEMO de `3001` continúa separada; posteriormente se desplegó la página **real** en `http://127.0.0.1:3000`. El estado de producción `0011` indicado abajo corresponde al instante anterior al despliegue. Referencia actual: [DESPLIEGUE-0012.md](DESPLIEGUE-0012.md).
+
 Fecha: 19-11-2026. SOLO DESARROLLO, NO PRODUCCIÓN.
 
 ## Acceso visual

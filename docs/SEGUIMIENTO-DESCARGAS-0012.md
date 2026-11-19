@@ -1,5 +1,7 @@
 # VIEWTV — Seguimiento seguro de descargas (trabajo local posterior a 0012)
 
+> **Actualización posterior (19-11-2026):** la API, el worker y la PWA de esta versión **ya están desplegados** en la instalación real. Los párrafos siguientes documentan el estado previo y las validaciones históricas. Ver [DESPLIEGUE-0012.md](DESPLIEGUE-0012.md) para el estado actual, respaldos y banderas. El inicio automático sigue **desactivado**.
+
 Fecha: 19 de noviembre de 2026.
 
 ## Contexto de despliegue

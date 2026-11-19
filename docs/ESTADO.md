@@ -1,5 +1,7 @@
 # VIEWTV — Estado real del proyecto
 
+> **AVISO (19-11-2026):** este inventario refleja la revisión histórica del 18-11-2026 y sus cifras de pruebas ya no son actuales. Para el despliegue real `0012`, los respaldos y el estado pendiente, consultar [DESPLIEGUE-0012.md](DESPLIEGUE-0012.md). Última suite: **347 pruebas aprobadas**.
+
 **Fecha de revisión:** 18 de noviembre de 2026
 **Rama local:** `inventario-trabajo-local`
 **Commit local:** `482071b`
