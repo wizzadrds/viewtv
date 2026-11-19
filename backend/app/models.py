@@ -203,5 +203,11 @@ class Descarga(SQLModel, table=True):
     )
     verificada_en: datetime | None = None
     error_verificacion: str | None = Field(default=None, sa_type=Text)
+    verificacion_locked_by: str | None = Field(
+        default=None, max_length=128
+    )
+    verificacion_locked_until: datetime | None = None
+    verificacion_heartbeat: datetime | None = None
+    verificacion_disponible_desde: datetime | None = None
     creado_en: datetime = Field(default_factory=utc_now)
     actualizado_en: datetime = Field(default_factory=utc_now)
