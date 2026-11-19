@@ -14,11 +14,14 @@ from app.models import Descarga, Solicitud
 from app.organization_queue import (
     claim_next_organization,
     confirm_organization,
+    defer_organization,
     mark_organization_review,
     renew_organization_lease,
 )
+from app.qbittorrent import QBittorrentError
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
+from worker.file_validator import InvalidTorrentFiles
 from worker.organization_copy_sandbox import (
     _check_sandbox,
     publish_test_plan,
@@ -29,7 +32,7 @@ from worker.organization_planner import (
 )
 
 SandboxOutcome = Literal[
-    "sin_trabajos", "organizada", "requiere_revision", "lease_perdido"
+    "sin_trabajos", "organizada", "requiere_revision", "lease_perdido", "aplazada"
 ]
 
 
@@ -102,7 +105,15 @@ def run_one_sandbox_organization(
         return "organizada"
     except LostOrganizationLease:
         return "lease_perdido"
-    except (UnsafeOrganizationPlan, OSError) as exc:
+    except QBittorrentError:
+        # La consulta al gestor ocurre antes de crear staging: el error
+        # de comunicación no constituye una orden ambigua de escritura.
+        with Session(engine) as session:
+            deferred = defer_organization(
+                session, download_id, worker_id, "comunicacion",
+            )
+        return "aplazada" if deferred else "lease_perdido"
+    except (UnsafeOrganizationPlan, InvalidTorrentFiles, OSError) as exc:
         reason = (
             "espacio_insuficiente"
             if isinstance(exc, OSError) and exc.errno == errno.ENOSPC

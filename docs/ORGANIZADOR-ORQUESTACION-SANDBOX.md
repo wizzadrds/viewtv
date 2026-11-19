@@ -92,3 +92,17 @@ Para la ejecución sobre ficheros autorizados faltan:
 Referencias: [planificador](ORGANIZADOR-SEGURO-PLAN.md),
 [cola 0013](ORGANIZADOR-COLA-0013.md),
 [copiador sandbox](ORGANIZADOR-COPIA-SANDBOX.md).
+
+## Ampliación: validación simulada de identidad qBittorrent
+
+El coordinador de pruebas ya admite un proveedor inyectado que usa el
+**guard de identidad de solo lectura** antes de generar el plan. En la
+simulación, un torrent propio puede llegar al estado `organizada`, un
+torrent con etiqueta ajena o carpeta incorrecta pasa a revisión y un
+fallo de comunicación previo al staging se aplaza sin escribir.
+
+Esta protección **no se conecta al qBittorrent real** ni convierte
+el runner de sandbox en un ejecutor de producción. Ver el nuevo documento
+[ORGANIZADOR-QBITTORRENT-IDENTIDAD.md](ORGANIZADOR-QBITTORRENT-IDENTIDAD.md).
+
+Suite completa posterior: **471 pruebas aprobadas**; Ruff sin errores.

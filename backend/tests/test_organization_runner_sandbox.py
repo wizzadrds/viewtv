@@ -40,6 +40,7 @@ def setup(tmp_path):
             solicitud_id=request.id, titulo=request.titulo,
             estado="completada", progreso=1,
             estado_verificacion="verificada",
+            verificada_en=datetime.now(UTC),
             organizacion_estado="pendiente",
             qbittorrent_hash="a" * 40,
         )
@@ -291,3 +292,128 @@ def test_unverified_work_is_never_processed(setup):
     )
     assert _record(engine, download_id).organizacion_intentos == 0
     assert source.exists()
+
+
+def _simulated_qbittorrent(root, download_id, *, tag=None, save_path=None):
+    from types import SimpleNamespace
+
+    from worker.organization_torrent_guard import EXPECTED_SAVE_PATH
+
+    source = root / "media" / "descargas_temporales" / "Mi corto.mkv"
+    calls = []
+    expected_tag = f"viewtv-descarga-{download_id}"
+    actual_tag = tag if tag is not None else expected_tag
+    actual_path = save_path if save_path is not None else EXPECTED_SAVE_PATH
+
+    def torrents_info(*, hashes):
+        calls.append(("GET torrents", hashes))
+        return [{
+            "hash": "a" * 40,
+            "tags": actual_tag,
+            "save_path": actual_path,
+            "state": "stoppedUP",
+            "progress": 1.0,
+            "total_size": source.stat().st_size,
+        }]
+
+    def torrent_files(torrent_hash):
+        calls.append(("GET files", torrent_hash))
+        return [{
+            "name": source.name,
+            "size": source.stat().st_size,
+            "progress": 1.0,
+            "priority": 1,
+        }]
+
+    return SimpleNamespace(
+        torrents_info=torrents_info,
+        torrent_files=torrent_files,
+        calls=calls,
+    )
+
+
+def test_simulated_owned_torrent_completes_organization(setup):
+    from worker.organization_torrent_guard import verify_organization_torrent_identity
+
+    engine, root, source, download_id, _ = setup
+    client = _simulated_qbittorrent(root, download_id)
+
+    def provider(download):
+        return verify_organization_torrent_identity(
+            client, download, root / "media" / "descargas_temporales",
+        )
+
+    assert run_one_sandbox_organization(
+        engine, root, "worker-a", provider
+    ) == "organizada"
+    assert client.calls == [
+        ("GET torrents", ["a" * 40]),
+        ("GET files", "a" * 40),
+    ]
+    assert _destination(root).is_dir()
+    assert source.exists()
+    assert _record(engine, download_id).organizacion_estado == "organizada"
+
+
+def test_simulated_foreign_torrent_cannot_be_organized(setup):
+    from worker.organization_torrent_guard import verify_organization_torrent_identity
+
+    engine, root, source, download_id, _ = setup
+    client = _simulated_qbittorrent(root, download_id, tag="viewtv-descarga-999")
+
+    def provider(download):
+        return verify_organization_torrent_identity(
+            client, download, root / "media" / "descargas_temporales",
+        )
+
+    assert run_one_sandbox_organization(
+        engine, root, "worker-a", provider
+    ) == "requiere_revision"
+    assert client.calls == [("GET torrents", ["a" * 40])]
+    assert _record(engine, download_id).organizacion_ultimo_error == "archivo_invalido"
+    assert not _destination(root).exists()
+    assert source.exists()
+
+
+def test_simulated_torrent_wrong_savepath_rejected_without_file_read(setup):
+    from worker.organization_torrent_guard import verify_organization_torrent_identity
+
+    engine, root, source, download_id, _ = setup
+    client = _simulated_qbittorrent(
+        root, download_id, save_path=r"C:\VIEWTV\media\Peliculas"
+    )
+
+    def provider(download):
+        return verify_organization_torrent_identity(
+            client, download, root / "media" / "descargas_temporales",
+        )
+
+    assert run_one_sandbox_organization(
+        engine, root, "worker-a", provider
+    ) == "requiere_revision"
+    assert client.calls == [("GET torrents", ["a" * 40])]
+    assert not _destination(root).exists()
+    assert source.exists()
+
+
+def test_simulated_qbittorrent_error_defers_without_staging(setup):
+    from app.qbittorrent import QBittorrentError
+
+    engine, root, source, download_id, _ = setup
+
+    def disconnected(_download):
+        raise QBittorrentError("Conexión simulada interrumpida")
+
+    assert run_one_sandbox_organization(
+        engine, root, "worker-a", disconnected
+    ) == "aplazada"
+    item = _record(engine, download_id)
+    assert item.organizacion_estado == "pendiente"
+    assert item.organizacion_disponible_desde is not None
+    assert item.organizacion_locked_by is None
+    assert item.organizacion_ultimo_error == "comunicacion"
+    assert source.exists()
+    assert not _destination(root).exists()
+    assert not (
+        root / "media" / "Peliculas" / f".viewtv-test-stage-{download_id}"
+    ).exists()
