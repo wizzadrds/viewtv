@@ -1459,7 +1459,7 @@ def test_defer_claimed_verification_schedules_retry(
             session,
             download_id,
             "worker-a",
-            retry_seconds=60,
+            retry_base_seconds=60,
             now=now + timedelta(seconds=10),
         )
 
@@ -1493,7 +1493,7 @@ def test_defer_claimed_verification_respects_retry_delay(
     with verification_session_factory() as session:
         assert defer_claimed_verification(
             session, download_id, "worker-a",
-            retry_seconds=60, now=now + timedelta(seconds=10)
+            retry_base_seconds=60, now=now + timedelta(seconds=10)
         )
 
     with verification_session_factory() as session:
@@ -1566,3 +1566,96 @@ def test_defer_claimed_verification_rejects_expired_lease(
         descarga = session.get(Descarga, download_id)
         assert descarga.estado_verificacion == "pendiente"
         assert descarga.verificacion_disponible_desde is None
+
+@pytest.mark.parametrize(
+    ("attempts", "expected_delay"),
+    [
+        (1, 60),
+        (2, 120),
+        (3, 240),
+        (4, 480),
+        (5, 960),
+        (6, 1800),
+    ],
+)
+def test_verification_exponential_backoff(
+    verification_session_factory,
+    claimed_verification_download,
+    attempts,
+    expected_delay,
+):
+    from app.queue import (
+        claim_next_verification,
+        defer_claimed_verification,
+    )
+
+    start = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    for attempt in range(1, attempts + 1):
+        now = start + timedelta(hours=attempt)
+
+        with verification_session_factory() as session:
+            claimed = claim_next_verification(
+                session,
+                f"worker-{attempt}",
+                now=now,
+            )
+            assert claimed is not None
+
+        with verification_session_factory() as session:
+            assert defer_claimed_verification(
+                session,
+                download_id,
+                f"worker-{attempt}",
+                now=now + timedelta(seconds=1),
+            )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+
+        assert descarga.verificacion_intentos_temporales == attempts
+        assert descarga.estado_verificacion == "pendiente"
+        assert descarga.verificacion_locked_by is None
+
+        expected_time = (
+            start
+            + timedelta(hours=attempts)
+            + timedelta(seconds=1 + expected_delay)
+        )
+
+        assert descarga.verificacion_disponible_desde.replace(
+            tzinfo=UTC
+        ) == expected_time
+
+
+def test_verification_backoff_rejects_unauthorized_worker(
+    verification_session_factory,
+    claimed_verification_download,
+):
+    from app.queue import (
+        claim_next_verification,
+        defer_claimed_verification,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-owner", now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not defer_claimed_verification(
+            session,
+            download_id,
+            "worker-intruder",
+            now=now + timedelta(seconds=1),
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.verificacion_intentos_temporales == 0
+        assert descarga.verificacion_disponible_desde is None
+        assert descarga.verificacion_locked_by == "worker-owner"

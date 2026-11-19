@@ -920,15 +920,17 @@ def finish_claimed_verification(
 
 
 
+
 def defer_claimed_verification(
     session: Session,
     download_id: int,
     worker_id: str,
     *,
-    retry_seconds: int = 60,
+    retry_base_seconds: int = 60,
+    retry_max_seconds: int = 1800,
     now: datetime | None = None,
 ) -> bool:
-    """Libera un lease vigente y aplaza la verificación pendiente."""
+    """Libera el lease y programa un reintento exponencial durable."""
     if (
         isinstance(download_id, bool)
         or not isinstance(download_id, int)
@@ -944,19 +946,21 @@ def defer_claimed_verification(
         raise ValueError("worker_id no válido")
 
     if (
-        isinstance(retry_seconds, bool)
-        or not isinstance(retry_seconds, int)
-        or retry_seconds <= 0
+        isinstance(retry_base_seconds, bool)
+        or not isinstance(retry_base_seconds, int)
+        or retry_base_seconds <= 0
+        or isinstance(retry_max_seconds, bool)
+        or not isinstance(retry_max_seconds, int)
+        or retry_max_seconds < retry_base_seconds
     ):
-        raise ValueError("retry_seconds debe ser positivo")
+        raise ValueError("Intervalos de reintento no válidos")
 
     current_time = _now(now)
     _begin_write(session)
 
     try:
-        result = session.exec(
-            update(Descarga)
-            .where(
+        descarga = session.exec(
+            select(Descarga).where(
                 Descarga.id == download_id,
                 Descarga.estado == "completada",
                 Descarga.progreso == 1,
@@ -964,12 +968,36 @@ def defer_claimed_verification(
                 Descarga.verificacion_locked_by == worker_id,
                 Descarga.verificacion_locked_until > current_time,
             )
+        ).first()
+
+        if descarga is None:
+            session.commit()
+            return False
+
+        intentos = descarga.verificacion_intentos_temporales + 1
+
+        # Se limita el exponente para evitar números enormes.
+        exponente = min(intentos - 1, 30)
+        retraso = min(
+            retry_base_seconds * (2 ** exponente),
+            retry_max_seconds,
+        )
+
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado_verificacion == "pendiente",
+                Descarga.verificacion_locked_by == worker_id,
+                Descarga.verificacion_locked_until > current_time,
+            )
             .values(
+                verificacion_intentos_temporales=intentos,
                 verificacion_locked_by=None,
                 verificacion_locked_until=None,
                 verificacion_heartbeat=None,
                 verificacion_disponible_desde=(
-                    current_time + timedelta(seconds=retry_seconds)
+                    current_time + timedelta(seconds=retraso)
                 ),
                 actualizado_en=current_time,
             )

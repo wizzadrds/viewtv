@@ -99,7 +99,7 @@ def process_one_verification(
                 session,
                 download_id,
                 worker_id,
-                retry_seconds=60,
+                retry_base_seconds=60,
             )
         else:
             changed = finish_claimed_verification(
