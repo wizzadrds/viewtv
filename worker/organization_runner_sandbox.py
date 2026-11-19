@@ -26,6 +26,7 @@ from worker.organization_copy_sandbox import (
     _check_sandbox,
     publish_test_plan,
 )
+from worker.organization_existing_season_sandbox import publish_test_existing_episode
 from worker.organization_planner import (
     UnsafeOrganizationPlan,
     plan_verified_media,
@@ -90,9 +91,21 @@ def run_one_sandbox_organization(
             )
 
         heartbeat()
-        publish_test_plan(
-            plan, root, progress_callback=heartbeat,
-        )
+        # En una temporada ya existente solo se permite publicar un
+        # vídeo individual mediante hardlink sin reemplazo. Para nuevos
+        # títulos se conserva la publicación atómica de carpetas Linux.
+        if (
+            plan.library == "Series"
+            and plan.entries
+            and plan.entries[0].destination.parent.is_dir()
+        ):
+            publish_test_existing_episode(
+                plan, root, progress_callback=heartbeat,
+            )
+        else:
+            publish_test_plan(
+                plan, root, progress_callback=heartbeat,
+            )
         # Verificar de nuevo el lease DESPUÉS de publicar. Si falla,
         # otro intento detectará el destino y lo enviará a revisión.
         heartbeat()

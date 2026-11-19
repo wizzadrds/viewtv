@@ -106,3 +106,15 @@ el runner de sandbox en un ejecutor de producción. Ver el nuevo documento
 [ORGANIZADOR-QBITTORRENT-IDENTIDAD.md](ORGANIZADOR-QBITTORRENT-IDENTIDAD.md).
 
 Suite completa posterior: **471 pruebas aprobadas**; Ruff sin errores.
+
+## Compatibilidad Windows/NTFS (pruebas posteriores)
+
+Los diagnósticos WSL y Docker sobre directorios ficticios en C: confirman
+que **renameat2(RENAME_NOREPLACE)** para carpetas falla con `EINVAL (22)`.
+La publicación de un único archivo mediante hardlink `os.link` sí funciona
+y rechaza sobrescrituras en las pruebas. Existe ahora un ejecutor de ensayo
+para añadir **un episodio sin subtítulos** a una temporada preexistente,
+conectado al coordinador de sandbox, aún SIN despliegue real.
+
+Documentación: [ORGANIZADOR-COMPATIBILIDAD-WINDOWS.md](ORGANIZADOR-COMPATIBILIDAD-WINDOWS.md).
+Suite completa: **488 pruebas aprobadas**. Producción sigue en 0012.

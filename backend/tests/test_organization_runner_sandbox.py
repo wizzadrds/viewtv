@@ -417,3 +417,110 @@ def test_simulated_qbittorrent_error_defers_without_staging(setup):
     assert not (
         root / "media" / "Peliculas" / f".viewtv-test-stage-{download_id}"
     ).exists()
+
+
+def _existing_season_setup(setup):
+    engine, root, old_video, download_id, _ = setup
+    new_video = old_video.with_name("Serie.Ficticia.S01E03.mkv")
+    old_video.rename(new_video)
+    show = root / "media" / "Series" / "Serie ficticia"
+    season = show / "Temporada 01"
+    season.mkdir(parents=True)
+    previous = season / "Serie ficticia - S01E02.mkv"
+    previous.write_bytes(b"episodio previo, no alterar")
+    with Session(engine) as session:
+        row = session.get(Descarga, download_id)
+        request = session.get(Solicitud, row.solicitud_id)
+        request.tipo_medio = "serie"
+        request.titulo = "Serie ficticia"
+        row.titulo = "Serie ficticia"
+        session.add(request)
+        session.add(row)
+        session.commit()
+
+    def provider(download):
+        assert download.id == download_id
+        return [new_video]
+
+    return engine, root, new_video, download_id, provider, season, previous
+
+
+def test_existing_season_single_episode_coordinated_without_overwrite(setup):
+    engine, root, source, download_id, provider, season, previous = (
+        _existing_season_setup(setup)
+    )
+    previous_content = previous.read_bytes()
+    original = source.read_bytes()
+    assert run_one_sandbox_organization(
+        engine, root, "worker-a", provider
+    ) == "organizada"
+
+    episode = season / "Serie ficticia - S01E03.mkv"
+    assert episode.read_bytes() == original
+    assert previous.read_bytes() == previous_content
+    assert source.read_bytes() == original
+    assert _record(engine, download_id).organizacion_estado == "organizada"
+    assert run_one_sandbox_organization(
+        engine, root, "worker-b", provider
+    ) == "sin_trabajos"
+
+
+def test_existing_season_after_publish_crash_requires_review(setup, monkeypatch):
+    import worker.organization_runner_sandbox as runner
+
+    engine, root, source, download_id, provider, season, previous = (
+        _existing_season_setup(setup)
+    )
+    old_data = previous.read_bytes()
+
+    def crash(*_args, **_kwargs):
+        raise RuntimeError("caída después de publicar episodio")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(runner, "confirm_organization", crash)
+        with pytest.raises(RuntimeError, match="publicar"):
+            runner.run_one_sandbox_organization(engine, root, "w1", provider)
+
+    episode = season / "Serie ficticia - S01E03.mkv"
+    final_data = episode.read_bytes()
+    _expire_lease(engine, download_id)
+    assert runner.run_one_sandbox_organization(
+        engine, root, "w2", provider
+    ) == "requiere_revision"
+    assert episode.read_bytes() == final_data
+    assert previous.read_bytes() == old_data
+    assert source.exists()
+
+
+def test_existing_season_subtitle_group_requires_manual_review(setup):
+    engine, root, source, download_id, provider, season, previous = (
+        _existing_season_setup(setup)
+    )
+    subtitles = source.with_name("Serie.Ficticia.S01E03.es.srt")
+    subtitles.write_bytes(b"subtitulo simulado")
+    old_data = previous.read_bytes()
+
+    def provider_with_subtitle(download):
+        return provider(download) + [subtitles]
+
+    assert run_one_sandbox_organization(
+        engine, root, "w1", provider_with_subtitle
+    ) == "requiere_revision"
+    assert _record(engine, download_id).organizacion_estado == "requiere_revision"
+    assert previous.read_bytes() == old_data
+    assert not (season / "Serie ficticia - S01E03.mkv").exists()
+    assert source.exists() and subtitles.exists()
+
+
+def test_existing_season_preexisting_episode_blocked_without_cleanup(setup):
+    engine, root, source, download_id, provider, season, previous = (
+        _existing_season_setup(setup)
+    )
+    target = season / "Serie ficticia - S01E03.mkv"
+    target.write_bytes(b"ya existe, no sobrescribir")
+    assert run_one_sandbox_organization(
+        engine, root, "w1", provider
+    ) == "requiere_revision"
+    assert target.read_bytes() == b"ya existe, no sobrescribir"
+    assert previous.read_bytes() == b"episodio previo, no alterar"
+    assert source.exists()
