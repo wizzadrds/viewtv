@@ -8,12 +8,20 @@ import time
 from sqlmodel import Session
 from worker.download_monitor import monitor_downloads_once
 from worker.download_processor import process_one_download
+from worker.download_verifier import (
+    new_verification_worker_id,
+    process_one_verification,
+)
 from worker.processor import process_one_request
 
 from app.database import engine
 from app.queue import get_queue_counts
 
 POLL_INTERVAL_SECONDS = 10
+VERIFICATION_ENABLED = os.environ.get(
+    "VIEWTV_ENABLE_DOWNLOAD_VERIFICATION", "false"
+).strip().lower() == "true"
+VERIFICATION_WORKER_ID = new_verification_worker_id()
 WORKER_ID = f"{socket.gethostname()[:80]}-{os.getpid()}"
 
 logging.basicConfig(
@@ -49,7 +57,22 @@ def main():
                     "Error consultando el progreso de descargas."
                 )
 
-            if not download_processed and not request_processed:
+            verification_processed = False
+            if VERIFICATION_ENABLED:
+                try:
+                    verification_processed = process_one_verification(
+                        VERIFICATION_WORKER_ID
+                    )
+                except Exception:
+                    logger.exception(
+                        "Error procesando verificación de descarga."
+                    )
+
+            if not any((
+                download_processed,
+                request_processed,
+                verification_processed,
+            )):
                 report_worker_status()
 
             time.sleep(POLL_INTERVAL_SECONDS)
