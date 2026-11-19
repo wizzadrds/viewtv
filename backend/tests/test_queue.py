@@ -1437,3 +1437,132 @@ def test_finish_claimed_verification_records_failure_and_releases_lease(
         assert descarga.verificada_en is None
         assert descarga.verificacion_locked_by is None
         assert descarga.verificacion_locked_until is None
+
+def test_defer_claimed_verification_schedules_retry(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import (
+        claim_next_verification,
+        defer_claimed_verification,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=120, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert defer_claimed_verification(
+            session,
+            download_id,
+            "worker-a",
+            retry_seconds=60,
+            now=now + timedelta(seconds=10),
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "pendiente"
+        assert descarga.verificacion_locked_by is None
+        assert descarga.verificacion_locked_until is None
+        assert descarga.verificacion_heartbeat is None
+        assert descarga.verificacion_disponible_desde.replace(
+            tzinfo=UTC
+        ) == now + timedelta(seconds=70)
+
+
+def test_defer_claimed_verification_respects_retry_delay(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import (
+        claim_next_verification,
+        defer_claimed_verification,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=120, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert defer_claimed_verification(
+            session, download_id, "worker-a",
+            retry_seconds=60, now=now + timedelta(seconds=10)
+        )
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-b",
+            now=now + timedelta(seconds=69),
+        ) is None
+
+    with verification_session_factory() as session:
+        claimed = claim_next_verification(
+            session, "worker-b",
+            now=now + timedelta(seconds=70),
+        )
+        assert claimed is not None
+        assert claimed.id == download_id
+        assert claimed.verificacion_locked_by == "worker-b"
+
+
+def test_defer_claimed_verification_rejects_other_worker(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import (
+        claim_next_verification,
+        defer_claimed_verification,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=120, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not defer_claimed_verification(
+            session, download_id, "worker-b",
+            now=now + timedelta(seconds=10),
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.verificacion_locked_by == "worker-a"
+        assert descarga.verificacion_disponible_desde is None
+
+
+def test_defer_claimed_verification_rejects_expired_lease(
+    verification_session_factory, claimed_verification_download
+):
+    from app.queue import (
+        claim_next_verification,
+        defer_claimed_verification,
+    )
+
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    download_id = claimed_verification_download
+
+    with verification_session_factory() as session:
+        assert claim_next_verification(
+            session, "worker-a", lease_seconds=30, now=now
+        ) is not None
+
+    with verification_session_factory() as session:
+        assert not defer_claimed_verification(
+            session, download_id, "worker-a",
+            now=now + timedelta(seconds=31),
+        )
+
+    with verification_session_factory() as session:
+        descarga = session.get(Descarga, download_id)
+        assert descarga.estado_verificacion == "pendiente"
+        assert descarga.verificacion_disponible_desde is None

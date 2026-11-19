@@ -919,6 +919,71 @@ def finish_claimed_verification(
 
 
 
+
+def defer_claimed_verification(
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    *,
+    retry_seconds: int = 60,
+    now: datetime | None = None,
+) -> bool:
+    """Libera un lease vigente y aplaza la verificación pendiente."""
+    if (
+        isinstance(download_id, bool)
+        or not isinstance(download_id, int)
+        or download_id <= 0
+    ):
+        raise ValueError("Identificador de descarga no válido")
+
+    if (
+        not isinstance(worker_id, str)
+        or not worker_id
+        or len(worker_id) > 128
+    ):
+        raise ValueError("worker_id no válido")
+
+    if (
+        isinstance(retry_seconds, bool)
+        or not isinstance(retry_seconds, int)
+        or retry_seconds <= 0
+    ):
+        raise ValueError("retry_seconds debe ser positivo")
+
+    current_time = _now(now)
+    _begin_write(session)
+
+    try:
+        result = session.exec(
+            update(Descarga)
+            .where(
+                Descarga.id == download_id,
+                Descarga.estado == "completada",
+                Descarga.progreso == 1,
+                Descarga.estado_verificacion == "pendiente",
+                Descarga.verificacion_locked_by == worker_id,
+                Descarga.verificacion_locked_until > current_time,
+            )
+            .values(
+                verificacion_locked_by=None,
+                verificacion_locked_until=None,
+                verificacion_heartbeat=None,
+                verificacion_disponible_desde=(
+                    current_time + timedelta(seconds=retry_seconds)
+                ),
+                actualizado_en=current_time,
+            )
+        )
+
+        session.commit()
+        return result.rowcount == 1
+
+    except Exception:
+        session.rollback()
+        raise
+
+
+
 def record_download_verification(
     session: Session,
     download_id: int,
