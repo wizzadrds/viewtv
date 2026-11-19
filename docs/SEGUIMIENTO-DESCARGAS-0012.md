@@ -73,7 +73,8 @@ Se ha integrado en el frontend una pestaña separada de «Biblioteca» y «Desca
 - ESLint: correcto en los archivos nuevos y modificados de la PWA.
 - Pruebas completas de backend: **313 correctas**, 2 avisos de deprecación.
 - `git diff --check`: correcto.
-- No se ha realizado aún un **build completo de Next.js** ni una **comprobación visual**. El Node disponible procede de Windows y el paquete SWC instalado en `node_modules` es para Linux; verificar la compilación en entorno Linux antes del despliegue.
+- Build completo de **Next.js 15.5.28** ejecutado con `node:22-bookworm-slim` en Docker efímero, sin red, mediante `npm run build`: **compilación de producción correcta**. Se han corregido cinco advertencias de compatibilidad CSS mediante `flex-start` / `flex-end`, conservando el diseño.
+- **Pendiente:** comprobación visual real en navegador y televisión. La compilación no implica despliegue ni inicio de servidores.
 
 ### Pendiente de validación por el usuario
 
