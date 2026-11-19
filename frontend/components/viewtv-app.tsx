@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import DownloadsPanel from "@/components/downloads-panel";
 import { apiPath, apiRequest } from "@/lib/api";
 import type { CatalogResponse, MediaItem, Profile } from "@/lib/api";
 
 type Session = { id: number; nombre: string };
-type View = "loading" | "login" | "catalog";
+type View = "loading" | "login" | "catalog" | "downloads";
 
 function useSpatialNavigation(enabled: boolean) {
   useEffect(() => {
@@ -72,7 +73,7 @@ export default function ViewTVApp() {
   const playbackRequest = useRef(0);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  useSpatialNavigation((view === "catalog" || view === "login") && !playbackUrl);
+  useSpatialNavigation((view === "catalog" || view === "login" || view === "downloads") && !playbackUrl);
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -84,6 +85,15 @@ export default function ViewTVApp() {
       setView("login");
     }
   }, []);
+
+  const handleSessionExpired = useCallback(() => {
+    setProfile(null);
+    setSelectedProfile(null);
+    setSelectedItem(null);
+    setPlaybackUrl(null);
+    setPin("");
+    void loadProfiles();
+  }, [loadProfiles]);
 
   const loadCatalog = useCallback(async () => {
     setCatalogError("");
@@ -332,8 +342,20 @@ export default function ViewTVApp() {
       <header className="topbar">
         <div className="wordmark"><span className="brand-mark small">V</span><span>VIEWTV</span></div>
         <nav className="main-nav" aria-label="Secciones">
-          <span className="nav-active">Inicio</span>
-          <span>Películas y series</span>
+          <button
+            className={view === "catalog" ? "nav-link nav-active" : "nav-link"}
+            data-spatial
+            onClick={() => setView("catalog")}
+            type="button"
+            aria-current={view === "catalog" ? "page" : undefined}
+          >Biblioteca</button>
+          <button
+            className={view === "downloads" ? "nav-link nav-active" : "nav-link"}
+            data-spatial
+            onClick={() => setView("downloads")}
+            type="button"
+            aria-current={view === "downloads" ? "page" : undefined}
+          >Descargas</button>
         </nav>
         <div className="account-actions">
           <span className="profile-label">{profile?.nombre}</span>
@@ -341,6 +363,8 @@ export default function ViewTVApp() {
         </div>
       </header>
 
+      {view === "catalog" && (
+        <>
       <section className="welcome-block">
         <div>
           <p className="eyebrow">TU BIBLIOTECA PERSONAL</p>
@@ -400,6 +424,11 @@ export default function ViewTVApp() {
           ))}
         </div>
       </section>
+        </>
+      )}
+      {view === "downloads" && profile && (
+        <DownloadsPanel key={profile.id} onUnauthorized={handleSessionExpired} />
+      )}
 
       {selectedItem && !playbackUrl && (
         <div className="dialog-backdrop" role="presentation" onClick={closeDetails}>

@@ -53,4 +53,30 @@ Se ha corregido la monitorización cuando qBittorrent acepta una orden de inicio
 - Las pruebas nuevas cubren parada transitoria, parada persistente después del margen y pausa manual tras actividad.
 - No se requiere una migración de base de datos adicional ni se activan torrents desde el monitor.
 
-La comprobación completa y el commit de esta mejora se registrarán tras la suite de regresión.
+La corrección quedó registrada en el commit `b1e1d8d`, con 313 pruebas aprobadas y Ruff sin errores.
+
+
+## PWA: pestaña «Descargas» (siguiente hito)
+
+Se ha integrado en el frontend una pestaña separada de «Biblioteca» y «Descargas», con accesibilidad para mando de TV y diseño responsive.
+
+- Tipos de respuesta documentados en `frontend/lib/api.ts` (`DownloadItem` y `DownloadsResponse`).
+- Componente `frontend/components/downloads-panel.tsx`: consume exclusivamente `GET /solicitudes/descargas`, muestra estados de inicio y verificación, porcentajes, tamaño de descarga y el aviso `requiere_revision`.
+- No se muestran hashes, rutas internas, URLs de descarga ni mensajes internos de error. **No hay botón para iniciar/reanudar torrents**.
+- Paginación de 20 registros con botones accesibles. El refresco automático se realiza cada 15 segundos cuando la pestaña está visible, con cancelación de peticiones al salir/cambiar de perfil y protección contra respuestas fuera de orden.
+- Se vuelve a la pantalla de inicio de sesión ante un HTTP 401, sin reutilizar datos de otro perfil.
+- CSS de `frontend/app/globals.css` mantiene el estilo existente de VIEWTV y muestra la navegación también en pantallas estrechas.
+
+### Validación
+
+- `tsc --noEmit`: correcto con TypeScript del proyecto.
+- ESLint: correcto en los archivos nuevos y modificados de la PWA.
+- Pruebas completas de backend: **313 correctas**, 2 avisos de deprecación.
+- `git diff --check`: correcto.
+- No se ha realizado aún un **build completo de Next.js** ni una **comprobación visual**. El Node disponible procede de Windows y el paquete SWC instalado en `node_modules` es para Linux; verificar la compilación en entorno Linux antes del despliegue.
+
+### Pendiente de validación por el usuario
+
+Comprobar visualmente la nueva pestaña en navegador/TV: legibilidad, estados vacíos y de revisión, progreso, botones de paginación, foco y navegación con mando, tamaños de pantalla. La UI no se ha desplegado todavía en producción.
+
+No se ha migrado SQLite real ni se ha activado el inicio automático de torrents.

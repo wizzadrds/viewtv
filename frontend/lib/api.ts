@@ -18,6 +18,26 @@ export type CatalogResponse = {
   offset: number;
 };
 
+export type DownloadItem = {
+  id: number;
+  solicitud_id: number;
+  titulo: string;
+  estado: string;
+  progreso: number;
+  tamano_bytes: number | null;
+  inicio_estado: string;
+  estado_verificacion: string;
+  creado_en: string;
+  actualizado_en: string;
+};
+
+export type DownloadsResponse = {
+  elementos: DownloadItem[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export function apiPath(path: string): string {
   return `/api/viewtv${path.startsWith("/") ? path : `/${path}`}`;
 }
