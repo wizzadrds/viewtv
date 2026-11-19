@@ -1,0 +1,8 @@
+services:
+  api:
+    image: viewtv:predeploy-0011
+
+  worker:
+    image: viewtv:predeploy-0011
+    environment:
+      VIEWTV_ENABLE_DOWNLOAD_VERIFICATION: "false"
