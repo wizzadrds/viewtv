@@ -89,7 +89,20 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   [AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md](AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md).
 - [x] Consultas GET de conectividad: Jackett responde a la lista de
   indexadores con uno configurado; qBittorrent responde a la lectura
-  de versión. Sin buscar, iniciar ni modificar ningún torrent.
+  de versión. Sin iniciar ni modificar ningún torrent.
+- [x] **Preflight read-only de Windows y qBittorrent**: la carpeta
+  `C:\VIEWTV\media\descargas_temporales` y su padre existen, son
+  directorios y no son puntos de redirección. GET de preferencias
+  qBittorrent: ruta de descarga predeterminada **igual** a staging,
+  ruta temporal alternativa **distinta pero desactivada**. No se
+  enumeraron contenidos ni se modificaron torrents o rutas.
+- [x] **Búsquedas GET reales sin solicitudes ni descargas**: Jackett
+  respondió sin errores a una búsqueda `movie` de «Big Buck Bunny»
+  y una búsqueda general de «ubuntu», pero devolvió **cero resultados
+  en ambas**. Confirma conectividad y parsing, **no** disponibilidad
+  de resultados ni funcionamiento final de la búsqueda. Procedimiento
+  y pruebas en
+  [AVANCE-PREFLIGHT-RUTAS-Y-PROVEEDOR-VIEWTV-20261120.md](AVANCE-PREFLIGHT-RUTAS-Y-PROVEEDOR-VIEWTV-20261120.md).
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
@@ -106,10 +119,13 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [ ] **Alta e inicio reales pendientes**: mantener
   `VIEWTV_ENABLE_TORRENT_SUBMIT=false`,
   `VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID` vacío y
-  `VIEWTV_ENABLE_DOWNLOAD_START=false` hasta comprobar la búsqueda,
-  ruta, identidad y una descarga autorizada. Activar primero
-  el alta detenida y solo después el inicio para esa misma ID,
-  con autorización específica, respaldo y reversión manual.
+  `VIEWTV_ENABLE_DOWNLOAD_START=false` hasta comprobar una
+  búsqueda con resultados y una descarga autorizada. La ruta
+  de staging existe y coincide con la configuración de qBittorrent;
+  todavía falta comprobar la operación real y la identidad del
+  torrent seleccionado. Activar primero el alta detenida y
+  después el inicio de esa misma ID, con autorización específica,
+  respaldo y reversión manual.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 
@@ -184,10 +200,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
   de vídeos satisfactoria. No se ha verificado por separado
   la operación de cierre de sesión.
-- **NO verificados aún:** una búsqueda nueva en el proveedor desde
+- **NO verificados aún:** una búsqueda nueva con resultados desde
   la interfaz, selección, una descarga real, seguimiento completo
-  y organización automática; ninguna prueba de conectividad
-  sustituye esas verificaciones.
+  y organización automática. Las consultas GET de prueba sí
+  alcanzaron Jackett, pero ambas devolvieron cero resultados.
+  La carpeta Windows y la preferencia por defecto de qBittorrent
+  coinciden; eso no sustituye el ensayo de una transferencia.
 
 ## Regla obligatoria de documentación y publicación de avances
 
