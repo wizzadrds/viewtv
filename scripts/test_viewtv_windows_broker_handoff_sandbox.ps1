@@ -10,6 +10,8 @@ if($public -ine 'C:\Users\Public'){throw 'Raíz inesperada.'}
 $root=Join-Path $public ('viewtv-win-sandbox-'+[Guid]::NewGuid().ToString('N'))
 $marker=Join-Path $root '.viewtv-win-sandbox-only'
 $key=$null
+# Synthetic SID for ACL-negative unit tests; real-SID exercise is separate.
+$copySid='S-1-5-21-123456789-234567891-345678912-1234'
 $token=[IntPtr]::Zero
 $result=[ordered]@{}
 $current=[Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -30,7 +32,8 @@ function Protect-StageItem([string]$Path,[bool]$Folder,[bool]$ForCopy) {
     foreach($sid in @($current,$admin,$system)){
         $rule=if($Folder){
             [Security.AccessControl.FileSystemAccessRule]::new(
-                $sid,$full,[Security.AccessControl.InheritanceFlags]::None,
+                $sid,$full,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+                            [Security.AccessControl.InheritanceFlags]::ObjectInherit),
                 [Security.AccessControl.PropagationFlags]::None,$allow)
         } else {
             [Security.AccessControl.FileSystemAccessRule]::new($sid,$full,$allow)
@@ -68,7 +71,7 @@ function New-TestStage([int]$Id,[string]$FinalName) {
     }
 }
 function Publish-TestStage($s) {
-    & $publisher -SandboxRoot $root -StageName $s.stage -FinalName $s.final -ApprovalName $s.approval -KeyPath $key -BrokerHandoff
+    & $publisher -SandboxRoot $root -StageName $s.stage -FinalName $s.final -ApprovalName $s.approval -KeyPath $key -BrokerHandoff -CopySid $copySid
 }
 function Check([bool]$condition,[string]$reason) {
     if(-not $condition){throw $reason}
@@ -76,6 +79,8 @@ function Check([bool]$condition,[string]$reason) {
 try {
     Check (-not [IO.Directory]::Exists($root)) 'GUID preexistente.'
     [IO.Directory]::CreateDirectory($root)|Out-Null
+    # Protect parent BEFORE creating marker, and inherit operator/admin ACEs.
+    Protect-StageItem $root $true $false
     [IO.File]::WriteAllText($marker,('VIEWTV_WINDOWS_SANDBOX_ONLY_V1'+[char]10))
     $key=New-ViewtvTestKey
     $vault=Join-Path $root '.viewtv-broker-handoff'
@@ -94,6 +99,39 @@ try {
     $denied=Invoke-ViewtvRestrictedSandboxOperation $token $root 'mkdir' (Join-Path $vault 'intruso')
     Check ($denied -ceq 'denied') 'Copia pudo crear en cámara de broker.'
     $result['copia_no_escribe_escrow']='denied'
+
+    # The publisher must reject missing SID even when other signatures are valid.
+    $missingSidRefused=$false
+    try {
+        & $publisher -SandboxRoot $root -StageName $bad.stage -FinalName $bad.final -ApprovalName $bad.approval -KeyPath $key -BrokerHandoff | Out-Null
+    } catch {$missingSidRefused=$true}
+    Check ($missingSidRefused -and [IO.Directory]::Exists($bad.folder)) 'Publicó sin SID de copia.'
+    $result['sid_copiador_obligatorio']='rechazado'
+
+    # Explicit READ ACE for the selected copy SID is forbidden on any file.
+    $acl=[IO.File]::GetAccessControl($bad.video)
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        [Security.Principal.SecurityIdentifier]::new($copySid),$read,$allow))
+    [IO.File]::SetAccessControl($bad.video,$acl)
+    $copyAceRefused=$false
+    try {Publish-TestStage $bad | Out-Null} catch {$copyAceRefused=$true}
+    Check ($copyAceRefused -and [IO.Directory]::Exists($bad.folder)) 'Se aceptó ACE copiador.'
+    $result['ace_lectura_copiador']='rechazada'
+    Protect-StageItem $bad.video $false $true
+
+    # Broad group ACEs are also forbidden: a copy account may be in Users.
+    $acl=[IO.Directory]::GetAccessControl($bad.folder)
+    $users=[Security.Principal.SecurityIdentifier]::new(
+        [Security.Principal.WellKnownSidType]::BuiltinUsersSid,$null)
+    $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $users,$read,[Security.AccessControl.InheritanceFlags]::None,
+        [Security.AccessControl.PropagationFlags]::None,$allow))
+    [IO.Directory]::SetAccessControl($bad.folder,$acl)
+    $groupRefused=$false
+    try {Publish-TestStage $bad | Out-Null} catch {$groupRefused=$true}
+    Check ($groupRefused -and [IO.Directory]::Exists($bad.folder)) 'Se aceptó ACE genérica Users.'
+    $result['ace_grupo_users']='rechazada'
+    Protect-StageItem $bad.folder $true $true
 
     # Two consecutive renames and verification after the private handoff.
     Publish-TestStage $bad | Out-Null
@@ -119,14 +157,14 @@ try {
         Protect-StageItem $secondPath $true $true
         $blocked=$false
         try {
-            & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff | Out-Null
+            & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff -CopySid $copySid | Out-Null
         } catch {$blocked=$true}
         Check $blocked 'Se aceptó escritor preabierto.'
         Check ([IO.Directory]::Exists($secondPath)) 'El escritor no bloqueó la entrega.'
         Check (-not [IO.Directory]::Exists((Join-Path $vault '.viewtv-handoff-2'))) 'Escrow incorrecto.'
         $result['escritor_preabierto']='rechazado'
     } finally {$writer.Dispose()}
-    & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff | Out-Null
+    & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff -CopySid $copySid | Out-Null
     $result['cierre_y_reintento_de_prueba']='correcto'
 
     # Signed manifest tampered BEFORE handoff must fail and preserve stage.

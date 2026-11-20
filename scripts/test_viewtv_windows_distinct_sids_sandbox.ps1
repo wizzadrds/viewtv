@@ -4,6 +4,7 @@
 param([switch]$AuthorizeEphemeralAccounts)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'viewtv_windows_copy_acl_gate_sandbox.ps1')
 if(-not $AuthorizeEphemeralAccounts){throw 'Se requiere -AuthorizeEphemeralAccounts.'}
 $principal=[Security.Principal.WindowsPrincipal]::new(
   [Security.Principal.WindowsIdentity]::GetCurrent())
@@ -162,9 +163,27 @@ try {
     As-User $tokenCopy {
       [IO.File]::WriteAllText($video,'FICHERO_SINTETICO_0013')
     } | Out-Null
+    $unsafeRejected=$false
+    try { $null=Assert-ViewtvSandboxHandoffCopyGate $root $stage $copySid.Value $brokerSid.Value }
+    catch {$unsafeRejected=$true}
+    Check $unsafeRejected 'El gate aceptó permiso de copia todavía escribible.'
+    $results['gate_antes_de_sellado']='rechazado'
     # Revoke even READ from the copy SID; moved directories retain explicit DACLs.
     Protect-TestItem $video $false $null $full
     Protect-TestItem $stage $true $null $full
+    # Negative: one remaining READ ACE on a single file is still a violation.
+    $injectedAcl=[IO.File]::GetAccessControl($video)
+    $injectedAcl.AddAccessRule(
+        [Security.AccessControl.FileSystemAccessRule]::new($copySid,$read,$allow))
+    [IO.File]::SetAccessControl($video,$injectedAcl)
+    $readRefused=$false
+    try { $null=Assert-ViewtvSandboxHandoffCopyGate $root $stage $copySid.Value $brokerSid.Value }
+    catch {$readRefused=$true}
+    Check $readRefused 'El gate permitió ACE de lectura del SID real.'
+    $results['gate_ace_lectura_sid_real']='rechazada'
+    Protect-TestItem $video $false $null $full
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $stage $copySid.Value $brokerSid.Value
+    $results['gate_acls_selladas']='correcto'
     Check (Is-Denied $tokenCopy {
       [IO.File]::AppendAllText($video,'INYECTADO')
     }) 'Copia pudo escribir staging sellado.'
@@ -172,12 +191,16 @@ try {
     $hash=(Get-FileHash $video -Algorithm SHA256).Hash
     $escrow=Join-Path $vault '.viewtv-handoff-1'
     As-User $tokenBroker {[IO.Directory]::Move($stage,$escrow)} | Out-Null
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $escrow $copySid.Value $brokerSid.Value
+    $results['gate_escrow_privado']='correcto'
     Check (Is-Denied $tokenCopy {
       [IO.File]::ReadAllText((Join-Path $escrow 'ficticio.mkv'))
     }) 'Copia pudo acceder al escrow tras move.'
     $results['handoff_con_broker_real']='correcto'
     $final=Join-Path $root 'ResultadoFicticio'
     As-User $tokenBroker {[IO.Directory]::Move($escrow,$final)} | Out-Null
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $final $copySid.Value $brokerSid.Value
+    $results['gate_destino_publicado']='correcto'
     Check ((Get-FileHash (Join-Path $final 'ficticio.mkv') -Algorithm SHA256).Hash -ceq $hash) 'Hash tras move alterado.'
     Check (Is-Denied $tokenCopy {
       [IO.File]::AppendAllText((Join-Path $final 'ficticio.mkv'),'INYECTADO')

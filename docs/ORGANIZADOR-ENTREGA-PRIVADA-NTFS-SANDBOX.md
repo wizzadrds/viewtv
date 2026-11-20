@@ -112,6 +112,20 @@ tar -tzf mostró exactamente:
 Los demás archivos de este hito fueron creados desde cero.
 No se respaldó la base de producción porque no se escribió en ella.
 
+## Actualización: gate ACL del SID copiador (20-11-2026)
+
+El modo optativo `-BrokerHandoff` exige ahora `-CopySid` y comprueba
+DACL/propietario de raíz, staging, archivos, escrow y destino con un
+allowlist de SIDs. Se rechaza cualquier ACE del SID copiador en el
+staging sellado y en sus archivos, incluso de solo lectura. Se permite
+únicamente lectura/traversal del SID en la raíz GUID. Se verificaron
+un SID sintético en el test de integración y SIDs **reales y diferentes**
+en el test de permisos, sin servicio persistente.
+
+Véase [ORGANIZADOR-GATE-ACL-COPIADOR-SANDBOX.md](ORGANIZADOR-GATE-ACL-COPIADOR-SANDBOX.md).
+El SID sigue siendo suministrado por el invocador, no por una autoridad
+independiente, por lo que **todavía no existe una frontera de producción**.
+
 ## Próximos bloqueos antes de cerrar fase 1
 
 - **Realizado posteriormente en sandbox:** dos cuentas Windows efímeras

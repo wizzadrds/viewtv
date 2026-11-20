@@ -4,8 +4,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_quiescence_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_copy_acl_gate_sandbox.ps1')
 
-function Assert-ViewtvSandboxHandoffVault([string]$Root) {
+function Assert-ViewtvSandboxHandoffVault([string]$Root,[string]$BrokerSid) {
     $vault=Assert-ViewtvRestrictedSandboxPath $Root (Join-Path $Root '.viewtv-broker-handoff')
     $info=[IO.DirectoryInfo]::new($vault)
     if(-not $info.Exists -or
@@ -24,8 +25,10 @@ function Assert-ViewtvSandboxHandoffVault([string]$Root) {
     }
     $rules=@($acl.GetAccessRules($true,$true,
         [Security.Principal.SecurityIdentifier]))
-    if($rules.Count -ne 3){ throw 'Reglas inesperadas en cámara de broker.' }
-    $expected=@($admin,$system,$current)
+    $expected=@($admin,$system,$current,$BrokerSid) | Select-Object -Unique
+    if($rules.Count -ne @($expected).Count){
+        throw 'Reglas inesperadas en cámara de broker.'
+    }
     foreach($r in $rules){
         if($r.IsInherited -or $r.AccessControlType -ne 'Allow' -or
            $r.IdentityReference.Value -notin $expected -or
@@ -53,21 +56,27 @@ function Get-ViewtvSandboxHandoffFingerprint([string]$Folder) {
 
 function Invoke-ViewtvSandboxBrokerHandoff(
     [string]$SandboxRoot,[string]$StageName,[string]$FinalName,
-    [string]$ApprovalName,[string]$KeyPath
+    [string]$ApprovalName,[string]$KeyPath,
+    [string]$CopySid,[string]$BrokerSid
 ) {
     $root=[IO.Path]::GetFullPath($SandboxRoot).TrimEnd('\')
     if($StageName -cnotmatch '^\.viewtv-stage-[1-9][0-9]{0,9}$'){
         throw 'Staging incorrecto'
     }
+    $broker=Assert-ViewtvSandboxCopySid $CopySid $BrokerSid
     $stage=Assert-ViewtvRestrictedSandboxPath $root (Join-Path $root $StageName)
     $final=Assert-ViewtvRestrictedSandboxPath $root (Join-Path $root $FinalName)
-    $vault=Assert-ViewtvSandboxHandoffVault $root
+    $vault=Assert-ViewtvSandboxHandoffVault $root $broker
+    Assert-ViewtvSandboxNoCopyAce $root $vault $true $CopySid $broker
     $handoffName='.viewtv-handoff-'+$StageName.Substring('.viewtv-stage-'.Length)
     $escrow=Assert-ViewtvRestrictedSandboxPath $root (Join-Path $vault $handoffName)
     if([IO.Directory]::Exists($escrow) -or [IO.File]::Exists($escrow) -or
        [IO.Directory]::Exists($final) -or [IO.File]::Exists($final)){
         throw 'Colisión; no reintentar publicación.'
     }
+    # This gate must run before ANY Move. The caller-supplied SID is not
+    # authenticated yet: production requires broker-pinned enrollment.
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $stage $CopySid $broker
     $quiet=Test-ViewtvSandboxQuiescence $root $StageName
     if($quiet.estado -cne 'sin_handles_detectados'){
         throw 'No se ha demostrado cierre de escritores.'
@@ -90,6 +99,7 @@ function Invoke-ViewtvSandboxBrokerHandoff(
     [IO.Directory]::Move($stage,$escrow)
     # From this point forward a distinct copy SID MUST lack traverse/write
     # permissions on the private parent. Same SID test is NOT production.
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $escrow $CopySid $broker
     $escrowEntries=@([IO.Directory]::GetFileSystemEntries($escrow))
     if($escrowEntries.Count -ne $declared.Count){
         throw 'Handoff incompleto; requiere revisión.'
@@ -122,5 +132,8 @@ function Invoke-ViewtvSandboxBrokerHandoff(
     }
     # Second rename is publication; the copy identity has had no access
     # since the first rename. On failure preserve escrow/final for review.
+    # Check the gate again at the last instant before publishing.
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $escrow $CopySid $broker
     [IO.Directory]::Move($escrow,$final)
+    $null=Assert-ViewtvSandboxHandoffCopyGate $root $final $CopySid $broker
 }

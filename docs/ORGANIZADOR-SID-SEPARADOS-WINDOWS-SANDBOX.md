@@ -122,6 +122,19 @@ SHA-256: `b2b105ab48ba58ff3e9819bf897cbb2aa157f61db52e5942c73fd91fb628463c`
 
 El documento presente es nuevo y no tiene versión anterior que respaldar.
 
+## Integración posterior del gate (20-11-2026)
+
+El publicador sandbox con `-BrokerHandoff` comprueba desde ahora que
+se ha especificado el SID de copia y que ni staging, archivos, escrow
+ni destino conservan ninguna ACE para él. Las pruebas de dos cuentas
+reales se ampliaron con el mismo guard: se rechaza un staging escribible
+y también una ACE de solo lectura inyectada, y se aceptan DACL selladas
+en staging, escrow y destino. **12 resultados correctos** en la versión
+ampliada. La ejecución del publicador firmado bajo un servicio Windows
+no administrativo sigue pendiente.
+
+Véase [ORGANIZADOR-GATE-ACL-COPIADOR-SANDBOX.md](ORGANIZADOR-GATE-ACL-COPIADOR-SANDBOX.md).
+
 ## Decisión
 
 **Avance comprobado de separación SID en sandbox.** No es un despliegue
