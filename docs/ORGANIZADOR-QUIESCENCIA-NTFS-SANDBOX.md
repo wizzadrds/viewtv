@@ -149,3 +149,16 @@ SQLite real, torrents, Docker Compose, qBittorrent ni Jellyfin.
 informativo. No unirlo al publicador hasta que las identidades
 Windows estén verdaderamente separadas, se controle la entrega de
 staging y el broker pueda revalidar lease y contenido antes de mover.
+
+## Prototipo posterior de entrega privada (20-11-2026)
+
+El ensayo de mantener abiertos los handles durante Directory.Move falló
+con acceso denegado en este NTFS. Se ha preservado esa prueba negativa y
+creado un modo **optativo y limitado a sandbox** que entrega primero el
+staging sellado a una cámara privada, revalida hashes/identidad y solo
+después publica. Se documenta en
+[ORGANIZADOR-ENTREGA-PRIVADA-NTFS-SANDBOX.md](ORGANIZADOR-ENTREGA-PRIVADA-NTFS-SANDBOX.md).
+
+**No declara TOCTOU cerrado:** ambas operaciones se han probado con un
+mismo SID base; siguen pendientes separación real de cuentas, autoridad
+lease/attempt/torrent y recuperación ante caídas.

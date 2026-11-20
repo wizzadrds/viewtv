@@ -7,7 +7,8 @@ param(
     [Parameter(Mandatory=$true)][string]$StageName,
     [Parameter(Mandatory=$true)][string]$FinalName,
     [Parameter(Mandatory=$true)][string]$ApprovalName,
-    [Parameter(Mandatory=$true)][string]$KeyPath
+    [Parameter(Mandatory=$true)][string]$KeyPath,
+    [switch]$BrokerHandoff
 )
 
 Set-StrictMode -Version Latest
@@ -120,7 +121,13 @@ if ($identityBeforeHash -cne (Get-ViewtvTestStageFingerprint $root $StageName)) 
 # Directory.Move uses the native Windows move operation, without replacing
 # destination. Both paths are direct siblings on the SAME NTFS volume.
 # If Windows returns an error, NEVER auto-retry: state may be ambiguous.
-[System.IO.Directory]::Move($staged, $final)
+if($BrokerHandoff){
+    . (Join-Path $PSScriptRoot 'viewtv_windows_broker_handoff_sandbox.ps1')
+    Invoke-ViewtvSandboxBrokerHandoff $root $StageName $FinalName $ApprovalName $KeyPath
+} else {
+    # Historical mode, intentionally unprotected against the TOCTOU gap.
+    [System.IO.Directory]::Move($staged, $final)
+}
 # If this post-check fails, never roll back or blindly retry; output is
 # ambiguous and requires reconciliation with the signed manifest.
 if (-not (Assert-ViewtvTestApproval -SandboxRoot $root -StageName $StageName -FinalName $FinalName -ApprovalName $ApprovalName -KeyPath $KeyPath -Location Published)) {
