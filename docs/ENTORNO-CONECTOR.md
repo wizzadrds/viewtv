@@ -4,6 +4,53 @@ Fecha de observación: 20-11-2026. Equipo identificado por el conector: LAPTOP-V
 Rama exclusiva de trabajo: viewtv-seguimiento-descargas-0012.
 Esta comprobación no equivale a permiso para modificar producción.
 
+## Regla persistente: desarrollo exclusivamente en Ubuntu/WSL
+
+**Petición expresa del usuario (20-11-2026):** conectarse al apartado
+Ubuntu del equipo para desarrollar VIEWTV. La terminal de Windows es la
+vía de conexión y el entorno de pruebas nativas NTFS/ACL, no el lugar
+donde se debe desarrollar el repositorio.
+
+- Distribución comprobada: **Ubuntu 24.04.5 LTS**; usuario WSL: `viewtv`;
+  hostname `LAPTOP-V2QSMC01`.
+- Directorio de trabajo autorizado:
+  `/home/viewtv/projects/viewtv-broker-0013-20261119`.
+- Rama única: `viewtv-seguimiento-descargas-0012`.
+- Desde Remote Desktop Commander invocar explícitamente
+  `wsl.exe --distribution Ubuntu-24.04 --user viewtv --exec /bin/bash -lc 'cd /home/viewtv/projects/viewtv-broker-0013-20261119 && git status --short --branch'`.
+- **No asumir el directorio inicial de WSL.** En la observación, el `pwd`
+  por defecto apuntaba a un directorio del agente de Windows montado como
+  `/mnt/c/Users/.../node_modules/...`, no al repositorio.
+- La copia `/home/viewtv/projects/viewtv` estaba en una rama distinta y
+  contenía archivos del usuario sin seguimiento; dejarla intacta.
+- Se creó además `AGENTS.md` en la raíz de la rama de trabajo para
+  preservar estas reglas junto al código en futuras sesiones.
+
+### Comprobación nueva de elevación Windows
+
+El usuario abrió una sesión PowerShell 5.1 como administrador y comprobó
+el rol Administrador: **True**. De manera independiente, una invocación
+PowerShell desde el propio conector Remote Desktop Commander devolvió
+`CONNECTOR_ADMINISTRATOR=True` el 20-11-2026.
+
+**Consecuencia:** ya hay elevación administrativa de Windows en la sesión
+del conector; no hace falta pedir más elevación general. La lista de
+comandos prohibidos del conector sigue siendo un límite separado. Esto
+NO demuestra que existan cuentas de broker y copia con SID distinto, ni
+permite omitir pruebas de ACL o autoriza cambios en producción.
+
+### Respaldo de esta actualización
+
+Antes de editar este documento se creó:
+`/home/viewtv/viewtv-backups/acceso-ubuntu-regla-20261120-135617.tar.gz`
+
+SHA-256:
+`49e28afadf3440172dc3e72f2477f54c843f4260b79f62499cb5e6b1ded3e42a`
+
+Se verificó `tar -tzf`: contiene solamente `docs/ENTORNO-CONECTOR.md`.
+`AGENTS.md` es un archivo nuevo, por lo que no tenía versión anterior
+que respaldar.
+
 ## Pruebas concretas ejecutadas
 
 | Capacidad | Evidencia obtenida | Conclusión |
