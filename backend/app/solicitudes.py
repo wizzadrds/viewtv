@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.auth import get_current_profile
+from app.config import get_settings
 from app.database import get_session
 from app.metadatos_resultado import extraer_metadatos
 from app.relevancia_resultado import coincide_con_solicitud
@@ -21,6 +22,12 @@ from app.models import (
     ResultadoBusqueda,
     Solicitud,
     utc_now,
+)
+from worker.torrent_metadata import (
+    TorrentMetadataError,
+    es_url_jackett_dl,
+    obtener_metadatos_jackett,
+    tamano_incoherente,
 )
 
 router = APIRouter(prefix="/solicitudes", tags=["solicitudes"])
@@ -39,6 +46,75 @@ ESTADOS_DESCARGA_ACTIVOS = (
     "descargando",
     "pausada",
 )
+
+
+def _verificar_metadatos_para_perfil(
+    resultado: ResultadoBusqueda,
+    perfil_id: int,
+    session: Session,
+) -> dict[str, object]:
+    """Lectura solo de metainfo Jackett, sin enviar ni iniciar torrents.
+
+    Solo se consulta a Jackett por URL del resultado guardado; el usuario
+    nunca puede suministrar una URL arbitraria al verificador.
+    """
+    anunciado = resultado.tamano_bytes
+    base = get_settings().jackett_base_url
+    if not resultado.download_url or not es_url_jackett_dl(resultado.download_url, base):
+        return {
+            "estado": "no_verificable",
+            "puede_seleccionar": False,
+            "tamano_anunciado_bytes": anunciado,
+            "tamano_real_bytes": None,
+            "advertencias": [
+                "Este resultado no ofrece metadatos .torrent verificables desde Jackett."
+            ],
+        }
+
+    try:
+        metainfo = obtener_metadatos_jackett(resultado.download_url, base)
+    except TorrentMetadataError:
+        return {
+            "estado": "no_verificable",
+            "puede_seleccionar": False,
+            "tamano_anunciado_bytes": anunciado,
+            "tamano_real_bytes": None,
+            "advertencias": [
+                "No se han podido leer los metadatos del torrent. No lo selecciones todavía."
+            ],
+        }
+
+    advertencias: list[str] = []
+    if tamano_incoherente(anunciado, metainfo.size_bytes):
+        advertencias.append(
+            "El tamaño real no coincide con el tamaño anunciado. Resultado bloqueado."
+        )
+
+    # Aislamiento estricto por perfil: no exponemos hashes ni información
+    # sobre descartes de otras cuentas.
+    descartado = session.exec(
+        select(Descarga.id)
+        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+        .where(
+            Descarga.estado == "fallida",
+            Solicitud.estado == "cancelada",
+            Solicitud.perfil_id == perfil_id,
+            Descarga.qbittorrent_hash == metainfo.info_hash,
+        )
+        .limit(1)
+    ).first()
+    if descartado is not None:
+        advertencias.append(
+            "Este torrent coincide con uno que ya descartaste. Resultado bloqueado."
+        )
+
+    return {
+        "estado": "bloqueado" if advertencias else "apto",
+        "puede_seleccionar": not advertencias,
+        "tamano_anunciado_bytes": anunciado,
+        "tamano_real_bytes": metainfo.size_bytes,
+        "advertencias": advertencias,
+    }
 
 
 class CrearSolicitudInput(BaseModel):
@@ -518,6 +594,42 @@ def listar_resultados(
     )
 
 
+@router.get("/{solicitud_id}/resultados/{resultado_id}/verificacion")
+def verificar_resultado(
+    solicitud_id: int,
+    resultado_id: int,
+    perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, object]:
+    """Verifica tamaño y descarte antes de ofrecer selección en la PWA."""
+    if perfil.id is None:
+        raise HTTPException(status_code=401, detail="Perfil no autenticado.")
+    solicitud = session.exec(
+        select(Solicitud).where(
+            Solicitud.id == solicitud_id,
+            Solicitud.perfil_id == perfil.id,
+        )
+    ).first()
+    if solicitud is None:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
+    if solicitud.estado != "esperando_seleccion":
+        raise HTTPException(status_code=409, detail="La solicitud ya no admite selección.")
+
+    resultado = session.exec(
+        select(ResultadoBusqueda).where(
+            ResultadoBusqueda.id == resultado_id,
+            ResultadoBusqueda.solicitud_id == solicitud_id,
+        )
+    ).first()
+    if resultado is None:
+        raise HTTPException(status_code=404, detail="Resultado no encontrado.")
+    if not coincide_con_solicitud(
+        solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
+    ):
+        raise HTTPException(status_code=409, detail="El título no corresponde a la solicitud.")
+    return _verificar_metadatos_para_perfil(resultado, perfil.id, session)
+
+
 @router.post("/{solicitud_id}/seleccion", status_code=status.HTTP_201_CREATED)
 def seleccionar_resultado(
     solicitud_id: int,
@@ -530,6 +642,39 @@ def seleccionar_resultado(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Perfil no autenticado.",
         )
+
+    # Prevalidar antes de BEGIN IMMEDIATE: nunca mantener el bloqueo
+    # de SQLite durante una petición de red a Jackett.
+    resultado_pre = session.exec(
+        select(ResultadoBusqueda)
+        .join(Solicitud, ResultadoBusqueda.solicitud_id == Solicitud.id)
+        .where(
+            ResultadoBusqueda.id == payload.resultado_id,
+            ResultadoBusqueda.solicitud_id == solicitud_id,
+            Solicitud.perfil_id == perfil.id,
+            Solicitud.estado == "esperando_seleccion",
+        )
+    ).first()
+    snapshot = None
+    if resultado_pre is not None:
+        snapshot = (
+            resultado_pre.download_url,
+            resultado_pre.tamano_bytes,
+            resultado_pre.titulo,
+            resultado_pre.info_hash,
+        )
+        base = get_settings().jackett_base_url
+        if resultado_pre.download_url and es_url_jackett_dl(
+            resultado_pre.download_url, base
+        ):
+            verificacion = _verificar_metadatos_para_perfil(
+                resultado_pre, perfil.id, session
+            )
+            if not verificacion["puede_seleccionar"]:
+                raise HTTPException(
+                    status_code=409,
+                    detail="El torrent no supera la verificación previa. Revisa su tamaño real.",
+                )
 
     _begin_write(session)
 
@@ -579,6 +724,16 @@ def seleccionar_resultado(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Resultado no encontrado para esta solicitud.",
+            )
+        if snapshot is not None and (
+            resultado.download_url,
+            resultado.tamano_bytes,
+            resultado.titulo,
+            resultado.info_hash,
+        ) != snapshot:
+            raise HTTPException(
+                status_code=409,
+                detail="Los metadatos del resultado han cambiado. Compruébalo de nuevo.",
             )
         if not coincide_con_solicitud(
             solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo

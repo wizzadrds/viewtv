@@ -23,6 +23,14 @@ type SearchResult = {
   resolucion?: string | null;
 };
 
+type ResultVerification = {
+  estado: "apto" | "bloqueado" | "no_verificable";
+  puede_seleccionar: boolean;
+  tamano_anunciado_bytes: number | null;
+  tamano_real_bytes: number | null;
+  advertencias: string[];
+};
+
 const REFRESH_MS = 10_000;
 
 function describeState(state: string): string {
@@ -42,7 +50,7 @@ function describeState(state: string): string {
 function describeSize(bytes: number | null): string {
   if (bytes === null || bytes <= 0) return "Tamaño desconocido";
   const value = bytes >= 1024 ** 3 ? bytes / 1024 ** 3 : bytes / 1024 ** 2;
-  const unit = bytes >= 1024 ** 3 ? "GB" : "MB";
+  const unit = bytes >= 1024 ** 3 ? "GiB" : "MiB";
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(value) + " " + unit;
 }
 
@@ -60,6 +68,8 @@ export default function RequestsPanel({
   const [showHistory, setShowHistory] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [verifications, setVerifications] = useState<Record<number, ResultVerification>>({});
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [resultsBusy, setResultsBusy] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -198,7 +208,44 @@ export default function RequestsPanel({
     }
   }
 
+  async function verifyResult(resultId: number) {
+    if (!selectedId || busy || verifyingId !== null || !canSelect) return;
+    setVerifyingId(resultId);
+    setVerifications((previous) => {
+      const next = { ...previous };
+      delete next[resultId];
+      return next;
+    });
+    setResultsError("");
+    try {
+      const check = await apiRequest<ResultVerification>(
+        "/solicitudes/" + selectedId + "/resultados/" + resultId + "/verificacion",
+      );
+      setVerifications((previous) => ({ ...previous, [resultId]: check }));
+    } catch (cause) {
+      if ((cause as Error & { status?: number }).status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setVerifications((previous) => ({
+        ...previous,
+        [resultId]: {
+          estado: "no_verificable",
+          puede_seleccionar: false,
+          tamano_anunciado_bytes: null,
+          tamano_real_bytes: null,
+          advertencias: [
+            (cause as Error).message || "No se pudo comprobar el tamaño real.",
+          ],
+        },
+      }));
+    } finally {
+      setVerifyingId(null);
+    }
+  }
+
   async function chooseResult(resultId: number) {
+    if (!verifications[resultId]?.puede_seleccionar || verifyingId !== null) return;
     if (!selectedId || busy || !canSelect) return;
     setBusy(true);
     setNotice("");
@@ -210,6 +257,7 @@ export default function RequestsPanel({
       });
       setSelectedId(null);
       setResults([]);
+      setVerifications({});
       setShowHistory(false);
       setNotice("Resultado seleccionado. La solicitud se ha retirado de pendientes. Puedes consultar su estado en Descargas.");
       await loadRequests();
@@ -285,7 +333,7 @@ export default function RequestsPanel({
         </button>
       </form>
       <p className="requests-note">
-        La búsqueda es una solicitud; no inicia una descarga automáticamente.
+        Comprueba el tamaño real antes de seleccionar. La búsqueda no inicia descargas.
         Solo selecciona contenido que tengas derecho a obtener.
       </p>
 
@@ -340,6 +388,7 @@ export default function RequestsPanel({
                 disabled={busy}
                 onClick={() => {
                   setResults([]);
+                  setVerifications({});
                   setResultsError("");
                   setSelectedId((current) => current === request.id ? null : request.id);
                 }}
@@ -367,19 +416,54 @@ export default function RequestsPanel({
                       <p className="request-result-title">{result.titulo}</p>
                       <p className="download-item-meta">
                         {result.resolucion || "Resolución desconocida"}
-                        {" · " + describeSize(result.tamano_bytes)}
+                        {" · Publicado: " + describeSize(result.tamano_bytes)}
                         {" · " + (result.seeders ?? 0) + " fuentes"}
                       </p>
+                      {verifications[result.id] && (
+                        <div role="status">
+                          {verifications[result.id].tamano_real_bytes !== null && (
+                            <p className="download-item-meta">
+                              Tamaño real del torrent: <strong>
+                                {describeSize(verifications[result.id].tamano_real_bytes)}
+                              </strong>
+                            </p>
+                          )}
+                          {verifications[result.id].estado === "apto" && (
+                            <p className="muted">
+                              Tamaño coherente y sin coincidencias con tus torrents descartados.
+                              Esto no garantiza la identidad del contenido.
+                            </p>
+                          )}
+                          {verifications[result.id].advertencias.map((warning, i) => (
+                            <p className="error-message" key={i}>{warning}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <button
-                      className="primary-button compact"
-                      data-spatial
-                      disabled={busy}
-                      onClick={() => void chooseResult(result.id)}
-                      type="button"
-                    >
-                      Seleccionar
-                    </button>
+                    <div className="request-result-actions">
+                      <button
+                        className="quiet-button"
+                        data-spatial
+                        disabled={busy || verifyingId !== null}
+                        onClick={() => void verifyResult(result.id)}
+                        type="button"
+                      >
+                        {verifyingId === result.id
+                          ? "Comprobando…"
+                          : verifications[result.id]
+                            ? "Verificar otra vez"
+                            : "Comprobar tamaño real"}
+                      </button>
+                      <button
+                        className="primary-button compact"
+                        data-spatial
+                        disabled={busy || verifyingId !== null || !verifications[result.id]?.puede_seleccionar}
+                        onClick={() => void chooseResult(result.id)}
+                        type="button"
+                      >
+                        Seleccionar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

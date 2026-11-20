@@ -1,0 +1,4 @@
+# Previsualizacion del metainfo antes de seleccionar, sin migrar SQLite.
+FROM viewtv:descartar-incorrecta-api-0012
+COPY backend/app/solicitudes.py /opt/viewtv/backend/app/solicitudes.py
+COPY worker/torrent_metadata.py /opt/viewtv/worker/torrent_metadata.py

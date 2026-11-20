@@ -1,0 +1,6 @@
+# Solo API y PWA; el worker mantiene sus propias flags desactivadas.
+services:
+  api:
+    image: viewtv:preseleccion-real-api-0012
+  frontend:
+    image: viewtv-frontend:preseleccion-real-0012

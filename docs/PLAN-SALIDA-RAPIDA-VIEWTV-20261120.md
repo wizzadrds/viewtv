@@ -222,7 +222,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   que coincide con el hash histórico de #1: el torrent ya
   descartado. El indexador anuncia 1,4 GiB, pero los metadatos
   reales señalan **16,47 GiB** (17.686.540.911 bytes), dos
-  archivos (uno vídeo). No transmitir la ID 2.
+  archivos (uno vídeo). **Caso histórico:** esa selección
+  fue deshecha y la ID canónica 2 se reutilizó después en
+  la nueva solicitud #6 (véase abajo).
 - [x] **Validación de metadatos antes de alta en qBittorrent**:
   nuevo lector bencode solo para el Jackett configurado,
   sin redirecciones, con límite 4MB, cotejo de tamaño real
@@ -234,10 +236,29 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Tests **829/829**, focales **68/68**, sin alterar
   SQLite ni otros torrents. Informe:
   [AVANCE-VALIDACION-TAMANO-TORRENT-20261121.md](AVANCE-VALIDACION-TAMANO-TORRENT-20261121.md).
-- [ ] **El usuario debe pulsar «Deshacer selección» en la ID 2**:
-  sigue `seleccionada`, 0 %, 0 intentos y sin torrent
-  en qBittorrent. Necesitamos un candidato distinto, con
-  metadatos coherentes, para el ensayo de transferencia.
+- [x] **Nueva selección tras descartar «Nadie 2»**:
+  la ID canónica 2 ya pertenece a solicitud #6
+  `La.Odisea.2026.4K.4K.SPANISH` (seleccionada,
+  0 intentos y sin hash). Jackett anuncia **20 GiB**
+  pero el archivo .torrent realmente contiene
+  **33.260.748.236 bytes** (~33,26 GB): NO enviarlo.
+- [x] **Antes de seleccionar: tamaño real y advertencias**:
+  API autenticada `GET /solicitudes/{id}/resultados/{id}/verificacion`
+  consulta solo metadatos de Jackett de forma bajo demanda,
+  compara el tamaño y detecta hashes ya descartados del perfil;
+  no expone URLs ni hashes. La PWA muestra «Comprobar tamaño
+  real», tamaño anunciado y real, y bloquea «Seleccionar»
+  salvo estado apto. La API repite la verificación previa a
+  POST para enlaces directos Jackett, sin red dentro del
+  bloqueo de SQLite. API/PWA desplegadas por separado,
+  worker inalterado y flags false. **835/835 tests**,
+  **5/5 pruebas sobre copia SQLite real** y smoke
+  **10/10**. Informe:
+  [AVANCE-PRESELECCION-TAMANO-REAL-20261121.md](AVANCE-PRESELECCION-TAMANO-REAL-20261121.md).
+- [ ] **El usuario debe «Deshacer selección» en la ID 2** de
+  solicitud #6. Después puede abrir los resultados y
+  comprobar el tamaño real de cada candidato ANTES de
+  seleccionar. El resultado actual debe aparecer bloqueado.
 - [ ] **Automatización de descargas correctas**: el usuario desea
   buscar, seleccionar y descargar automáticamente, pero
   un título coincidente no garantiza identidad. Validar primero

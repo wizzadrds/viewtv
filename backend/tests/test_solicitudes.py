@@ -895,3 +895,194 @@ def test_discard_requires_owner_profile(
         assert qbit.calls == []
     finally:
         app.dependency_overrides[get_current_profile] = original
+
+
+def _preparar_resultado_jackett_verificable(client, engine):
+    import app.solicitudes as routes
+    from types import SimpleNamespace
+
+    created = client.post("/solicitudes", json={"medio_id": 1})
+    assert created.status_code == 201
+    solicitud_id = created.json()["id"]
+    resultado_id = _prepare_search_results(engine, solicitud_id)
+    with Session(engine) as session:
+        result = session.get(ResultadoBusqueda, resultado_id)
+        result.download_url = "http://host.docker.internal:9117/dl/fixture?key=ficticia"
+        result.magnet_url = None
+        result.tamano_bytes = 20 * 1024**3
+        session.add(result)
+        session.commit()
+    return solicitud_id, resultado_id
+
+
+def test_preselection_shows_real_size_and_blocks_mismatch(
+    solicitudes_context, monkeypatch
+):
+    import app.solicitudes as routes
+    from types import SimpleNamespace
+    from worker.torrent_metadata import TorrentMetadata
+
+    client, engine = solicitudes_context
+    sid, rid = _preparar_resultado_jackett_verificable(client, engine)
+    monkeypatch.setattr(routes, "get_settings", lambda: SimpleNamespace(
+        jackett_base_url="http://host.docker.internal:9117"
+    ))
+    lookups = []
+    def fake_metadata(url, base):
+        lookups.append((url, base))
+        return TorrentMetadata(33_260_748_236, "b" * 40)
+    monkeypatch.setattr(routes, "obtener_metadatos_jackett", fake_metadata)
+
+    preview = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
+    assert preview.status_code == 200
+    data = preview.json()
+    assert data["estado"] == "bloqueado"
+    assert data["puede_seleccionar"] is False
+    assert data["tamano_anunciado_bytes"] == 20 * 1024**3
+    assert data["tamano_real_bytes"] == 33_260_748_236
+    assert any("tamaño" in message for message in data["advertencias"])
+    assert all(x not in data for x in ("info_hash", "download_url", "magnet_url", "clave"))
+    assert "http" not in str(data)
+    response = client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid})
+    assert response.status_code == 409
+    assert len(lookups) == 2
+    with Session(engine) as session:
+        assert session.get(Solicitud, sid).estado == "esperando_seleccion"
+        assert session.exec(select(Descarga)).all() == []
+
+
+def test_preselection_blocks_previous_discard_by_same_profile(
+    solicitudes_context, monkeypatch
+):
+    import app.solicitudes as routes
+    from types import SimpleNamespace
+    from worker.torrent_metadata import TorrentMetadata
+
+    client, engine = solicitudes_context
+    sid, rid = _preparar_resultado_jackett_verificable(client, engine)
+    monkeypatch.setattr(routes, "get_settings", lambda: SimpleNamespace(
+        jackett_base_url="http://host.docker.internal:9117"
+    ))
+    monkeypatch.setattr(
+        routes, "obtener_metadatos_jackett",
+        lambda u, b: TorrentMetadata(20 * 1024**3, "c" * 40),
+    )
+    with Session(engine) as session:
+        historic = Solicitud(perfil_id=1, titulo="Antigua prueba", estado="cancelada")
+        session.add(historic)
+        session.flush()
+        session.add(Descarga(
+            solicitud_id=historic.id,
+            titulo="Archivo descartado",
+            estado="fallida",
+            qbittorrent_hash="c" * 40,
+        ))
+        session.commit()
+
+    response = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
+    assert response.status_code == 200
+    assert response.json()["estado"] == "bloqueado"
+    assert response.json()["tamano_real_bytes"] == 20 * 1024**3
+    assert any("descartaste" in m for m in response.json()["advertencias"])
+    assert client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid}).status_code == 409
+
+
+def test_preselection_allows_matching_size_only_after_own_verification(
+    solicitudes_context, monkeypatch
+):
+    import app.solicitudes as routes
+    from types import SimpleNamespace
+    from worker.torrent_metadata import TorrentMetadata
+
+    client, engine = solicitudes_context
+    sid, rid = _preparar_resultado_jackett_verificable(client, engine)
+    monkeypatch.setattr(routes, "get_settings", lambda: SimpleNamespace(
+        jackett_base_url="http://host.docker.internal:9117"
+    ))
+    calls = []
+    def fake_metadata(url, base):
+        calls.append("GET")
+        return TorrentMetadata(20 * 1024**3, "d" * 40)
+    monkeypatch.setattr(routes, "obtener_metadatos_jackett", fake_metadata)
+    preview = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
+    assert preview.status_code == 200
+    assert preview.json()["estado"] == "apto"
+    assert preview.json()["advertencias"] == []
+    assert preview.json()["puede_seleccionar"] is True
+    chosen = client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid})
+    assert chosen.status_code == 201
+    assert calls == ["GET", "GET"]
+    with Session(engine) as session:
+        d = session.exec(select(Descarga).where(Descarga.solicitud_id == sid)).one()
+        assert d.estado == "seleccionada"
+        assert d.qbittorrent_hash is None
+        assert d.intentos_envio == 0
+
+
+def test_preselection_unknown_source_never_fetches_foreign_urls(
+    solicitudes_context, monkeypatch
+):
+    import app.solicitudes as routes
+    client, engine = solicitudes_context
+    sid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    rid = _prepare_search_results(engine, sid)
+    def forbidden(*a, **kw):
+        raise AssertionError("URL no autorizada no debe consultarse")
+    monkeypatch.setattr(routes, "obtener_metadatos_jackett", forbidden)
+    data = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion").json()
+    assert data["estado"] == "no_verificable"
+    assert data["puede_seleccionar"] is False
+    assert data["tamano_real_bytes"] is None
+
+
+def test_preselection_jackett_temporarily_unavailable_is_fail_closed(
+    solicitudes_context, monkeypatch
+):
+    import app.solicitudes as routes
+    from types import SimpleNamespace
+    from worker.torrent_metadata import TorrentMetadataError
+
+    client, engine = solicitudes_context
+    sid, rid = _preparar_resultado_jackett_verificable(client, engine)
+    monkeypatch.setattr(routes, "get_settings", lambda: SimpleNamespace(
+        jackett_base_url="http://host.docker.internal:9117"
+    ))
+    def offline(*args):
+        raise TorrentMetadataError("offline")
+    monkeypatch.setattr(routes, "obtener_metadatos_jackett", offline)
+    preview = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
+    assert preview.status_code == 200
+    assert preview.json()["estado"] == "no_verificable"
+    assert client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid}).status_code == 409
+
+
+def test_preselection_is_private_and_only_for_waiting_selection(
+    solicitudes_context, monkeypatch
+):
+    import app.solicitudes as routes
+    client, engine = solicitudes_context
+    sid, rid = _preparar_resultado_jackett_verificable(client, engine)
+    preview_url = f"/solicitudes/{sid}/resultados/{rid}/verificacion"
+    assert client.get(f"/solicitudes/{sid}/resultados/99999/verificacion").status_code == 404
+    with Session(engine) as session:
+        other = Perfil(nombre="Otro perfil", pin_hash="ficticio")
+        session.add(other)
+        session.commit()
+        session.refresh(other)
+        other_id = other.id
+    original = app.dependency_overrides[get_current_profile]
+    def other_profile():
+        with Session(engine) as session:
+            return session.get(Perfil, other_id)
+    app.dependency_overrides[get_current_profile] = other_profile
+    try:
+        assert client.get(preview_url).status_code == 404
+    finally:
+        app.dependency_overrides[get_current_profile] = original
+
+    with Session(engine) as session:
+        req = session.get(Solicitud, sid)
+        req.estado = "completada"
+        session.add(req)
+        session.commit()
+    assert client.get(preview_url).status_code == 409
