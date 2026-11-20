@@ -421,3 +421,69 @@ def test_renew_fails_if_verification_was_revoked(fixture):
     with Session(engine) as session:
         assert not renew_organization_lease(session, did, "a", now=now)
         assert not confirm_organization(session, did, "a", now=now)
+
+
+def test_same_worker_reclaim_old_attempt_cannot_change_new_lease(fixture):
+    """Evitar ABA aunque el worker conserve el mismo identificador."""
+    engine, did = fixture
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        first = claim_next_organization(session, "mismo-worker", now=now)
+        assert first is not None and first.organizacion_intentos == 1
+    later = now + timedelta(seconds=LEASE_SECONDS + 1)
+    with Session(engine) as session:
+        second = claim_next_organization(session, "mismo-worker", now=later)
+        assert second is not None and second.organizacion_intentos == 2
+    with Session(engine) as session:
+        assert not renew_organization_lease(
+            session, did, "mismo-worker", now=later, expected_attempt=1
+        )
+        assert not confirm_organization(
+            session, did, "mismo-worker", now=later, expected_attempt=1
+        )
+        assert not defer_organization(
+            session, did, "mismo-worker", "comunicacion",
+            now=later, expected_attempt=1,
+        )
+        assert not mark_organization_review(
+            session, did, "mismo-worker", "origen_cambio",
+            now=later, expected_attempt=1,
+        )
+        row = session.get(Descarga, did)
+        assert row is not None
+        assert row.organizacion_intentos == 2
+        assert row.organizacion_estado == "pendiente"
+        assert row.organizacion_locked_by == "mismo-worker"
+        assert renew_organization_lease(
+            session, did, "mismo-worker", now=later, expected_attempt=2
+        )
+        assert confirm_organization(
+            session, did, "mismo-worker", now=later, expected_attempt=2
+        )
+
+
+@pytest.mark.parametrize("invalid", [True, 0, 4, "1"])
+def test_attempt_validation_on_all_mutations(fixture, invalid):
+    engine, did = fixture
+    now = datetime.now(UTC)
+    with Session(engine) as session:
+        claim = claim_next_organization(session, "mismo-worker", now=now)
+        assert claim is not None
+    for action in (
+        lambda s: renew_organization_lease(
+            s, did, "mismo-worker", now=now, expected_attempt=invalid
+        ),
+        lambda s: confirm_organization(
+            s, did, "mismo-worker", now=now, expected_attempt=invalid
+        ),
+        lambda s: defer_organization(
+            s, did, "mismo-worker", "otro",
+            now=now, expected_attempt=invalid,
+        ),
+        lambda s: mark_organization_review(
+            s, did, "mismo-worker", "otro",
+            now=now, expected_attempt=invalid,
+        ),
+    ):
+        with Session(engine) as session, pytest.raises(ValueError):
+            action(session)

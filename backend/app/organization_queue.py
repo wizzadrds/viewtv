@@ -45,6 +45,15 @@ def _reason(code: FailureCode) -> None:
         raise ValueError("Código de error no reconocido.")
 
 
+def _attempt(expected_attempt: int | None) -> None:
+    if expected_attempt is not None and (
+        isinstance(expected_attempt, bool)
+        or not isinstance(expected_attempt, int)
+        or not 1 <= expected_attempt <= MAX_ATTEMPTS
+    ):
+        raise ValueError("Número de intento de organización inválido.")
+
+
 def claim_next_organization(
     session: Session,
     worker_id: str,
@@ -118,8 +127,15 @@ def claim_next_organization(
         raise
 
 
-def _claimed_conditions(download_id: int, worker_id: str, current: datetime) -> tuple:
-    return (
+def _claimed_conditions(
+    download_id: int,
+    worker_id: str,
+    current: datetime,
+    *,
+    expected_attempt: int | None = None,
+) -> tuple:
+    _attempt(expected_attempt)
+    conditions = (
         Descarga.id == download_id,
         Descarga.estado == "completada",
         Descarga.progreso == 1,
@@ -128,7 +144,9 @@ def _claimed_conditions(download_id: int, worker_id: str, current: datetime) -> 
         Descarga.organizacion_locked_by == worker_id,
         Descarga.organizacion_locked_until > current,
     )
-
+    if expected_attempt is not None:
+        conditions += (Descarga.organizacion_intentos == expected_attempt,)
+    return conditions
 
 
 def renew_organization_lease(
@@ -138,10 +156,12 @@ def renew_organization_lease(
     *,
     lease_seconds: int = LEASE_SECONDS,
     now: datetime | None = None,
+    expected_attempt: int | None = None,
 ) -> bool:
     """Extender solo un lease propio todavía válido; no reanimar caducados."""
     _id(download_id)
     _worker(worker_id)
+    _attempt(expected_attempt)
     if (
         isinstance(lease_seconds, bool)
         or not isinstance(lease_seconds, int)
@@ -155,7 +175,11 @@ def renew_organization_lease(
     try:
         result = session.exec(
             update(Descarga)
-            .where(*_claimed_conditions(download_id, worker_id, current))
+            .where(
+                *_claimed_conditions(
+                    download_id, worker_id, current, expected_attempt=expected_attempt
+                )
+            )
             .values(
                 organizacion_locked_until=case(
                     (
@@ -175,17 +199,27 @@ def renew_organization_lease(
 
 
 def confirm_organization(
-    session: Session, download_id: int, worker_id: str, *, now: datetime | None = None
+    session: Session,
+    download_id: int,
+    worker_id: str,
+    *,
+    now: datetime | None = None,
+    expected_attempt: int | None = None,
 ) -> bool:
     """Solo el dueño de un lease vivo puede registrar una publicación comprobada."""
     _id(download_id)
     _worker(worker_id)
+    _attempt(expected_attempt)
     current = _now(now)
     _begin_write(session)
     try:
         result = session.exec(
             update(Descarga)
-            .where(*_claimed_conditions(download_id, worker_id, current))
+            .where(
+                *_claimed_conditions(
+                    download_id, worker_id, current, expected_attempt=expected_attempt
+                )
+            )
             .values(
                 organizacion_estado="organizada",
                 organizacion_locked_by=None,
@@ -209,17 +243,23 @@ def mark_organization_review(
     reason: FailureCode,
     *,
     now: datetime | None = None,
+    expected_attempt: int | None = None,
 ) -> bool:
     """Detener reintentos de forma conservadora ante un conflicto real."""
     _id(download_id)
     _worker(worker_id)
     _reason(reason)
+    _attempt(expected_attempt)
     current = _now(now)
     _begin_write(session)
     try:
         result = session.exec(
             update(Descarga)
-            .where(*_claimed_conditions(download_id, worker_id, current))
+            .where(
+                *_claimed_conditions(
+                    download_id, worker_id, current, expected_attempt=expected_attempt
+                )
+            )
             .values(
                 organizacion_estado="requiere_revision",
                 organizacion_locked_by=None,
@@ -243,16 +283,22 @@ def defer_organization(
     reason: FailureCode,
     *,
     now: datetime | None = None,
+    expected_attempt: int | None = None,
 ) -> bool:
     """Aplaza con reintentos limitados; no duplica operaciones externas."""
     _id(download_id)
     _worker(worker_id)
     _reason(reason)
+    _attempt(expected_attempt)
     current = _now(now)
     _begin_write(session)
     try:
         download = session.exec(
-            select(Descarga).where(*_claimed_conditions(download_id, worker_id, current))
+            select(Descarga).where(
+                *_claimed_conditions(
+                    download_id, worker_id, current, expected_attempt=expected_attempt
+                )
+            )
         ).first()
         if download is None:
             session.commit()
@@ -265,7 +311,11 @@ def defer_organization(
         )
         result = session.exec(
             update(Descarga)
-            .where(*_claimed_conditions(download_id, worker_id, current))
+            .where(
+                *_claimed_conditions(
+                    download_id, worker_id, current, expected_attempt=expected_attempt
+                )
+            )
             .values(
                 organizacion_estado="requiere_revision" if needs_review else "pendiente",
                 organizacion_locked_by=None,

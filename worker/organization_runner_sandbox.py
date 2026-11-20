@@ -63,11 +63,12 @@ def run_one_sandbox_organization(
         download_id = claimed.id
         if download_id is None:
             raise AssertionError("Una descarga reclamada debe tener ID.")
+        attempt = claimed.organizacion_intentos
 
     def heartbeat() -> None:
         with Session(engine) as session:
             renewed = renew_organization_lease(
-                session, download_id, worker_id,
+                session, download_id, worker_id, expected_attempt=attempt,
             )
         if not renewed:
             raise LostOrganizationLease("Reserva perdida; operación no confirmada.")
@@ -111,7 +112,7 @@ def run_one_sandbox_organization(
         heartbeat()
         with Session(engine) as session:
             confirmed = confirm_organization(
-                session, download_id, worker_id,
+                session, download_id, worker_id, expected_attempt=attempt,
             )
         if not confirmed:
             return "lease_perdido"
@@ -124,6 +125,7 @@ def run_one_sandbox_organization(
         with Session(engine) as session:
             deferred = defer_organization(
                 session, download_id, worker_id, "comunicacion",
+                expected_attempt=attempt,
             )
         return "aplazada" if deferred else "lease_perdido"
     except (UnsafeOrganizationPlan, InvalidTorrentFiles, OSError) as exc:
@@ -135,5 +137,6 @@ def run_one_sandbox_organization(
         with Session(engine) as session:
             marked = mark_organization_review(
                 session, download_id, worker_id, reason,
+                expected_attempt=attempt,
             )
         return "requiere_revision" if marked else "lease_perdido"
