@@ -5,6 +5,7 @@ param([switch]$AuthorizeEphemeralAccounts)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_copy_acl_gate_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pinned_identity_sandbox.ps1')
 if(-not $AuthorizeEphemeralAccounts){throw 'Se requiere -AuthorizeEphemeralAccounts.'}
 $principal=[Security.Principal.WindowsPrincipal]::new(
   [Security.Principal.WindowsIdentity]::GetCurrent())
@@ -143,6 +144,17 @@ try {
     $vault=Join-Path $root '.viewtv-broker-handoff'
     [IO.Directory]::CreateDirectory($vault)|Out-Null
     Protect-TestItem $vault $true $null $full
+    # Give the private parent only SYSTEM, Administrators and the REAL broker SID.
+    $vaultAcl=[Security.AccessControl.DirectorySecurity]::new()
+    $vaultAcl.SetAccessRuleProtection($true,$false)
+    $vaultAcl.SetOwner($admin)
+    foreach($identity in @($admin,$system,$brokerSid)){
+        $vaultAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+            $identity,$full,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+                             [Security.AccessControl.InheritanceFlags]::ObjectInherit),
+            [Security.AccessControl.PropagationFlags]::None,$allow))
+    }
+    [IO.Directory]::SetAccessControl($vault,$vaultAcl)
     $fake=Join-Path $vault 'contenido-ficticio.txt'
     [IO.File]::WriteAllText($fake,'ESTO_NO_ES_UN_SECRETO')
     Protect-TestItem $fake $false $null $full
@@ -156,6 +168,37 @@ try {
     Check ((As-User $tokenBroker {[IO.File]::ReadAllText($fake)}) -ceq
            'ESTO_NO_ES_UN_SECRETO') 'Broker sin lectura en vault.'
     $results['vault_y_destino_privados']='copia_denegada'
+
+    # Enroll two REAL distinct SIDs in a private, fixed-path registry.
+    $registry=Join-Path $vault '.viewtv-copy-identity.json'
+    $text=([ordered]@{
+        version=1
+        sandbox=[IO.Path]::GetFileName($root)
+        copy_sid=$copySid.Value
+        broker_sid=$brokerSid.Value
+        expires_utc=[DateTime]::UtcNow.AddMinutes(30).ToString('o')
+    } | ConvertTo-Json -Compress)
+    [IO.File]::WriteAllText($registry,$text,[Text.UTF8Encoding]::new($false))
+    $registryAcl=[Security.AccessControl.FileSecurity]::new()
+    $registryAcl.SetAccessRuleProtection($true,$false)
+    $registryAcl.SetOwner($admin)
+    foreach($identity in @($admin,$system,$brokerSid)){
+        $registryAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+            $identity,$full,$allow))
+    }
+    [IO.File]::SetAccessControl($registry,$registryAcl)
+    Check (Is-Denied $tokenCopy {
+       [IO.File]::ReadAllText($registry)
+    }) 'El copiador leyó el registro privado.'
+    Check (Is-Denied $tokenCopy {
+       [IO.File]::WriteAllText($registry,'SID_MANIPULADO')
+    }) 'El copiador modificó el registro privado.'
+    $results['copia_no_lee_ni_altera_registro']='denegada'
+    $resolved=As-User $tokenBroker {
+        Get-ViewtvSandboxPinnedCopySid $root $vault
+    }
+    Check ($resolved -ceq $copySid.Value) 'Broker real no resolvió SID inscrito.'
+    $results['broker_real_lee_sid_privado']='verificado'
     $stage=Join-Path $root '.viewtv-stage-1'
     [IO.Directory]::CreateDirectory($stage)|Out-Null
     Protect-TestItem $stage $true $modify $full

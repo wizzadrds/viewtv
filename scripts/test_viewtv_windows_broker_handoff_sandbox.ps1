@@ -3,6 +3,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_restricted_token_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pinned_identity_sandbox.ps1')
 $publisher=Join-Path $PSScriptRoot 'viewtv_windows_publish_sandbox.ps1'
 
 $public=[IO.Path]::GetFullPath($env:PUBLIC).TrimEnd('\')
@@ -71,7 +72,30 @@ function New-TestStage([int]$Id,[string]$FinalName) {
     }
 }
 function Publish-TestStage($s) {
-    & $publisher -SandboxRoot $root -StageName $s.stage -FinalName $s.final -ApprovalName $s.approval -KeyPath $key -BrokerHandoff -CopySid $copySid
+    & $publisher -SandboxRoot $root -StageName $s.stage -FinalName $s.final -ApprovalName $s.approval -KeyPath $key -BrokerHandoff
+}
+function Set-TestPinnedIdentity([string]$Sid,[string]$BrokerSid,[DateTime]$Expiry) {
+    $file=Join-Path $vault '.viewtv-copy-identity.json'
+    $text=([ordered]@{
+        version=1
+        sandbox=[IO.Path]::GetFileName($root)
+        copy_sid=$Sid
+        broker_sid=$BrokerSid
+        expires_utc=$Expiry.ToUniversalTime().ToString('o')
+    } | ConvertTo-Json -Compress)
+    [IO.File]::WriteAllText($file,$text,[Text.UTF8Encoding]::new($false))
+    $acl=[Security.AccessControl.FileSecurity]::new()
+    $acl.SetAccessRuleProtection($true,$false)
+    $acl.SetOwner($admin)
+    # $Sid is a typed string function parameter; do not reuse that name
+    # as a foreach variable or PowerShell coerces IdentityReference to string.
+    foreach($principalSid in @($current,$admin,$system)){
+        $identity=[Security.Principal.SecurityIdentifier]$principalSid
+        $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+            $identity,$full,$allow))
+    }
+    [IO.File]::SetAccessControl($file,$acl)
+    return $file
 }
 function Check([bool]$condition,[string]$reason) {
     if(-not $condition){throw $reason}
@@ -100,13 +124,49 @@ try {
     Check ($denied -ceq 'denied') 'Copia pudo crear en cámara de broker.'
     $result['copia_no_escribe_escrow']='denied'
 
-    # The publisher must reject missing SID even when other signatures are valid.
-    $missingSidRefused=$false
+    # No enrollment in the private vault -> never move, even if signed.
+    $missingRecord=$false
+    try { Publish-TestStage $bad | Out-Null } catch { $missingRecord=$true }
+    Check ($missingRecord -and [IO.Directory]::Exists($bad.folder)) 'Publicó sin registro privado.'
+    $result['registro_privado_obligatorio']='rechazado'
+
+    # The old untrusted argument is no longer accepted by the entrypoint.
+    $spoofRefused=$false
     try {
-        & $publisher -SandboxRoot $root -StageName $bad.stage -FinalName $bad.final -ApprovalName $bad.approval -KeyPath $key -BrokerHandoff | Out-Null
-    } catch {$missingSidRefused=$true}
-    Check ($missingSidRefused -and [IO.Directory]::Exists($bad.folder)) 'Publicó sin SID de copia.'
-    $result['sid_copiador_obligatorio']='rechazado'
+        & $publisher -SandboxRoot $root -StageName $bad.stage -FinalName $bad.final -ApprovalName $bad.approval -KeyPath $key -BrokerHandoff -CopySid $copySid | Out-Null
+    } catch { $spoofRefused=$true }
+    Check ($spoofRefused -and [IO.Directory]::Exists($bad.folder)) 'El cliente pudo elegir SID.'
+    $result['sid_cliente_suplantado']='rechazado'
+
+    $fakeBroker='S-1-5-21-123456789-234567891-345678912-9999'
+    $enrolled=Set-TestPinnedIdentity $copySid $fakeBroker ([DateTime]::UtcNow.AddMinutes(30))
+    $wrongBroker=$false
+    try { Publish-TestStage $bad | Out-Null } catch {$wrongBroker=$true}
+    Check ($wrongBroker -and [IO.Directory]::Exists($bad.folder)) 'Se aceptó otro broker.'
+    $result['registro_broker_distinto']='rechazado'
+
+    $enrolled=Set-TestPinnedIdentity $copySid $current.Value ([DateTime]::UtcNow.AddMinutes(-1))
+    $expired=$false
+    try { Publish-TestStage $bad | Out-Null } catch {$expired=$true}
+    Check ($expired -and [IO.Directory]::Exists($bad.folder)) 'Se aceptó registro caducado.'
+    $result['registro_caducado']='rechazado'
+
+    $enrolled=Set-TestPinnedIdentity $copySid $current.Value ([DateTime]::UtcNow.AddMinutes(30))
+    $regAcl=[IO.File]::GetAccessControl($enrolled)
+    $users=[Security.Principal.SecurityIdentifier]::new(
+        [Security.Principal.WellKnownSidType]::BuiltinUsersSid,$null)
+    $regAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $users,$read,$allow))
+    [IO.File]::SetAccessControl($enrolled,$regAcl)
+    $broadRegistry=$false
+    try { Publish-TestStage $bad | Out-Null } catch {$broadRegistry=$true}
+    Check ($broadRegistry -and [IO.Directory]::Exists($bad.folder)) 'Registro con Users aceptado.'
+    $result['registro_acl_amplia']='rechazado'
+    $enrolled=Set-TestPinnedIdentity $copySid $current.Value ([DateTime]::UtcNow.AddMinutes(30))
+
+    $pinned=Get-ViewtvSandboxPinnedCopySid $root $vault
+    Check ($pinned -ceq $copySid) 'El broker no leyó SID registrado.'
+    $result['sid_privado_sin_argumento']='verificado'
 
     # Explicit READ ACE for the selected copy SID is forbidden on any file.
     $acl=[IO.File]::GetAccessControl($bad.video)
@@ -157,14 +217,14 @@ try {
         Protect-StageItem $secondPath $true $true
         $blocked=$false
         try {
-            & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff -CopySid $copySid | Out-Null
+            & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff | Out-Null
         } catch {$blocked=$true}
         Check $blocked 'Se aceptó escritor preabierto.'
         Check ([IO.Directory]::Exists($secondPath)) 'El escritor no bloqueó la entrega.'
         Check (-not [IO.Directory]::Exists((Join-Path $vault '.viewtv-handoff-2'))) 'Escrow incorrecto.'
         $result['escritor_preabierto']='rechazado'
     } finally {$writer.Dispose()}
-    & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff -CopySid $copySid | Out-Null
+    & $publisher -SandboxRoot $root -StageName $stageName -FinalName 'ResultadoDos' -ApprovalName $approval -KeyPath $key -BrokerHandoff | Out-Null
     $result['cierre_y_reintento_de_prueba']='correcto'
 
     # Signed manifest tampered BEFORE handoff must fail and preserve stage.

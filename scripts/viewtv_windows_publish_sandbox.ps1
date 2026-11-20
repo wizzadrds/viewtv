@@ -8,9 +8,7 @@ param(
     [Parameter(Mandatory=$true)][string]$FinalName,
     [Parameter(Mandatory=$true)][string]$ApprovalName,
     [Parameter(Mandatory=$true)][string]$KeyPath,
-    [switch]$BrokerHandoff,
-    [string]$CopySid,
-    [string]$BrokerSid
+    [switch]$BrokerHandoff
 )
 
 Set-StrictMode -Version Latest
@@ -125,14 +123,10 @@ if ($identityBeforeHash -cne (Get-ViewtvTestStageFingerprint $root $StageName)) 
 # If Windows returns an error, NEVER auto-retry: state may be ambiguous.
 if($BrokerHandoff){
     . (Join-Path $PSScriptRoot 'viewtv_windows_broker_handoff_sandbox.ps1')
-    # Fail closed if copy identity is absent or privileged. This SID is
-    # test-supplied, not authenticated by a production broker authority.
-    $null=Assert-ViewtvSandboxCopySid $CopySid $BrokerSid
-    Invoke-ViewtvSandboxBrokerHandoff $root $StageName $FinalName $ApprovalName $KeyPath $CopySid $BrokerSid
+    # Copy identity is pinned in a private enrollment record. A caller cannot
+    # supply -CopySid or -BrokerSid to this entrypoint.
+    Invoke-ViewtvSandboxBrokerHandoff $root $StageName $FinalName $ApprovalName $KeyPath
 } else {
-    if($CopySid -or $BrokerSid){
-        throw 'Los SID solo son válidos con -BrokerHandoff.'
-    }
     # Historical mode, intentionally unprotected against the TOCTOU gap.
     [System.IO.Directory]::Move($staged, $final)
 }

@@ -16,14 +16,19 @@ Para impedir que el publicador de prueba omita esa condición, se añadió
 `scripts/viewtv_windows_copy_acl_gate_sandbox.ps1` y se integró en
 `scripts/viewtv_windows_broker_handoff_sandbox.ps1`.
 
-Al utilizar `-BrokerHandoff`, el publicador exige ahora `-CopySid`:
+**Actualización posterior (20-11-2026):** `-CopySid` y `-BrokerSid`
+**ya no son argumentos admitidos**. El modo `-BrokerHandoff` resuelve
+el SID de copia desde `viewtv_windows_pinned_identity_sandbox.ps1`,
+leyendo un registro de ruta fija bajo control del broker. Ver
+[ORGANIZADOR-IDENTIDAD-ANCLADA-BROKER-NTFS-SANDBOX.md](ORGANIZADOR-IDENTIDAD-ANCLADA-BROKER-NTFS-SANDBOX.md).
+El ejemplo vigente de invocación de sandbox es:
 ```powershell
 & $publisher -SandboxRoot $sandbox -StageName '.viewtv-stage-1' `
   -FinalName 'Prueba' -ApprovalName '.viewtv-approval-1.json' `
-  -KeyPath $key -BrokerHandoff -CopySid $sidCopiador
+  -KeyPath $key -BrokerHandoff
 ```
-Estas variables son **solo ilustrativas**; el ejemplo no concede
-permisos ni autoriza un uso fuera del sandbox GUID marcado.
+El ejemplo es ilustrativo y exige una inscripción válida ya existente;
+no concede permisos ni autoriza un uso fuera del sandbox GUID marcado.
 
 La validación de ACL es exclusivamente de lectura y falla con excepción
 sin iniciar movimiento si encuentra:
@@ -56,15 +61,15 @@ se rechazan para evitar una falsa sensación de seguridad.
 
 ## Pruebas ejecutadas y evidencias
 
-`test_viewtv_windows_broker_handoff_sandbox.ps1`: **9 comprobaciones
-correctas**. Se incluyen rechazos de ausencia de SID, ACE de lectura
+`test_viewtv_windows_broker_handoff_sandbox.ps1`: **14 comprobaciones
+correctas** tras la ampliación de identidad anclada (9 en este hito original). Se incluyen rechazos de ausencia de SID, ACE de lectura
 del SID señalado, ACE del grupo Users, vault desprotegida, escritor
 abierto y manifest alterado. La prueba de este módulo utiliza un SID
 sintético para aislar el comportamiento del gate; **por sí sola no
 demuestra que esa cuenta exista**.
 
-`test_viewtv_windows_distinct_sids_sandbox.ps1`: **12 comprobaciones
-correctas**, con dos cuentas locales temporales reales, diferentes y
+`test_viewtv_windows_distinct_sids_sandbox.ps1`: **14 comprobaciones
+correctas** tras la ampliación (12 en este hito original), con dos cuentas locales temporales reales, diferentes y
 no administrativas. Valida rechazo antes del sellado, rechazo de una
 ACE de lectura inyectada del SID real, aceptación después de revocar
 todas las ACE de copia, inspección de escrow y del resultado, rechazo
@@ -128,11 +133,13 @@ documento son archivos nuevos, sin versión anterior que respaldar.
 
 ## Límites pendientes y seguridad
 
-- **El SID de copia sigue viniendo del invocador**, no de un registro
-  independiente protegido por el broker. Un cliente que suplante ese
-  argumento podría sortear el gate. Un broker definitivo debe obtener
-  los SID de una configuración protegida administrada fuera del worker,
-  y comparar también el token real del proceso.
+- **Actualizado posteriormente en sandbox:** el SID de copia ya no
+  viene del invocador sino de un registro privado con DACL protegida,
+  ligado al SID real del proceso lector y a un GUID. Esto evita la
+  suplantación por argumento en el prototipo, pero NO sustituye la
+  inscripción segura ni un broker definitivo independiente del worker.
+  Todavía deben verificarse la identidad de servicio y la autoridad
+  viva de lease y torrent.
 - La identidad de publicación sigue siendo elevada en el test principal;
   no se ha creado un servicio Windows no administrativo con un secreto
   propio. El control no es una barrera contra el propietario del proceso

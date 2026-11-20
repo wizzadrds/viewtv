@@ -5,6 +5,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_quiescence_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_copy_acl_gate_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pinned_identity_sandbox.ps1')
 
 function Assert-ViewtvSandboxHandoffVault([string]$Root,[string]$BrokerSid) {
     $vault=Assert-ViewtvRestrictedSandboxPath $Root (Join-Path $Root '.viewtv-broker-handoff')
@@ -56,26 +57,27 @@ function Get-ViewtvSandboxHandoffFingerprint([string]$Folder) {
 
 function Invoke-ViewtvSandboxBrokerHandoff(
     [string]$SandboxRoot,[string]$StageName,[string]$FinalName,
-    [string]$ApprovalName,[string]$KeyPath,
-    [string]$CopySid,[string]$BrokerSid
+    [string]$ApprovalName,[string]$KeyPath
 ) {
     $root=[IO.Path]::GetFullPath($SandboxRoot).TrimEnd('\')
     if($StageName -cnotmatch '^\.viewtv-stage-[1-9][0-9]{0,9}$'){
         throw 'Staging incorrecto'
     }
-    $broker=Assert-ViewtvSandboxCopySid $CopySid $BrokerSid
+    # The worker/client cannot select the identity against which ACLs are
+    # checked. Load it from a broker-private record bound to this sandbox.
+    $broker=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
     $stage=Assert-ViewtvRestrictedSandboxPath $root (Join-Path $root $StageName)
     $final=Assert-ViewtvRestrictedSandboxPath $root (Join-Path $root $FinalName)
     $vault=Assert-ViewtvSandboxHandoffVault $root $broker
-    Assert-ViewtvSandboxNoCopyAce $root $vault $true $CopySid $broker
+    $CopySid=Get-ViewtvSandboxPinnedCopySid $root $vault
     $handoffName='.viewtv-handoff-'+$StageName.Substring('.viewtv-stage-'.Length)
     $escrow=Assert-ViewtvRestrictedSandboxPath $root (Join-Path $vault $handoffName)
     if([IO.Directory]::Exists($escrow) -or [IO.File]::Exists($escrow) -or
        [IO.Directory]::Exists($final) -or [IO.File]::Exists($final)){
         throw 'Colisión; no reintentar publicación.'
     }
-    # This gate must run before ANY Move. The caller-supplied SID is not
-    # authenticated yet: production requires broker-pinned enrollment.
+    # The pinned SID comes from the private registry, not from the caller.
+    # Production still requires a separate persistent broker process.
     $null=Assert-ViewtvSandboxHandoffCopyGate $root $stage $CopySid $broker
     $quiet=Test-ViewtvSandboxQuiescence $root $StageName
     if($quiet.estado -cne 'sin_handles_detectados'){
@@ -99,6 +101,9 @@ function Invoke-ViewtvSandboxBrokerHandoff(
     [IO.Directory]::Move($stage,$escrow)
     # From this point forward a distinct copy SID MUST lack traverse/write
     # permissions on the private parent. Same SID test is NOT production.
+    if((Get-ViewtvSandboxPinnedCopySid $root $vault) -cne $CopySid){
+        throw 'La identidad privada cambió durante la entrega; requiere revisión.'
+    }
     $null=Assert-ViewtvSandboxHandoffCopyGate $root $escrow $CopySid $broker
     $escrowEntries=@([IO.Directory]::GetFileSystemEntries($escrow))
     if($escrowEntries.Count -ne $declared.Count){
@@ -132,7 +137,10 @@ function Invoke-ViewtvSandboxBrokerHandoff(
     }
     # Second rename is publication; the copy identity has had no access
     # since the first rename. On failure preserve escrow/final for review.
-    # Check the gate again at the last instant before publishing.
+    # Check pinned identity and ACL gate again before the final rename.
+    if((Get-ViewtvSandboxPinnedCopySid $root $vault) -cne $CopySid){
+        throw 'Identidad privada cambiada antes de publicar; requiere revisión.'
+    }
     $null=Assert-ViewtvSandboxHandoffCopyGate $root $escrow $CopySid $broker
     [IO.Directory]::Move($escrow,$final)
     $null=Assert-ViewtvSandboxHandoffCopyGate $root $final $CopySid $broker
