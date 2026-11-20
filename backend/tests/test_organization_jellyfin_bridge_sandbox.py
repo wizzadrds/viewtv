@@ -313,7 +313,7 @@ def test_bad_id_or_unconfirmed_publish_cannot_request_scan(lab):
     assert jellyfin.scan_requested == 0
 
 
-def test_foreign_eligible_download_is_blocked_before_copy(lab):
+def test_two_eligible_downloads_publish_only_expected_id(lab):
     engine, root, source, download_id, provider = lab
     jellyfin = SimulatedJellyfin(root / "media")
     with Session(engine) as session:
@@ -330,7 +330,10 @@ def test_foreign_eligible_download_is_blocked_before_copy(lab):
         )
         session.add(second)
         session.commit()
-    with pytest.raises(UnsafeOrganizationPlan, match="otra descarga"):
+        session.refresh(second)
+        second_id = second.id
+
+    assert (
         run_one_sandbox_organization_with_jellyfin(
             engine,
             root,
@@ -339,8 +342,13 @@ def test_foreign_eligible_download_is_blocked_before_copy(lab):
             expected_download_id=download_id,
             jellyfin=jellyfin,
         )
-    assert state(engine, download_id).organizacion_intentos == 0
-    assert jellyfin.scan_requested == 0
+        == "escaneo_solicitado"
+    )
+    assert jellyfin.scan_requested == 1
+    assert state(engine, download_id).organizacion_estado == "organizada"
+    assert state(engine, second_id).organizacion_estado == "pendiente"
+    assert state(engine, second_id).organizacion_intentos == 0
+    assert state(engine, second_id).organizacion_locked_by is None
     assert source.exists()
 
 

@@ -59,14 +59,20 @@ def claim_next_organization(
     worker_id: str,
     *,
     now: datetime | None = None,
+    allowed_download_id: int | None = None,
 ) -> Descarga | None:
-    """Reclamación exclusiva; un lease agotado tras 3 intentos va a revisión."""
+    """Reclamación exclusiva, opcionalmente restringida a una sola descarga."""
     _worker(worker_id)
+    if allowed_download_id is not None:
+        _id(allowed_download_id)
+        if allowed_download_id > 2**63 - 1:
+            raise ValueError("ID de descarga fuera de rango SQLite.")
     current = _now(now)
 
     _begin_write(session)
     try:
         conditions = (
+            *((Descarga.id == allowed_download_id,) if allowed_download_id is not None else ()),
             Descarga.estado == "completada",
             Descarga.progreso == 1,
             Descarga.estado_verificacion == "verificada",

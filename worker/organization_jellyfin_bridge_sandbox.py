@@ -12,7 +12,7 @@ from typing import Literal, Protocol
 from app.jellyfin import JellyfinError
 from app.models import Descarga
 from sqlalchemy.engine import Engine
-from sqlmodel import Session, select
+from sqlmodel import Session
 from worker.organization_copy_sandbox import _check_sandbox
 from worker.organization_planner import UnsafeOrganizationPlan
 from worker.organization_runner_sandbox import (
@@ -83,23 +83,14 @@ def run_one_sandbox_organization_with_jellyfin(
         or expected_download_id <= 0
     ):
         raise ValueError("Identificador esperado no válido.")
-    with Session(engine) as session:
-        eligible = session.exec(
-            select(Descarga.id).where(
-                Descarga.estado == "completada",
-                Descarga.progreso == 1,
-                Descarga.estado_verificacion == "verificada",
-                Descarga.organizacion_estado == "pendiente",
-            )
-        ).all()
-    if eligible and eligible != [expected_download_id]:
-        raise UnsafeOrganizationPlan("Hay otra descarga pendiente en el sandbox.")
-
+    # Filtrar la ID dentro de BEGIN IMMEDIATE evita que otra descarga
+    # pendiente de la cola sea reclamada o publicada por error.
     outcome = run_one_sandbox_organization(
         engine,
         sandbox_root,
         worker_id,
         source_provider,
+        allowed_download_id=expected_download_id,
     )
     if outcome != "organizada":
         return outcome

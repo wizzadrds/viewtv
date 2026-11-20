@@ -1,0 +1,11 @@
+# Candidata de API para migración 0013. NO desplegar aún.
+# Conserva API 0012 en ejecución; solamente incorpora modelo,
+# cola de verificación compatible con 0013 y migración Alembic.
+FROM viewtv:predeploy-0012-release
+COPY backend/app/models.py /opt/viewtv/backend/app/models.py
+COPY backend/app/queue.py /opt/viewtv/backend/app/queue.py
+COPY backend/app/organization_queue.py /opt/viewtv/backend/app/organization_queue.py
+COPY backend/migrations/versions/0013_cola_organizacion.py /opt/viewtv/backend/migrations/versions/0013_cola_organizacion.py
+# En la imagen base el archivo 0008 es 0600/root; Alembic necesita
+# leer todas las revisiones incluso si el usuario del proceso es 1000.
+RUN chmod 0644 /opt/viewtv/backend/migrations/versions/0008_solicitud_jellyfin_nullable.py

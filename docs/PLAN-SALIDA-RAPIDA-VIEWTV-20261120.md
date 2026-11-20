@@ -151,8 +151,25 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 
-### Hito C — Organizador mínimo seguro 0013 (EN CURSO, SOLO LABORATORIO)
+### Hito C — Organizador mínimo seguro 0013 (EN CURSO, NO DESPLEGADO)
 
+- [x] **Cola 0013 limitada a una sola ID de descarga**:
+  `claim_next_organization(..., allowed_download_id=...)` selecciona
+  y reserva solo esa ID **dentro de BEGIN IMMEDIATE**; el runner y
+  el puente a Jellyfin de laboratorio la respetan. Con dos trabajos
+  pendientes solo se organiza y escanea el elegido; el otro no
+  consume intentos ni lease. 99 pruebas focales aprobadas.
+- [x] **Candidatas de API y worker 0013 construidas**, conservando
+  las protecciones actuales de envío/inicio. Alembic `heads` = 0013
+  en ambas. Descubierto y corregido un archivo 0008 no legible
+  como UID 1000 en las imágenes base. Ensayada migración
+  **0012 → 0013 → 0012** en un clon fresco de SQLite productiva,
+  preservando integridad, FK, perfiles/medios/solicitudes y el
+  respaldo original sin cambios. Compose candidato validado,
+  permisos de torrents y organización desactivados. **No se
+  desplegó ni migró la base real.**
+  Ver
+  [AVANCE-ORGANIZACION-UNICA-Y-CANDIDATA-0013-20261120.md](AVANCE-ORGANIZACION-UNICA-Y-CANDIDATA-0013-20261120.md).
 - [x] **Puente organización → Jellyfin probado con un vídeo ficticio**:
   la cola y el copiador bajo `/tmp` publican el medio y confirman
   `organizada` en SQLite; solo entonces se solicita mediante
@@ -189,7 +206,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 
 ### Hito D — Publicación controlada y cierre (PENDIENTE)
 
-- [ ] Respaldos consistentes de SQLite y configuración, comprobados.
+- [x] **Ensayo de migración/reversión de SQLite 0012/0013**
+  con copia actual consistente y ambas imágenes candidatas,
+  sin pérdidas de datos ni columnas residuales. No supone
+  autorización de migrar la SQLite de producción.
+- [ ] Respaldos consistentes de SQLite y configuración
+  **inmediatamente antes del despliegue real**, comprobados.
 - [ ] Pruebas de autenticación, catálogo, búsqueda, selección,
   descarga, seguimiento, publicación y reproducción.
 - [ ] Simular reversión con copias, sin sobrescribir datos vivos.
@@ -248,8 +270,11 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Integración posterior ensayada **en NTFS real sobre una carpeta
   de pruebas Windows**, acoplando Docker, publicación y
   reconciliación Windows y catálogo Jellyfin falso.
-  En producción el worker **no ejecuta organización ni solicita
-  escaneos por esta ruta**.
+  La cola de organización ya filtra una única ID. Hay candidatas
+  API y worker 0013 construidas y migración reversible ensayada
+  sobre una copia fresca, **no desplegadas**. En producción el
+  worker **no ejecuta organización ni solicita escaneos por
+  esta ruta**.
 - PR #2 sigue en borrador; no significa que 0013 esté desplegado.
 - El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
   de vídeos satisfactoria. No se ha verificado por separado

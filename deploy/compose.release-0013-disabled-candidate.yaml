@@ -1,0 +1,12 @@
+# SOLO CANDIDATA: NO aplicar sobre 0012 sin backup, migración,
+# verificación de API+worker y autorización de despliegue 0013.
+services:
+  api:
+    image: viewtv:release-0013-api-candidate
+  worker:
+    image: viewtv:release-0013-worker-candidate
+    environment:
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"
+      VIEWTV_ENABLE_ORGANIZATION: "false"

@@ -53,6 +53,7 @@ def run_one_sandbox_organization(
     *,
     independent_heartbeat: bool = False,
     heartbeat_interval_seconds: float = 0.05,
+    allowed_download_id: int | None = None,
 ) -> SandboxOutcome:
     """Procesa una única reclamación con ficheros ficticios bajo /tmp.
 
@@ -77,7 +78,9 @@ def run_one_sandbox_organization(
         raise UnsafeOrganizationPlan("La SQLite no corresponde al sandbox del ejecutor.")
 
     with Session(engine) as session:
-        claimed = claim_next_organization(session, worker_id)
+        claimed = claim_next_organization(
+            session, worker_id, allowed_download_id=allowed_download_id
+        )
         if claimed is None:
             return "sin_trabajos"
         download_id = claimed.id
