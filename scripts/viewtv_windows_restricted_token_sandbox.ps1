@@ -175,6 +175,24 @@ public static class ViewtvSandboxRestrictedToken {
         }
     }
 
+    public static SafeFileHandle OpenDirectoryHandle(IntPtr token, string fullPath) {
+        WindowsImpersonationContext impersonation =
+            WindowsIdentity.Impersonate(token);
+        try {
+            // FILE_LIST_DIRECTORY + share all; survives ACL sealing.
+            SafeFileHandle handle = OpenPipe(fullPath, 1, 7, IntPtr.Zero, 3,
+                                             0x02000000, IntPtr.Zero);
+            if (handle.IsInvalid) {
+                int code = Marshal.GetLastWin32Error();
+                handle.Dispose();
+                throw new Win32Exception(code);
+            }
+            return handle;
+        } finally {
+            impersonation.Undo();
+        }
+    }
+
     public static string ProbePipe(IntPtr token, string testPipeName) {
         if (!System.Text.RegularExpressions.Regex.IsMatch(testPipeName,
                 @"\Aviewtv-test-pipe-[a-f0-9]{32}\z"))

@@ -96,3 +96,18 @@ Los ensayos y detalles de protección de propietario se documentan en
 No se han creado cuentas ni servicios ni tocado ACL fuera de carpetas GUID
 propias de prueba. La sesión usada para este nuevo ensayo sí dispone de
 privilegios elevados, a diferencia de la sesión inicial descrita arriba.
+
+## Preflight conservador sobre handles (20-11-2026)
+
+La prueba de token restringido se amplió con un sondeo de acceso exclusivo
+real Win32 sobre carpeta y archivos después de sellar DACL y propietario.
+Una apertura con `FILE_READ_ATTRIBUTES` dio un **falso negativo** frente
+a un escritor preabierto; la variante con `GENERIC_READ` y exclusión
+detectó `ERROR_SHARING_VIOLATION`. Un handle de directorio previo
+también se detectó y se rechazó. Documentado en
+[ORGANIZADOR-QUIESCENCIA-NTFS-SANDBOX.md](ORGANIZADOR-QUIESCENCIA-NTFS-SANDBOX.md).
+
+**Solo es comprobación puntual de sandbox; no está integrada con
+Directory.Move ni con un servicio.** La separación real de cuentas,
+cierre verificable de escritores, revalidación de lease y autoridad sobre
+staging siguen siendo bloqueos de producción.

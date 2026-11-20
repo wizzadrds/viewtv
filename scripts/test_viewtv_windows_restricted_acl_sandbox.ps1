@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_restricted_token_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_broker_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_quiescence_sandbox.ps1')
 
 $public=[IO.Path]::GetFullPath($env:PUBLIC).TrimEnd('\')
 if($public -ine 'C:\Users\Public'){throw 'Raíz de ensayo no autorizada.'}
@@ -118,6 +119,13 @@ try {
         throw 'Se creó un destino por el token restringido.'
     }
 
+    # An unsealed stage MUST NOT pass the quiescence preflight.
+    $unsealed=Test-ViewtvSandboxQuiescence $root '.viewtv-stage-1'
+    if($unsealed.estado -cne 'requiere_revision'){
+        throw 'Se aceptó staging todavía escribible por el copiador.'
+    }
+    $results['preflight_staging_no_sellado']='rechazado'
+
     # Only the normal broker test identity may change these DACLs.
     $before=(Get-FileHash -LiteralPath $video -Algorithm SHA256).Hash
     [IO.Directory]::SetAccessControl($stage,(New-FolderAcl $true $read))
@@ -131,6 +139,11 @@ try {
     if((Get-FileHash -LiteralPath $video -Algorithm SHA256).Hash -cne $before){
         throw 'El vídeo cambió durante la prueba de sellado.'
     }
+    $quiet=Test-ViewtvSandboxQuiescence $root '.viewtv-stage-1'
+    if($quiet.estado -cne 'sin_handles_detectados' -or $quiet.archivos -ne 1){
+        throw ('El preflight de staging sellado no pasó: '+($quiet|ConvertTo-Json -Compress))
+    }
+    $results['preflight_sellado_sin_handles']='correcto'
 
     # Full token performs NTFS Directory.Move without restricted user rights.
     $final=Join-Path $root 'Resultado ficticio'
@@ -170,11 +183,53 @@ try {
         } catch [IO.IOException] { $moveRefused=$true }
         if(-not $moveRefused) { throw 'Mover una carpeta con un handle abierto no falló.' }
         $results['handle_abierto_bloquea_move']='demostrado'
+        $probeStatus=[ViewtvSandboxExclusiveHandles]::ExclusiveStatus($openFile,$false)
+        if($probeStatus -ne 32) {
+            throw 'El sondeo exclusivo no detectó el ERROR_SHARING_VIOLATION.'
+        }
+        $results['sondeo_exclusivo_detecta_escritor']= 'error_32'
+        $busy=Test-ViewtvSandboxQuiescence $root '.viewtv-stage-2'
+        if($busy.estado -cne 'requiere_revision'){
+            throw 'El preflight permitió un descriptor preabierto.'
+        }
+        $results['preflight_con_escritor_abierto']='rechazado'
     } finally { $held.Dispose() }
     if((Get-FileHash -LiteralPath $openFile -Algorithm SHA256).Hash -ceq $initialHash){
         throw 'El ensayo no reprodujo el acceso de escritura preexistente.'
     }
     $results['handle_preabierto_ignora_sellado']='demostrado'
+    $quietAfter=Test-ViewtvSandboxQuiescence $root '.viewtv-stage-2'
+    if($quietAfter.estado -cne 'sin_handles_detectados'){
+        throw ('Preflight no se recuperó tras cerrar descriptor: '+($quietAfter|ConvertTo-Json -Compress))
+    }
+    $results['preflight_despues_cerrar_descriptor']='correcto'
+
+    # An old handle to the DIRECTORY is another possible TOCTOU source.
+    $folderStage=Join-Path $root '.viewtv-stage-3'
+    [IO.Directory]::CreateDirectory($folderStage)|Out-Null
+    [IO.Directory]::SetAccessControl($folderStage,(New-FolderAcl $true $modify))
+    Set-BrokerOwner $folderStage $true
+    $folderFile=Join-Path $folderStage 'directorio.mkv'
+    Expect-Access 'copia_escribe_otro_staging' 'write' $folderFile 'allowed' 'video_tercero'
+    $directoryHandle=[ViewtvSandboxRestrictedToken]::OpenDirectoryHandle(
+        $token,$folderStage)
+    try {
+        [IO.Directory]::SetAccessControl($folderStage,(New-FolderAcl $true $read))
+        Set-TestFileAcl $folderFile $read
+        Set-BrokerOwner $folderFile $false
+        $folderBusy=Test-ViewtvSandboxQuiescence $root '.viewtv-stage-3'
+        if($folderBusy.estado -cne 'requiere_revision'){
+            throw 'El preflight permitió un handle de carpeta preabierto.'
+        }
+        $results['preflight_con_carpeta_abierta']='rechazado'
+    } finally {
+        $directoryHandle.Dispose()
+    }
+    $folderQuiet=Test-ViewtvSandboxQuiescence $root '.viewtv-stage-3'
+    if($folderQuiet.estado -cne 'sin_handles_detectados') {
+        throw 'No se recuperó el preflight tras cerrar la carpeta.'
+    }
+    $results['preflight_carpeta_tras_cerrar']='correcto'
 
     $pipeName='viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')
     $pipeServer=New-ViewtvBrokerNativeFirstPipe $pipeName (New-ViewtvBrokerPipeAcl)

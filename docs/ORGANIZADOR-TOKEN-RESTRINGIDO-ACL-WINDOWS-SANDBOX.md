@@ -159,3 +159,19 @@ prueba cuyo propietario es Administradores, pero un proceso no confiable
 ejecutado bajo el **token original** todavía podría hacerlo. Esta prueba
 no certifica separación de confianza frente a software malicioso que
 tenga acceso a la sesión Windows sin restringir.
+
+## Extensión posterior: preflight de quiescencia (20-11-2026)
+
+Se añadió una comprobación **no publicadora** que observa las ACL selladas,
+la identidad NTFS y los conflictos de compartición sobre carpeta y
+archivos. Los ensayos revelaron que `FILE_READ_ATTRIBUTES` no detecta
+de forma fiable un escritor preabierto; `GENERIC_READ` y `FileShare.None`
+sí devolvieron `ERROR_SHARING_VIOLATION (32)` en este NTFS. Se demuestra
+también el rechazo de un descriptor de **directorio** que permanece abierto
+después de cambiar DACL, seguido de éxito tras liberar el descriptor.
+
+El test ampliado contiene **29 verificaciones correctas**. Documento:
+[ORGANIZADOR-QUIESCENCIA-NTFS-SANDBOX.md](ORGANIZADOR-QUIESCENCIA-NTFS-SANDBOX.md).
+**Un preflight correcto NO autoriza publicación ni cierra TOCTOU**:
+el sondeo libera descriptores antes de que ocurra cualquier movimiento,
+y siguen faltando identidades Windows distintas.
