@@ -7,6 +7,8 @@ param(
     [string]$JournalRoot,
     [string]$KeyPath,
     [string]$EnvelopeText,
+    [switch]$RequireSandboxLease,
+    [string]$LeaseDatabase,
     [int]$AcceptTimeoutMs=5000,
     [int]$ReadTimeoutMs=4000
 )
@@ -16,6 +18,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_response_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_io_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_first_instance_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pipe_lease_auth_sandbox.ps1')
 
 function Assert-ViewtvBrokerTestJournal([string]$path) {
     $temp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -81,7 +84,7 @@ function Reserve-ViewtvBrokerTestClaim([string]$Path,[byte[]]$Bytes) {
         if($null -ne $stream){$stream.Dispose()}
     }
 }
-function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root) {
+function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root,[string]$LeaseDatabase='') {
     # The caller must have validated Root + ACL BEFORE touching the ledger.
     if ([Text.Encoding]::UTF8.GetByteCount($Raw) -gt 8192) {
         return 'no_autorizada'
@@ -110,6 +113,7 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
         $intent=$outer.payload | ConvertFrom-Json
         $expectedKeys=@('version','download_id','attempt','worker','sandbox',
           'stage','final','manifest_sha256','nonce','expires_utc')
+        if($LeaseDatabase){$expectedKeys+=,'torrent_hash'}
         if (@($intent.PSObject.Properties.Name).Count -ne $expectedKeys.Count) {
             return 'no_autorizada'
         }
@@ -126,7 +130,7 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             $intent.download_id -is [long])
         $attemptNumeric=($intent.attempt -is [int] -or
             $intent.attempt -is [long])
-        if ($intent.version -ne 1 -or
+        if ($intent.version -ne $(if($LeaseDatabase){2}else{1}) -or
             -not $idNumeric -or
             -not $attemptNumeric -or
             [long]$intent.download_id -le 0 -or
@@ -142,6 +146,15 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             $expiry -le $now -or $expiry -gt $now.AddMinutes(5)) {
             return 'no_autorizada'
         }
+        # Gate is mandatory in the v2 server mode and must run before any
+        # durable reservation. Failure leaves zero new claims.
+        if($LeaseDatabase -and (
+            [string]$intent.torrent_hash -cnotmatch '^(?:[a-f0-9]{40}|[a-f0-9]{64})$' -or
+            -not (Test-ViewtvBrokerSandboxLease $LeaseDatabase `
+                ([long]$intent.download_id) ([string]$intent.worker) `
+                ([int]$intent.attempt) ([string]$intent.torrent_hash)))){
+            return 'no_autorizada'
+        }
         $nonceFile=Join-Path $Root ('.viewtv-nonce-'+[string]$intent.nonce+'.json')
         $downloadFile=Join-Path $Root (
             '.viewtv-download-'+[long]$intent.download_id+'.json')
@@ -152,8 +165,8 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
         # The download claim MUST be first: after a crash between files, a
         # missing nonce can never authorize another attempt for this download.
         # Never remove a partial claim on errors; require manual review.
-        $downloadRecord=[ordered]@{
-            version=1
+        $downloadClaim=[ordered]@{
+            version=$(if($LeaseDatabase){2}else{1})
             download_id=[long]$intent.download_id
             attempt=[int]$intent.attempt
             worker=[string]$intent.worker
@@ -163,7 +176,11 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             manifest_sha256=[string]$intent.manifest_sha256
             nonce=[string]$intent.nonce
             reserved_utc=$now.ToString('o')
-        } | ConvertTo-Json -Compress
+        }
+        if($LeaseDatabase){
+            $downloadClaim['torrent_hash']=[string]$intent.torrent_hash
+        }
+        $downloadRecord=$downloadClaim | ConvertTo-Json -Compress
         $downloadState=Reserve-ViewtvBrokerTestClaim $downloadFile (
             [Text.Encoding]::UTF8.GetBytes($downloadRecord))
         if($downloadState -cne 'reservada'){return $downloadState}
@@ -205,6 +222,16 @@ function New-ViewtvBrokerPipeAcl {
     return $acl
 }
 if($Mode -eq 'Library'){ return }
+if($Mode -ne 'Server' -and ($RequireSandboxLease -or $LeaseDatabase)){
+    throw 'El lease solo puede configurarlo el servidor de prueba.'
+}
+if($Mode -eq 'Server'){
+    if(($RequireSandboxLease -and
+       $LeaseDatabase -cnotmatch '^/tmp/viewtv-lease-gate-[a-f0-9]{32}/organization\.sqlite3$') -or
+       (-not $RequireSandboxLease -and $LeaseDatabase)){
+        throw 'Configuración de lease incompleta o fuera de sandbox.'
+    }
+}
 if ($PipeName -cnotmatch '^viewtv-test-pipe-[a-f0-9]{32}$') {
     throw 'Nombre de tubería fuera de sandbox.'
 }
@@ -285,7 +312,7 @@ try {
         $request=''
         if(-not $frame.TooLargeOrInvalid) {
             $request=[Text.Encoding]::UTF8.GetString($frame.Data)
-            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root
+            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root $(if($RequireSandboxLease){$LeaseDatabase}else{''})
         }
         $answer=New-ViewtvBrokerTestSignedResponse $state $challenge $request $KeyPath
         $bytes=[Text.Encoding]::UTF8.GetBytes($answer)

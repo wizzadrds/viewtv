@@ -131,6 +131,19 @@ Se verificó `tar -tzf` y contenía exclusivamente:
 
 Este documento es nuevo, no existía para respaldarlo.
 
+## Actualización posterior: admisión con lease del servidor
+
+Se añadió la modalidad `-RequireSandboxLease` al servidor de pipe,
+con sobre HMAC v2 y hash de torrent. Antes de crear las reservas,
+Windows consulta en Ubuntu la SQLite ficticia marcada, comprueba el
+worker, intento, hash y vencimiento. El cliente no decide qué DB
+consultar, y el rechazo no consume reserva. El registro por descarga
+v2 conserva también el hash del torrent. **El canal v1 de prueba
+sigue disponible**; esto no habilita ningún servicio de producción.
+
+Detalles, nueve pruebas integradas y límites:
+[ORGANIZADOR-ADMISION-LEASE-BROKER-PIPE-SANDBOX.md](ORGANIZADOR-ADMISION-LEASE-BROKER-PIPE-SANDBOX.md).
+
 **Decisión:** hito del bloqueo conservador por descarga completado
 en el canal sandbox; **fase 1 abierta**, sin publicar, sin crear
 servicios ni tocar producción.
