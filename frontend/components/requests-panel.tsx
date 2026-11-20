@@ -57,6 +57,7 @@ export default function RequestsPanel({
   const [kind, setKind] = useState<"pelicula" | "serie">("pelicula");
   const [year, setYear] = useState("");
   const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [busy, setBusy] = useState(false);
@@ -71,7 +72,10 @@ export default function RequestsPanel({
   const loadRequests = useCallback(async (signal?: AbortSignal) => {
     const requestId = ++lastRequest.current;
     try {
-      const data = await apiRequest<RequestItem[]>("/solicitudes", { signal });
+      const data = await apiRequest<RequestItem[]>(
+        showHistory ? "/solicitudes" : "/solicitudes?solo_activas=true",
+        { signal },
+      );
       if (!signal?.aborted && requestId === lastRequest.current) {
         setRequests(data);
         setError("");
@@ -88,7 +92,7 @@ export default function RequestsPanel({
         setInitialLoading(false);
       }
     }
-  }, [onUnauthorized]);
+  }, [onUnauthorized, showHistory]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,7 +109,12 @@ export default function RequestsPanel({
     };
   }, [loadRequests]);
 
-  const selectedRequest = requests.find((request) => request.id === selectedId);
+  const visibleRequests = showHistory
+    ? requests
+    : requests.filter((request) =>
+        ["pendiente", "procesando", "vigilando", "esperando_seleccion"].includes(request.estado),
+      );
+  const selectedRequest = visibleRequests.find((request) => request.id === selectedId);
   const canSelect = selectedRequest?.estado === "esperando_seleccion";
 
   useEffect(() => {
@@ -201,7 +210,8 @@ export default function RequestsPanel({
       });
       setSelectedId(null);
       setResults([]);
-      setNotice("Resultado seleccionado. Puedes consultar su estado en Descargas.");
+      setShowHistory(false);
+      setNotice("Resultado seleccionado. La solicitud se ha retirado de pendientes. Puedes consultar su estado en Descargas.");
       await loadRequests();
     } catch (cause) {
       if ((cause as Error & { status?: number }).status === 401) {
@@ -292,18 +302,26 @@ export default function RequestsPanel({
       {error && <p className="error-message" role="alert">{error}</p>}
 
       <div className="requests-heading">
-        <h2>Mis solicitudes <span className="count">{requests.length}</span></h2>
-        <p className="muted">Los resultados aparecen cuando termina la búsqueda.</p>
+        <h2>Mis solicitudes {showHistory ? "(historial)" : "(pendientes)"} <span className="count">{visibleRequests.length}</span></h2>
+        <p className="muted">Las solicitudes finalizadas se ocultan para mantener esta lista limpia; se conservan en el historial.</p>
+        <button
+          className="quiet-button"
+          data-spatial
+          onClick={() => { setSelectedId(null); setShowHistory((current) => !current); }}
+          type="button"
+        >
+          {showHistory ? "Ocultar historial" : "Ver historial"}
+        </button>
       </div>
       {initialLoading && <p className="muted" role="status">Consultando solicitudes…</p>}
-      {!initialLoading && requests.length === 0 && (
+      {!initialLoading && visibleRequests.length === 0 && (
         <div className="empty-state">
-          <h3>Aún no has solicitado contenido</h3>
-          <p>Escribe un título arriba para comenzar.</p>
+          <h3>{showHistory ? "No hay solicitudes anteriores" : "No hay solicitudes pendientes"}</h3>
+          <p>Busca un título nuevo o abre «Ver historial» para consultar las anteriores.</p>
         </div>
       )}
       <div className="requests-list">
-        {requests.map((request) => (
+        {visibleRequests.map((request) => (
           <article className="request-card" key={request.id}>
             <div className="download-item-header">
               <div className="download-item-copy">
@@ -341,7 +359,7 @@ export default function RequestsPanel({
                 )}
                 {resultsError && <p className="error-message" role="alert">{resultsError}</p>}
                 {!resultsBusy && !resultsError && results.length === 0 && (
-                  <p className="muted">Todavía no hay resultados disponibles.</p>
+                  <p className="muted">Ningún resultado coincide claramente con el título y tipo solicitados. Prueba otra búsqueda; no se pueden seleccionar coincidencias ajenas.</p>
                 )}
                 {results.map((result) => (
                   <div className="request-result" key={result.id}>

@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from app.auth import get_current_profile
 from app.database import get_session
 from app.metadatos_resultado import extraer_metadatos
+from app.relevancia_resultado import coincide_con_solicitud
 from app.models import (
     Descarga,
     Medio,
@@ -178,6 +179,7 @@ def crear_solicitud(
 def listar_solicitudes(
     perfil: Annotated[Perfil, Depends(get_current_profile)],
     session: Annotated[Session, Depends(get_session)],
+    solo_activas: bool = False,
 ) -> list[dict[str, int | str | datetime | None]]:
     if perfil.id is None:
         raise HTTPException(
@@ -185,9 +187,13 @@ def listar_solicitudes(
             detail="Perfil no autenticado.",
         )
 
+    filtros = [Solicitud.perfil_id == perfil.id]
+    if solo_activas:
+        filtros.append(Solicitud.estado.in_(ESTADOS_ACTIVOS))
+
     solicitudes = session.exec(
         select(Solicitud)
-        .where(Solicitud.perfil_id == perfil.id)
+        .where(*filtros)
         .order_by(Solicitud.creado_en.desc())
     ).all()
 
@@ -256,6 +262,61 @@ def listar_descargas(
     }
 
 
+@router.post("/descargas/{descarga_id}/deshacer-seleccion")
+def deshacer_seleccion(
+    descarga_id: int,
+    perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, str | int]:
+    """Permite retirar SOLO una selección que nunca llegó a qBittorrent."""
+    if perfil.id is None:
+        raise HTTPException(status_code=401, detail="Perfil no autenticado.")
+
+    _begin_write(session)
+    try:
+        descarga = session.exec(
+            select(Descarga)
+            .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+            .where(Descarga.id == descarga_id, Solicitud.perfil_id == perfil.id)
+        ).first()
+        if descarga is None:
+            raise HTTPException(status_code=404, detail="Descarga no encontrada.")
+        if not (
+            descarga.estado == "seleccionada"
+            and descarga.qbittorrent_hash is None
+            and descarga.intentos_envio == 0
+            and descarga.progreso == 0
+            and descarga.locked_by is None
+            and descarga.locked_until is None
+            and descarga.inicio_estado == "no_requerido"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="La selección ya ha comenzado a procesarse y no se puede deshacer.",
+            )
+
+        solicitud = session.exec(
+            select(Solicitud).where(
+                Solicitud.id == descarga.solicitud_id,
+                Solicitud.perfil_id == perfil.id,
+                Solicitud.estado == "completada",
+            )
+        ).first()
+        if solicitud is None:
+            raise HTTPException(status_code=409, detail="Solicitud no reversible.")
+
+        # Único registro descartado: una selección NO enviada. Mantener
+        # solicitud y resultados para elegir un candidato correcto.
+        session.delete(descarga)
+        solicitud.estado = "esperando_seleccion"
+        session.add(solicitud)
+        session.commit()
+        return {"solicitud_id": solicitud.id, "estado": "esperando_seleccion"}
+    except HTTPException:
+        session.rollback()
+        raise
+
+
 @router.get("/{solicitud_id}/resultados")
 def listar_resultados(
     solicitud_id: int,
@@ -303,6 +364,10 @@ def listar_resultados(
     respuesta = []
 
     for resultado in resultados:
+        if not coincide_con_solicitud(
+            solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
+        ):
+            continue
         respuesta.append(
             {
                 "id": resultado.id,
@@ -392,6 +457,13 @@ def seleccionar_resultado(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Resultado no encontrado para esta solicitud.",
+            )
+        if not coincide_con_solicitud(
+            solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="El resultado no corresponde al título o tipo solicitado.",
             )
 
         descarga = Descarga(

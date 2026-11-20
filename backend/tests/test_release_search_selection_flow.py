@@ -201,7 +201,7 @@ def test_other_profile_cannot_read_or_select_foreign_results(flow_lab):
     client, engine = flow_lab
     created = client.post(
         "/solicitudes",
-        json={"titulo": "Título privado de prueba", "tipo_medio": "pelicula"},
+        json={"titulo": "Contenido ficticio", "tipo_medio": "pelicula"},
     )
     assert created.status_code == 201
     request_id = created.json()["id"]
@@ -239,3 +239,45 @@ def test_other_profile_cannot_read_or_select_foreign_results(flow_lab):
 
     with Session(engine) as session:
         assert session.exec(select(Descarga)).all() == []
+
+def test_worker_filters_unrelated_series_from_film_search(flow_lab):
+    client, engine = flow_lab
+    created = client.post(
+        "/solicitudes", json={"titulo": "Nadie 2", "tipo_medio": "pelicula"},
+    )
+    assert created.status_code == 201
+    rid = created.json()["id"]
+    wrong = b"""<rss><channel>
+      <item><title>Cuando.nadie.nos.ve.S01E01.HDTV.720p.SPANISH</title>
+        <enclosure url="https://fixture.invalid/episode"/></item>
+      <item><title>Nadie.2.2025.1080p.WEB.SPANISH</title>
+        <enclosure url="https://fixture.invalid/movie"/></item>
+    </channel></rss>"""
+    assert processor.process_one_request(
+        "worker-de-prueba", client=make_fake_jackett([], wrong),
+    )
+    response = client.get(f"/solicitudes/{rid}/resultados")
+    assert response.status_code == 200
+    assert [i["titulo"] for i in response.json()] == ["Nadie.2.2025.1080p.WEB.SPANISH"]
+    with Session(engine) as session:
+        titles = [x.titulo for x in session.exec(select(ResultadoBusqueda)).all()]
+        assert titles == ["Nadie.2.2025.1080p.WEB.SPANISH"]
+
+
+def test_worker_marks_no_results_if_only_unrelated_releases(flow_lab):
+    client, engine = flow_lab
+    rid = client.post(
+        "/solicitudes", json={"titulo": "Nadie 2", "tipo_medio": "pelicula"},
+    ).json()["id"]
+    wrong = b"""<rss><channel>
+      <item><title>Cuando.nadie.nos.ve.S01E01.HDTV.720p.SPANISH</title>
+        <enclosure url="https://fixture.invalid/episode"/></item>
+    </channel></rss>"""
+    assert processor.process_one_request(
+        "worker-de-prueba", client=make_fake_jackett([], wrong),
+    )
+    all_requests = client.get("/solicitudes").json()
+    assert all_requests[0]["estado"] == "sin_resultados"
+    assert client.get("/solicitudes?solo_activas=true").json() == []
+    with Session(engine) as session:
+        assert session.exec(select(ResultadoBusqueda)).all() == []

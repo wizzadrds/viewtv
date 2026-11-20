@@ -1,0 +1,4 @@
+# Solo worker 0012; conserva los límites de descarga, inicio y staging.
+FROM viewtv:inicio-torrent-unico-0012
+COPY backend/app/relevancia_resultado.py /opt/viewtv/backend/app/relevancia_resultado.py
+COPY worker/processor.py /opt/viewtv/worker/processor.py

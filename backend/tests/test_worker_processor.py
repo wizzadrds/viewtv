@@ -39,6 +39,7 @@ def add_request(session: Session) -> Solicitud:
 
 def make_result(
     *,
+    title: str = "Película de prueba 1080p",
     info_hash: str = "abcdef123456",
     download_url: str | None = "https://jackett.test/download/1",
     magnet_url: str | None = None,
@@ -47,7 +48,7 @@ def make_result(
     size_bytes: int | None = 1_000_000,
 ) -> JackettResult:
     return JackettResult(
-        title="Película de prueba 1080p",
+        title=title,
         download_url=download_url,
         magnet_url=magnet_url,
         info_hash=info_hash,
@@ -234,7 +235,7 @@ def test_series_request_uses_tvsearch(monkeypatch):
         session.commit()
         request_id = request.id
 
-    jackett = FakeJackett(results=[make_result()])
+    jackett = FakeJackett(results=[make_result(title="Serie de prueba S01E01 720p")])
 
     assert processor.process_one_request("worker-test", jackett)
 

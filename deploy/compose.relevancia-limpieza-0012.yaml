@@ -1,0 +1,13 @@
+# Ultima capa de los overrides 0012 existentes: no migrar a 0013.
+# Recrear cada servicio separadamente con --no-deps --no-build.
+services:
+  api:
+    image: viewtv:relevancia-api-0012
+  worker:
+    image: viewtv:relevancia-worker-0012
+    environment:
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"
+  frontend:
+    image: viewtv-frontend:relevancia-0012

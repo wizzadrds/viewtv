@@ -10,6 +10,7 @@ from sqlmodel import Session
 from app.database import engine
 from app.jackett import JackettClient, JackettError
 from app.models import ResultadoBusqueda
+from app.relevancia_resultado import coincide_con_solicitud
 from app.queue import claim_next_request, fail_request, finish_search_request
 
 logger = logging.getLogger("viewtv.worker.processor")
@@ -120,7 +121,10 @@ def process_one_request(
             query,
             search_type=_search_type(media_type),
         )
-        results = _to_database_results(request_id, found)
+        results = [
+            item for item in _to_database_results(request_id, found)
+            if coincide_con_solicitud(title, media_type, year, item.titulo)
+        ]
 
         with Session(engine) as session:
             saved = finish_search_request(

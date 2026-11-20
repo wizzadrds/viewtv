@@ -303,7 +303,10 @@ def test_list_results_preserves_and_orders_different_qualities(
 ) -> None:
     client, engine = solicitudes_context
 
-    created = client.post("/solicitudes", json={"medio_id": 1})
+    created = client.post(
+        "/solicitudes",
+        json={"titulo": "Nadie 2", "tipo_medio": "pelicula", "anio": 2025},
+    )
     assert created.status_code == 201
     solicitud_id = created.json()["id"]
 
@@ -603,3 +606,140 @@ def test_create_manual_request_validates_payload(
     response = client.post("/solicitudes", json=payload)
 
     assert response.status_code == 422
+
+def test_list_activas_hides_terminal_history_without_deleting(
+    solicitudes_context: tuple[TestClient, Engine],
+) -> None:
+    client, engine = solicitudes_context
+    created = client.post("/solicitudes", json={"medio_id": 1})
+    assert created.status_code == 201
+    rid = created.json()["id"]
+    with Session(engine) as session:
+        item = session.get(Solicitud, rid)
+        assert item is not None
+        item.estado = "completada"
+        session.add(item)
+        session.commit()
+    assert client.get("/solicitudes?solo_activas=true").json() == []
+    all_items = client.get("/solicitudes").json()
+    assert len(all_items) == 1
+    assert all_items[0]["estado"] == "completada"
+
+
+def test_unrelated_episode_cannot_be_shown_or_selected(
+    solicitudes_context: tuple[TestClient, Engine],
+) -> None:
+    client, engine = solicitudes_context
+    created = client.post(
+        "/solicitudes",
+        json={"titulo": "Nadie 2", "tipo_medio": "pelicula"},
+    )
+    assert created.status_code == 201
+    rid = created.json()["id"]
+    with Session(engine) as session:
+        item = session.get(Solicitud, rid)
+        assert item is not None
+        item.estado = "esperando_seleccion"
+        session.add(item)
+        wrong = ResultadoBusqueda(
+            solicitud_id=rid,
+            clave="serie-erronea",
+            titulo="Cuando.nadie.nos.ve.S01E01.HDTV.720p.SPANISH",
+            indexador="indexador-ficticio",
+            download_url="https://example.invalid/not-relevant",
+        )
+        good = ResultadoBusqueda(
+            solicitud_id=rid,
+            clave="coincidencia-buena",
+            titulo="Nadie.2.2025.1080p.WEB.SPANISH",
+            indexador="indexador-ficticio",
+            download_url="https://example.invalid/match",
+        )
+        session.add_all([wrong, good])
+        session.commit()
+        session.refresh(wrong)
+        session.refresh(good)
+        wrong_id, good_id = wrong.id, good.id
+
+    response = client.get(f"/solicitudes/{rid}/resultados")
+    assert response.status_code == 200
+    assert [x["id"] for x in response.json()] == [good_id]
+
+    rejected = client.post(
+        f"/solicitudes/{rid}/seleccion",
+        json={"resultado_id": wrong_id},
+    )
+    assert rejected.status_code == 409
+    with Session(engine) as session:
+        assert session.exec(select(Descarga)).all() == []
+    accepted = client.post(
+        f"/solicitudes/{rid}/seleccion",
+        json={"resultado_id": good_id},
+    )
+    assert accepted.status_code == 201
+
+
+def test_undo_selected_is_safe_and_idempotent(
+    solicitudes_context: tuple[TestClient, Engine],
+) -> None:
+    client, engine = solicitudes_context
+    created = client.post("/solicitudes", json={"medio_id": 1})
+    rid = created.json()["id"]
+    result_id = _prepare_search_results(engine, rid)
+    selected = client.post(
+        f"/solicitudes/{rid}/seleccion", json={"resultado_id": result_id},
+    )
+    assert selected.status_code == 201
+    did = selected.json()["id"]
+    undone = client.post(f"/solicitudes/descargas/{did}/deshacer-seleccion")
+    assert undone.status_code == 200
+    assert undone.json()["solicitud_id"] == rid
+    assert client.get("/solicitudes/descargas").json()["total"] == 0
+    assert client.get("/solicitudes?solo_activas=true").json()[0]["estado"] == "esperando_seleccion"
+    assert client.post(f"/solicitudes/descargas/{did}/deshacer-seleccion").status_code == 404
+    assert client.get(f"/solicitudes/{rid}/resultados").json()[0]["id"] == result_id
+
+
+def test_undo_refuses_download_with_attempt(
+    solicitudes_context: tuple[TestClient, Engine],
+) -> None:
+    client, engine = solicitudes_context
+    rid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    result_id = _prepare_search_results(engine, rid)
+    did = client.post(
+        f"/solicitudes/{rid}/seleccion", json={"resultado_id": result_id},
+    ).json()["id"]
+    with Session(engine) as session:
+        download = session.get(Descarga, did)
+        assert download is not None
+        download.intentos_envio = 1
+        session.add(download)
+        session.commit()
+    assert client.post(f"/solicitudes/descargas/{did}/deshacer-seleccion").status_code == 409
+    with Session(engine) as session:
+        assert session.get(Descarga, did) is not None
+
+
+def test_undo_requires_correct_profile(
+    solicitudes_context: tuple[TestClient, Engine],
+) -> None:
+    client, engine = solicitudes_context
+    rid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    result_id = _prepare_search_results(engine, rid)
+    did = client.post(
+        f"/solicitudes/{rid}/seleccion", json={"resultado_id": result_id},
+    ).json()["id"]
+    with Session(engine) as session:
+        session.add(Perfil(nombre="Otro", pin_hash="ficticio"))
+        session.commit()
+    original = app.dependency_overrides[get_current_profile]
+    def other_profile():
+        with Session(engine) as session:
+            return session.get(Perfil, 2)
+    app.dependency_overrides[get_current_profile] = other_profile
+    try:
+        assert client.post(f"/solicitudes/descargas/{did}/deshacer-seleccion").status_code == 404
+    finally:
+        app.dependency_overrides[get_current_profile] = original
+    with Session(engine) as session:
+        assert session.get(Descarga, did) is not None

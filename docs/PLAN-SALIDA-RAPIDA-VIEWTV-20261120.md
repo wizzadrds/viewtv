@@ -92,11 +92,21 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   la solicitud 2 procesada con cero resultados seleccionables.
   No se inició descarga. Diagnóstico del proveedor en
   [AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md](AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md).
-- [ ] **Sigue pendiente resultado y selección desde la PWA real**:
-  probar una solicitud nueva de «Nadie 2», película, año 2025;
-  revisar las coincidencias antes de elegir contenido autorizado.
-  El flujo de selección sin envío se documentó en
-  [AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md](AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md).
+- [x] **Primera selección real desde PWA diagnosticada**:
+  el usuario eligió por error un episodio de otra serie:
+  descarga **1**, solicitud **3**, `seleccionada`/0 %, sin envío.
+- [x] **Filtro de relevancia y limpieza de solicitudes desplegados**:
+  de 62 resultados históricos solo 2 coinciden con título/tipo.
+  Worker filtra antes de guardar, API filtra al listar y rechaza
+  seleccionar candidatos ajenos. PWA muestra solo solicitudes
+  activas y ofrece «Ver historial» sin eliminar registros.
+  Permite «Deshacer selección» únicamente si aún no se envió.
+  Backend **778/778**, ensayo con copia real **4/4**, frontend
+  compilado, smoke 0012 **10/10**. Ver
+  [AVANCE-RELEVANCIA-LIMPIEZA-SOLICITUDES-20261120.md](AVANCE-RELEVANCIA-LIMPIEZA-SOLICITUDES-20261120.md).
+- [ ] **Validación visual final pendiente:** usuario recarga PWA,
+  deshace expresamente la selección #1 y elige un resultado
+  adecuado que tenga derecho a obtener. No activar descargas.
 - [x] Consultas GET de conectividad: Jackett responde a la lista de
   indexadores con uno configurado; qBittorrent responde a la lectura
   de versión. Sin iniciar ni modificar ningún torrent.
@@ -149,10 +159,11 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   `viewtv:resultados-fecha-0012` desplegada sola y sana,
   smoke 10/10. Informe:
   [AVANCE-CORRECCION-RESULTADOS-500-VIEWTV-20261120.md](AVANCE-CORRECCION-RESULTADOS-500-VIEWTV-20261120.md).
-- [ ] **Confirmar «Ver resultados» y «Seleccionar» en la PWA**:
-  el usuario debe actualizar la pestaña y abrir la solicitud
-  existente (no crear otra). La elección y seguimiento siguen
-  sin verificarse desde su sesión; no autorizar descargas aún.
+- [x] **La PWA real permite ver resultados y seleccionar**:
+  el usuario lo confirmó y creó una selección, pero era un
+  episodio ajeno. Corregido por filtro en API y worker.
+- [ ] **Usuario debe deshacer la selección errónea y volver a
+  seleccionar con el filtro**. No asumir transferencia validada.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
@@ -162,8 +173,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Exige una coincidencia única de hash, etiqueta y staging;
   solo ordena iniciar ese hash. Pruebas con dos descargas
   ficticias, qBittorrent simulado y recuperación sin doble POST.
-  **Worker desplegado** con imagen `viewtv:inicio-torrent-unico-0012`,
-  flags de alta e inicio en `false` e ID vacía. Backend completo
+  **Imagen original** `viewtv:inicio-torrent-unico-0012`; actualmente
+  worker `viewtv:relevancia-worker-0012`, con esos mismos filtros
+  de ID, flags de alta/inicio `false` e ID vacía. Backend previo
   **684 pruebas aprobadas**, smoke posterior **10/10**.
   Ver [AVANCE-INICIO-TORRENT-UNICO-VIEWTV-20261120.md](AVANCE-INICIO-TORRENT-UNICO-VIEWTV-20261120.md).
 - [ ] **Alta e inicio reales pendientes**: mantener
@@ -280,10 +292,10 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - Sección «Buscar y pedir» desplegada, con formulario y resultados
   del perfil autenticado, actualización cada 10 segundos y acciones
   explícitas de solicitud/selección. La API ya exponía las cuatro
-  operaciones y no requirió cambios. El usuario confirmó una
-  solicitud real «Nadie 2», sin año, procesada y sin resultados;
-  aún falta ver candidatos seleccionables desde esa interfaz.
-  No se ha iniciado ningún torrent.
+  operaciones originales; hoy tiene validación adicional de
+  coincidencia. El usuario llegó a seleccionar erróneamente
+  un episodio y la corrección está desplegada; debe deshacer
+  esa selección desde la UI. No se ha iniciado ningún torrent.
 - Worker con filtros **por una sola ID tanto para el envío como
   para el inicio**, y comprobación de staging, etiqueta, hash y
   estado de qBittorrent. Probados GET-POST-GET del alta y GET-POST
@@ -309,15 +321,14 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
   de vídeos satisfactoria. No se ha verificado por separado
   la operación de cierre de sesión.
-- **NO verificados aún:** una búsqueda con resultados desde la
-  interfaz, selección, una descarga real, seguimiento completo
-  y organización automática. Jackett devolvió cuatro candidatos
-  para otro título y, en el caso «Nadie 2», cero sin año pero
-  62 con «2025» (solo tres coincidencias de título).
-  El único indexador configurado anuncia compatibilidad, pero
-  **su estado administrativo no quedó confirmado**. La solicitud
-  real sin año se procesó con cero resultados; no es una caída
-  general del servicio ni una transferencia probada.
+- **NO verificados aún:** una elección de contenido correcto
+  desde la PWA tras deshacer la errónea, alta/inicio real de
+  un torrent autorizado, progreso, verificación y organización.
+  La solicitud #3 llegó a ofrecer 62 registros, pero solo
+  **2 coincidencias conservadoras** para el título original.
+  El usuario eligió antes un capítulo de otra serie, ahora
+  bloqueado por API y worker. El estado administrativo del
+  proveedor sigue sin verificarse; no se ha realizado descarga.
   La carpeta Windows y la preferencia por defecto de qBittorrent
   coinciden; eso no sustituye el ensayo de una transferencia.
 

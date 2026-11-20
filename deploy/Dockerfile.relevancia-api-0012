@@ -1,0 +1,4 @@
+# Solo API 0012; conserva el hotfix de fecha y el esquema actual.
+FROM viewtv:resultados-fecha-0012
+COPY backend/app/relevancia_resultado.py /opt/viewtv/backend/app/relevancia_resultado.py
+COPY backend/app/solicitudes.py /opt/viewtv/backend/app/solicitudes.py

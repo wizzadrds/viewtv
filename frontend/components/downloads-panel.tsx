@@ -84,9 +84,16 @@ function describeDownload(item: DownloadItem): {
       tone: "info",
     };
   }
+  if (item.estado === "seleccionada") {
+    return {
+      title: "Seleccionada · sin iniciar",
+      detail: "Aún no se ha enviado a qBittorrent. El porcentaje no avanzará hasta autorizar el envío y, después, el inicio de esa descarga.",
+      tone: "warning",
+    };
+  }
   return {
     title: "Pendiente",
-    detail: "Esperando a que se procese la selección.",
+    detail: "Esperando a que se actualice el estado de la selección.",
     tone: "info",
   };
 }
@@ -108,6 +115,9 @@ export default function DownloadsPanel({
   const [data, setData] = useState<DownloadsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [undoBusy, setUndoBusy] = useState<number | null>(null);
+  const [reload, setReload] = useState(0);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -162,7 +172,30 @@ export default function DownloadsPanel({
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [offset, onUnauthorized]);
+  }, [offset, onUnauthorized, reload]);
+
+  async function undoSelection(id: number) {
+    if (undoBusy !== null) return;
+    if (!window.confirm("¿Deshacer esta selección que todavía no se ha enviado? Podrás elegir otro resultado desde Buscar y solicitar.")) {
+      return;
+    }
+    setUndoBusy(id);
+    setError("");
+    setNotice("");
+    try {
+      await apiRequest(`/solicitudes/descargas/${id}/deshacer-seleccion`, { method: "POST" });
+      setNotice("Selección retirada. Vuelve a «Buscar y solicitar» para elegir un resultado correcto.");
+      setReload((current) => current + 1);
+    } catch (cause) {
+      if ((cause as Error & { status?: number }).status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setError((cause as Error).message || "No se pudo deshacer la selección.");
+    } finally {
+      setUndoBusy(null);
+    }
+  }
 
   const entries = data?.elementos ?? [];
   const total = data?.total ?? 0;
@@ -181,6 +214,7 @@ export default function DownloadsPanel({
         <p className="muted">Se actualiza automáticamente</p>
       </div>
 
+      {notice && <p className="requests-notice" role="status">{notice}</p>}
       {error && (
         <p className="error-message downloads-error" role="alert">
           No se pudo actualizar: {error}
@@ -223,6 +257,17 @@ export default function DownloadsPanel({
                   </span>
                 </div>
                 <p className="download-detail">{state.detail}</p>
+                {item.estado === "seleccionada" && (
+                  <button
+                    className="quiet-button"
+                    data-spatial
+                    disabled={undoBusy !== null}
+                    onClick={() => void undoSelection(item.id)}
+                    type="button"
+                  >
+                    {undoBusy === item.id ? "Deshaciendo…" : "Deshacer selección"}
+                  </button>
+                )}
                 <div className="download-progress-row">
                   <progress
                     aria-label={`Progreso de ${item.titulo}`}
