@@ -203,6 +203,18 @@ try {
     } catch {$clientUrlRejected=$true}
     Check $clientUrlRejected 'El cliente pudo elegir el servidor HTTP.'
     $results['cliente_no_configura_torrent']='correcto'
+    $crashFlagClientRejected=$false
+    try {
+        & $broker -Mode Client -PipeName ('viewtv-test-pipe-'+'a'*32) -KeyPath $key -EnvelopeText '' -TestCrashAfterDownloadClaim | Out-Null
+    } catch {$crashFlagClientRejected=$true}
+    Check $crashFlagClientRejected 'El cliente activó la inyección de caída.'
+    $results['cliente_no_controla_fallo_del_broker']='rechazado'
+    $crashFlagLegacyRejected=$false
+    try {
+        & $broker -Mode Server -PipeName ('viewtv-test-pipe-'+'a'*32) -JournalRoot $journal -KeyPath $key -TestCrashAfterDownloadClaim | Out-Null
+    } catch {$crashFlagLegacyRejected=$true}
+    Check $crashFlagLegacyRejected 'Se activó caída fuera del servidor v3.'
+    $results['caida_solo_servidor_v3']='verificado'
     $forgedSource=New-Payload $fixture
     $forgedSource['torrent_fixture_url']=$fixtureUrl
     Expect (Signed $forgedSource) $db 'no_autorizada' 0
@@ -251,6 +263,40 @@ try {
     Check ([IO.File]::Exists($unknown)) 'El broker limpió un fichero desconocido.'
     $results['diario_con_fichero_desconocido']='requiere_revision'
     [IO.File]::Delete($unknown)
+
+    # REAL process crash in a separate Start-Job child, AFTER
+    # CreateNew, WriteThrough and Flush(true) of the download claim.
+    $crashPayload=New-Payload $fixture
+    $crashPipe='viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')
+    $crashJob=Start-Job -ArgumentList $broker,$crashPipe,$journal,$key,$db,$fixtureUrl -ScriptBlock {
+        param($script,$pipeName,$root,$testKey,$database,$url)
+        $args=@{Mode='Server';PipeName=$pipeName;JournalRoot=$root;KeyPath=$testKey;RequireSandboxLease=$true;LeaseDatabase=$database;RequireSandboxTorrent=$true;TorrentFixtureUrl=$url;TestCrashAfterDownloadClaim=$true}
+        & $script @args
+    }
+    try {
+        $connectionInterrupted=$false
+        try {
+            $null=& $broker -Mode Client -PipeName $crashPipe -KeyPath $key -EnvelopeText (Signed $crashPayload)
+        } catch {
+            $connectionInterrupted=$true
+        }
+        $null=$crashJob | Wait-Job -Timeout 12
+        Check ($crashJob.State -ne 'Running' -and $connectionInterrupted) 'La interrupción real devolvió un acuse o el proceso no acabó.'
+        $crashRecord=Join-Path $journal ('.viewtv-download-'+$crashPayload.download_id+'.json')
+        $crashNonce=Join-Path $journal ('.viewtv-nonce-'+$crashPayload.nonce+'.json')
+        Check ([IO.File]::Exists($crashRecord) -and -not [IO.File]::Exists($crashNonce)) 'No quedó el punto de fallo entre ambas reservas.'
+        $beforeRecord=[IO.File]::ReadAllText($crashRecord)
+        $crashData=$beforeRecord|ConvertFrom-Json
+        Check ($crashData.version -eq 3 -and $crashData.nonce -ceq $crashPayload.nonce -and $crashData.claim_hmac -is [string]) 'Reserva tras caída incompleta o sin MAC.'
+        $restarted=Invoke-Server (Signed (New-Payload $fixture)) $db
+        Check ($restarted.estado -ceq 'requiere_revision' -and [IO.File]::Exists($crashRecord) -and -not [IO.File]::Exists($crashNonce) -and [IO.File]::ReadAllText($crashRecord) -ceq $beforeRecord) 'El nuevo broker aceptó, borró o alteró la reserva de un proceso caído.'
+        $results['caida_real_proceso_tras_flush']='recuperacion_denegada'
+        # Only the test harness may remove this injected orphan.
+        [IO.File]::Delete($crashRecord)
+    } finally {
+        if($crashJob.State -eq 'Running'){$null=$crashJob|Stop-Job}
+        $crashJob|Remove-Job -Force
+    }
 
     Expect (Signed $payload) $db 'intencion_registrada_sin_publicar' 1
     $results['lease_y_torrent_vigentes']='admitido_sin_publicar'

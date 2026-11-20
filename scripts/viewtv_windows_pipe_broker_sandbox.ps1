@@ -11,6 +11,7 @@ param(
     [string]$LeaseDatabase,
     [switch]$RequireSandboxTorrent,
     [string]$TorrentFixtureUrl,
+    [switch]$TestCrashAfterDownloadClaim,
     [int]$AcceptTimeoutMs=5000,
     [int]$ReadTimeoutMs=4000
 )
@@ -88,7 +89,7 @@ function Reserve-ViewtvBrokerTestClaim([string]$Path,[byte[]]$Bytes) {
         if($null -ne $stream){$stream.Dispose()}
     }
 }
-function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root,[string]$LeaseDatabase='',[string]$TorrentFixtureUrl='') {
+function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root,[string]$LeaseDatabase='',[string]$TorrentFixtureUrl='',[bool]$TestCrashAfterDownloadClaim=$false) {
     # The caller must have validated Root + ACL BEFORE touching the ledger.
     if ([Text.Encoding]::UTF8.GetByteCount($Raw) -gt 8192) {
         return 'no_autorizada'
@@ -214,6 +215,13 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
         $downloadState=Reserve-ViewtvBrokerTestClaim $downloadFile (
             [Text.Encoding]::UTF8.GetBytes($downloadRecord))
         if($downloadState -cne 'reservada'){return $downloadState}
+        if($TestCrashAfterDownloadClaim){
+            # Destructive fault injection ONLY in a separate, marked
+            # v3 test-server process. The flushed download reservation
+            # survives; the nonce is intentionally never written.
+            # Never enable in a normal broker or interactive PowerShell.
+            [Environment]::Exit(73)
+        }
         # Nonce remains a second, independent replay gate. A failure here
         # leaves the download claimed (conservative, never automatically
         # retried or refunded).
@@ -250,6 +258,12 @@ function New-ViewtvBrokerPipeAcl {
             $entry[0],$entry[1],[Security.AccessControl.AccessControlType]::Allow))
     }
     return $acl
+}
+if($TestCrashAfterDownloadClaim -and
+   ($Mode -cne 'Server' -or -not $RequireSandboxLease -or
+    -not $RequireSandboxTorrent -or -not $LeaseDatabase -or
+    -not $TorrentFixtureUrl)){
+    throw 'La interrupción de prueba solo se permite en servidor v3 de sandbox.'
 }
 if($Mode -eq 'Library'){ return }
 if($Mode -ne 'Server' -and ($RequireSandboxLease -or $LeaseDatabase -or
@@ -355,7 +369,7 @@ try {
         $request=''
         if(-not $frame.TooLargeOrInvalid) {
             $request=[Text.Encoding]::UTF8.GetString($frame.Data)
-            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root $(if($RequireSandboxLease){$LeaseDatabase}else{''}) $(if($RequireSandboxTorrent){$TorrentFixtureUrl}else{''})
+            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root $(if($RequireSandboxLease){$LeaseDatabase}else{''}) $(if($RequireSandboxTorrent){$TorrentFixtureUrl}else{''}) ([bool]$TestCrashAfterDownloadClaim)
         }
         $answer=New-ViewtvBrokerTestSignedResponse $state $challenge $request $KeyPath
         $bytes=[Text.Encoding]::UTF8.GetBytes($answer)

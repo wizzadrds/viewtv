@@ -163,6 +163,18 @@ El archivo de auditoría y este informe son nuevos.
   ni repara la API 0012 reiniciándose.
 - PR #2 continúa en borrador y sin fusionar.
 
+## Ampliación posterior: caída real controlada de un proceso
+
+La prueba inicial de reserva huérfana era una **inyección de archivo**.
+Posteriormente se añadió `-TestCrashAfterDownloadClaim` solo para
+servidores v3 de laboratorio, y se hizo terminar realmente un proceso
+hijo Windows tras `Flush(true)`, antes del registro nonce y del acuse.
+Un broker nuevo, en el mismo diario GUID, devuelve `requiere_revision`
+y preserva intacta la reserva huérfana. Se probó con **29 controles v3**
+en total. Véase
+[ORGANIZADOR-CAIDA-REAL-PROCESO-DIARIO-V3-SANDBOX.md](ORGANIZADOR-CAIDA-REAL-PROCESO-DIARIO-V3-SANDBOX.md).
+No se ha ensayado un corte de corriente ni un fallo de hardware.
+
 **Decisión:** auditoría de reinicio/reentrada en un diario v3
 de pruebas, con MAC e inspección completa, validada. **Fase 1
 aún abierta**: servicio de bajo privilegio y autoridad durable
