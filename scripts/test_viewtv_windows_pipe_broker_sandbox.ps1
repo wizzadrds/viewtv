@@ -89,6 +89,50 @@ try {
     $keyPath=New-ViewtvTestKey
     $otherKey=New-ViewtvTestKey
 
+    # A pre-existing process must prevent the complete broker from starting,
+    # not just the isolated native function. No nonce is ever reserved.
+    $occupiedName='viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')
+    $occupiedJob=Start-Job -ArgumentList $broker,$occupiedName -ScriptBlock {
+        param($script,$name)
+        . $script
+        $native=New-ViewtvBrokerNativeFirstPipe $name (New-ViewtvBrokerPipeAcl)
+        try {
+            'READY'
+            Start-Sleep -Seconds 8
+        } finally {
+            $native.Dispose()
+        }
+    }
+    try {
+        $clock=[Diagnostics.Stopwatch]::StartNew()
+        $ready=$false
+        while($clock.Elapsed.TotalSeconds -lt 7) {
+            $signals=@(Receive-Job -Job $occupiedJob -Keep -ErrorAction Stop)
+            if($signals -ccontains 'READY') {$ready=$true;break}
+            if($occupiedJob.State -eq 'Failed'){
+                throw 'No se pudo crear la instancia ocupante.'
+            }
+            Start-Sleep -Milliseconds 80
+        }
+        if(-not $ready){throw 'La instancia ocupante no pudo arrancar.'}
+        $rejected=$false
+        try {
+            & $broker -Mode Server -PipeName $occupiedName -JournalRoot $journal -KeyPath $keyPath -AcceptTimeoutMs 700
+        } catch [ComponentModel.Win32Exception] {
+            $rejected=$true
+        }
+        if(-not $rejected) {
+            throw 'El broker no rechazó una tubería de otro proceso.'
+        }
+        if(@(Get-ChildItem -LiteralPath $journal -Filter '.viewtv-nonce-*.json').Count -ne 0) {
+            throw 'Se registró un nonce pese a una tubería previamente ocupada.'
+        }
+        $results['broker_primera_instancia_ocupada']='otro_proceso_rechazado'
+    } finally {
+        if($occupiedJob.State -eq 'Running'){$null=$occupiedJob|Stop-Job}
+        $occupiedJob|Remove-Job -Force
+    }
+
     $challenge=New-ViewtvBrokerTestChallenge
     $requestSample='solicitud de sandbox sin publicacion'
     $legitimateReply=New-ViewtvBrokerTestSignedResponse (

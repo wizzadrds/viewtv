@@ -2,6 +2,11 @@
 
 **Fecha:** 20-11-2026. **SOLO ENSAYO. NO ES UN BROKER DE PRODUCCIÓN. NO DESPLEGAR.**
 
+**Actualización posterior:** el servidor ya utiliza una apertura nativa Win32
+con `FILE_FLAG_FIRST_PIPE_INSTANCE`, validada únicamente en sandbox:
+[PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md](ORGANIZADOR-PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md).
+El apartado histórico siguiente no prueba ni presupone cuentas Windows separadas.
+
 **Actualización posterior del mismo día:** se añadió un desafío aleatorio por
 conexión y un **acuse firmado y vinculado a la solicitud**. Consultar
 [RESPUESTA-FIRMADA-BROKER-WINDOWS-SANDBOX.md](ORGANIZADOR-RESPUESTA-FIRMADA-BROKER-WINDOWS-SANDBOX.md).

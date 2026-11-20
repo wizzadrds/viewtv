@@ -6,7 +6,10 @@
 acotados de conexión y de lectura, y pruebas contra clientes parciales
 o inactivos. Consultar
 [ORGANIZADOR-TIMEOUTS-PIPE-WINDOWS-SANDBOX.md](ORGANIZADOR-TIMEOUTS-PIPE-WINDOWS-SANDBOX.md).
-**La primera instancia de tubería sigue sin estar garantizada.**
+**Actualización:** la primera instancia ya se comprueba mediante
+`CreateNamedPipeW` en **sandbox**. Véase
+[PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md](ORGANIZADOR-PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md).
+Esto no acredita la identidad de un servicio Windows ni separa cuentas.
 
 ## Riesgo que se aborda
 

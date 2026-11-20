@@ -15,6 +15,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_response_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_io_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pipe_first_instance_sandbox.ps1')
 
 function Assert-ViewtvBrokerTestJournal([string]$path) {
     $temp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -217,10 +218,9 @@ if ($AcceptTimeoutMs -lt 250 -or $AcceptTimeoutMs -gt 15000 -or
 $root=Assert-ViewtvBrokerTestJournal $JournalRoot
 $null=Assert-TestKeyPath $KeyPath
 $security=New-ViewtvBrokerPipeAcl
-$pipe=[IO.Pipes.NamedPipeServerStream]::new(
-    $PipeName,[IO.Pipes.PipeDirection]::InOut,1,
-    [IO.Pipes.PipeTransmissionMode]::Byte,[IO.Pipes.PipeOptions]::Asynchronous,
-    4096,4096,$security)
+# Native CreateNamedPipeW with FILE_FLAG_FIRST_PIPE_INSTANCE:
+# refuse starting if another process owns this pipe name already.
+$pipe=New-ViewtvBrokerNativeFirstPipe $PipeName $security
 try {
     $actualAcl=$pipe.GetAccessControl()
     $rules=@($actualAcl.GetAccessRules(

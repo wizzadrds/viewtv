@@ -2,6 +2,13 @@
 
 **20-11-2026 · Solo pruebas; no es un servicio ni un broker de publicación.**
 
+**Actualización posterior:** se ha integrado una apertura Win32 con
+`FILE_FLAG_FIRST_PIPE_INSTANCE` en el servidor de pruebas, tras validar que
+el constructor .NET lo rechazaba. Véase
+[PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md](ORGANIZADOR-PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md).
+Las limitaciones indicadas más abajo reflejan el estado **anterior**
+a esa integración; continúa pendiente separar las identidades Windows.
+
 ## Problema
 
 En el prototipo de tubería anterior, `WaitForConnection()` y
