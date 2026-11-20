@@ -2,6 +2,12 @@
 
 **Fecha:** 20 de noviembre de 2026. **Solo desarrollo. Sin despliegue, servicio, cuentas nuevas ni publicaciones NTFS.**
 
+**Avance posterior (mismo día):** el canal de sandbox tiene plazos
+acotados de conexión y de lectura, y pruebas contra clientes parciales
+o inactivos. Consultar
+[ORGANIZADOR-TIMEOUTS-PIPE-WINDOWS-SANDBOX.md](ORGANIZADOR-TIMEOUTS-PIPE-WINDOWS-SANDBOX.md).
+**La primera instancia de tubería sigue sin estar garantizada.**
+
 ## Riesgo que se aborda
 
 En el prototipo de tubería anterior, el servidor verificaba el HMAC del cliente, pero

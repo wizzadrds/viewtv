@@ -6,12 +6,15 @@ param(
     [string]$PipeName,
     [string]$JournalRoot,
     [string]$KeyPath,
-    [string]$EnvelopeText
+    [string]$EnvelopeText,
+    [int]$AcceptTimeoutMs=5000,
+    [int]$ReadTimeoutMs=4000
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_response_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pipe_io_sandbox.ps1')
 
 function Assert-ViewtvBrokerTestJournal([string]$path) {
     $temp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -174,7 +177,8 @@ if($Mode -eq 'Client') {
     # Never trust a response unless the client can authenticate its HMAC.
     $null=Assert-TestKeyPath $KeyPath
     $pipe=[IO.Pipes.NamedPipeClientStream]::new(
-        '.',$PipeName,[IO.Pipes.PipeDirection]::InOut)
+        '.',$PipeName,[IO.Pipes.PipeDirection]::InOut,
+        [IO.Pipes.PipeOptions]::Asynchronous)
     try {
         $pipe.Connect(5000)
         $writer=[IO.BinaryWriter]::new($pipe,[Text.UTF8Encoding]::new($false),$true)
@@ -190,11 +194,12 @@ if($Mode -eq 'Client') {
                 $writer.Write($bytes)
             }
             $writer.Flush()
-            $size=$reader.ReadInt32()
+            $sizeBuffer=Read-ViewtvPipeTestExact $pipe 4 4000
+            $size=[BitConverter]::ToInt32($sizeBuffer,0)
             if($size -lt 2 -or $size -gt 2048) {
                 throw 'Respuesta de broker inválida.'
             }
-            $reply=$reader.ReadBytes($size)
+            $reply=Read-ViewtvPipeTestExact $pipe $size 4000
             if($reply.Length -ne $size) {throw 'Respuesta incompleta.'}
             $authenticated=Assert-ViewtvBrokerTestSignedResponse (
                 [Text.Encoding]::UTF8.GetString($reply)) $challenge $(
@@ -205,12 +210,16 @@ if($Mode -eq 'Client') {
     } finally { $pipe.Dispose() }
     return
 }
+if ($AcceptTimeoutMs -lt 250 -or $AcceptTimeoutMs -gt 15000 -or
+    $ReadTimeoutMs -lt 250 -or $ReadTimeoutMs -gt 15000) {
+    throw 'Timeouts de broker fuera del rango permitido.'
+}
 $root=Assert-ViewtvBrokerTestJournal $JournalRoot
 $null=Assert-TestKeyPath $KeyPath
 $security=New-ViewtvBrokerPipeAcl
 $pipe=[IO.Pipes.NamedPipeServerStream]::new(
     $PipeName,[IO.Pipes.PipeDirection]::InOut,1,
-    [IO.Pipes.PipeTransmissionMode]::Byte,[IO.Pipes.PipeOptions]::None,
+    [IO.Pipes.PipeTransmissionMode]::Byte,[IO.Pipes.PipeOptions]::Asynchronous,
     4096,4096,$security)
 try {
     $actualAcl=$pipe.GetAccessControl()
@@ -230,21 +239,19 @@ try {
             throw 'Identidad de tubería no autorizada.'
         }
     }
-    $pipe.WaitForConnection()
+    if (-not $pipe.WaitForConnectionAsync().Wait($AcceptTimeoutMs)) {
+        return  # No connection -> no nonce, no publication, no live process.
+    }
     $reader=[IO.BinaryReader]::new($pipe,[Text.Encoding]::UTF8,$true)
     $writer=[IO.BinaryWriter]::new($pipe,[Text.UTF8Encoding]::new($false),$true)
     try {
-        $challenge=$reader.ReadBytes(32)
-        if($challenge.Length -ne 32) {throw 'Desafío incompleto.'}
-        $size=$reader.ReadInt32()
+        $challenge=Read-ViewtvPipeTestExact $pipe 32 $ReadTimeoutMs
+        $frame=Read-ViewtvPipeTestFrame $pipe $ReadTimeoutMs
         $state='no_autorizada'
         $request=''
-        if($size -ge 2 -and $size -le 8192){
-            $raw=$reader.ReadBytes($size)
-            if($raw.Length -eq $size){
-                $request=[Text.Encoding]::UTF8.GetString($raw)
-                $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root
-            }
+        if(-not $frame.TooLargeOrInvalid) {
+            $request=[Text.Encoding]::UTF8.GetString($frame.Data)
+            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root
         }
         $answer=New-ViewtvBrokerTestSignedResponse $state $challenge $request $KeyPath
         $bytes=[Text.Encoding]::UTF8.GetBytes($answer)
@@ -252,4 +259,9 @@ try {
         $writer.Write($bytes)
         $writer.Flush()
     } finally { $reader.Dispose(); $writer.Dispose() }
+} catch [TimeoutException] {
+    # An idle or partial client is dropped without reserving a nonce.
+    return
+} catch [IO.EndOfStreamException] {
+    return
 } finally { $pipe.Dispose() }
