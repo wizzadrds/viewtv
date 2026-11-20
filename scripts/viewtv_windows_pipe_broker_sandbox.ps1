@@ -11,6 +11,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pipe_response_sandbox.ps1')
 
 function Assert-ViewtvBrokerTestJournal([string]$path) {
     $temp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -170,6 +171,8 @@ if ($PipeName -cnotmatch '^viewtv-test-pipe-[a-f0-9]{32}$') {
     throw 'Nombre de tubería fuera de sandbox.'
 }
 if($Mode -eq 'Client') {
+    # Never trust a response unless the client can authenticate its HMAC.
+    $null=Assert-TestKeyPath $KeyPath
     $pipe=[IO.Pipes.NamedPipeClientStream]::new(
         '.',$PipeName,[IO.Pipes.PipeDirection]::InOut)
     try {
@@ -177,6 +180,8 @@ if($Mode -eq 'Client') {
         $writer=[IO.BinaryWriter]::new($pipe,[Text.UTF8Encoding]::new($false),$true)
         $reader=[IO.BinaryReader]::new($pipe,[Text.Encoding]::UTF8,$true)
         try {
+            $challenge=New-ViewtvBrokerTestChallenge
+            $writer.Write($challenge)
             $bytes=[Text.Encoding]::UTF8.GetBytes($EnvelopeText)
             $writer.Write([int]$bytes.Length)
             # For an oversize request the server rejects using the prefix
@@ -186,12 +191,16 @@ if($Mode -eq 'Client') {
             }
             $writer.Flush()
             $size=$reader.ReadInt32()
-            if($size -lt 2 -or $size -gt 256) {
+            if($size -lt 2 -or $size -gt 2048) {
                 throw 'Respuesta de broker inválida.'
             }
             $reply=$reader.ReadBytes($size)
             if($reply.Length -ne $size) {throw 'Respuesta incompleta.'}
-            [Text.Encoding]::UTF8.GetString($reply)
+            $authenticated=Assert-ViewtvBrokerTestSignedResponse (
+                [Text.Encoding]::UTF8.GetString($reply)) $challenge $(
+                if($bytes.Length -le 8192){$EnvelopeText}else{''}
+            ) $KeyPath
+            $authenticated | ConvertTo-Json -Compress
         } finally { $writer.Dispose(); $reader.Dispose() }
     } finally { $pipe.Dispose() }
     return
@@ -225,17 +234,19 @@ try {
     $reader=[IO.BinaryReader]::new($pipe,[Text.Encoding]::UTF8,$true)
     $writer=[IO.BinaryWriter]::new($pipe,[Text.UTF8Encoding]::new($false),$true)
     try {
+        $challenge=$reader.ReadBytes(32)
+        if($challenge.Length -ne 32) {throw 'Desafío incompleto.'}
         $size=$reader.ReadInt32()
         $state='no_autorizada'
+        $request=''
         if($size -ge 2 -and $size -le 8192){
             $raw=$reader.ReadBytes($size)
             if($raw.Length -eq $size){
-                $state=Test-ViewtvBrokerTestMessage (
-                    [Text.Encoding]::UTF8.GetString($raw)) $KeyPath $root
+                $request=[Text.Encoding]::UTF8.GetString($raw)
+                $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root
             }
         }
-        $answer=[ordered]@{estado=$state;publicacion_iniciada=$false} |
-            ConvertTo-Json -Compress
+        $answer=New-ViewtvBrokerTestSignedResponse $state $challenge $request $KeyPath
         $bytes=[Text.Encoding]::UTF8.GetBytes($answer)
         $writer.Write([int]$bytes.Length)
         $writer.Write($bytes)

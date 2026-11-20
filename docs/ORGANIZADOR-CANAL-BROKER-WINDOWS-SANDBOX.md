@@ -2,6 +2,13 @@
 
 **Fecha:** 20-11-2026. **SOLO ENSAYO. NO ES UN BROKER DE PRODUCCIÓN. NO DESPLEGAR.**
 
+**Actualización posterior del mismo día:** se añadió un desafío aleatorio por
+conexión y un **acuse firmado y vinculado a la solicitud**. Consultar
+[RESPUESTA-FIRMADA-BROKER-WINDOWS-SANDBOX.md](ORGANIZADOR-RESPUESTA-FIRMADA-BROKER-WINDOWS-SANDBOX.md).
+El protocolo y el conteo de pruebas descritos a continuación reflejan
+el **primer hito** del canal; la actualización actual los amplía, sin
+demostrar identidades Windows separadas.
+
 ## Qué se ha probado
 
 `scripts/viewtv_windows_pipe_broker_sandbox.ps1` implementa una operación
@@ -16,9 +23,11 @@ en un diario restringido antes de devolver `intencion_registrada_sin_publicar`.
   del ensayo, SYSTEM y Administradores. Se consulta también la ACL
   realmente aplicada al objeto. **No** se ha ejecutado la prueba bajo otra
   cuenta ni demostrado denegación efectiva entre identidades separadas.
-- Protocolo: longitud `Int32` de cuatro bytes seguida de JSON UTF-8
-  acotado a **8192 bytes**; respuestas acotadas a 256 bytes. Los mensajes
-  excesivos se rechazan usando el prefijo antes de leer su cuerpo.
+- Protocolo original: longitud `Int32` de cuatro bytes seguida de JSON UTF-8
+  acotado a **8192 bytes**; los mensajes excesivos se rechazan usando el
+  prefijo antes de leer su cuerpo. **El protocolo actualizado antepone
+  32 bytes aleatorios como desafío de cliente y firma respuestas de hasta
+  2048 bytes**, como explica el documento de actualización.
 - Autorización de prueba: sobre `payload` JSON sin cifrar con `signature`
   base64. HMAC calculado sobre los bytes UTF-8 exactos del payload; firma
   cotejada sin salida anticipada dependiente del contenido. Valida versión,
@@ -99,10 +108,12 @@ publicación.** Faltan controles fundamentales:
    el diario, crear instancias de la tubería del broker ni escribir destinos.
    Los ACL de ensayo incluyen Administradores, como es normal para
    mantenimiento; **no prueban mínimo privilegio entre identidades**.
-2. Autenticación **del servidor hacia el cliente** o una identificación
-   confiable del proceso/servicio titular. Un proceso previo del mismo SID
-   podría suplantar una tubería con el nombre esperado; este ensayo no usa
-   `FILE_FLAG_FIRST_PIPE_INSTANCE` ni un proceso firmado/servicio instalado.
+2. El **acuse firmado con desafío** de la actualización acredita la
+   posesión de la clave compartida, pero todavía falta autenticación
+   **de la identidad Windows del servicio titular**, protección frente
+   a creación anticipada de la tubería (`FILE_FLAG_FIRST_PIPE_INSTANCE`)
+   y proceso/servicio de identidad separada. Un proceso del mismo SID
+   que lea la clave todavía podría suplantar la tubería.
 3. Interfaz con la autoridad de lease 0013 independiente y qBittorrent
    **solo GET**, vinculando `download_id`, propietario, intento, hash de
    torrent observado, manifiesto, staging y destino autorizados. El HMAC

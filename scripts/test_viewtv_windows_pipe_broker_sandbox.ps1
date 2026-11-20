@@ -39,7 +39,7 @@ function Invoke-OneServer([string]$request) {
         & $script -Mode Server -PipeName $pipeName -JournalRoot $root -KeyPath $secret
     }
     try {
-        $response=& $broker -Mode Client -PipeName $name -EnvelopeText $request
+        $response=& $broker -Mode Client -PipeName $name -EnvelopeText $request -KeyPath $keyPath
         $null=$job | Wait-Job -Timeout 12
         if($job.State -ne 'Completed') {
             $problems=($job.ChildJobs | ForEach-Object {
@@ -54,6 +54,11 @@ function Invoke-OneServer([string]$request) {
         if($job.State -eq 'Running'){$null=$job|Stop-Job}
         $job|Remove-Job -Force
     }
+}
+function Must-RejectResponse([scriptblock]$action) {
+    $rejected=$false
+    try { & $action | Out-Null } catch { $rejected=$true }
+    if(-not $rejected){throw 'Se aceptó una respuesta de servidor no autenticada.'}
 }
 function Assert-State([string]$request,[string]$expected) {
     $result=Invoke-OneServer $request
@@ -82,6 +87,92 @@ try {
     [IO.Directory]::SetAccessControl($journal,$acl)
     [IO.File]::WriteAllText($marker,$mark)
     $keyPath=New-ViewtvTestKey
+    $otherKey=New-ViewtvTestKey
+
+    $challenge=New-ViewtvBrokerTestChallenge
+    $requestSample='solicitud de sandbox sin publicacion'
+    $legitimateReply=New-ViewtvBrokerTestSignedResponse (
+        'no_autorizada') $challenge $requestSample $keyPath
+    $checked=Assert-ViewtvBrokerTestSignedResponse (
+        $legitimateReply) $challenge $requestSample $keyPath
+    if($checked.estado -cne 'no_autorizada' -or $checked.publicacion_iniciada){
+        throw 'Respuesta de servidor válida no autenticada.'
+    }
+    $results['acuse_de_servidor_firmado']='verificado'
+
+    $forgedStatus=$legitimateReply.Replace('no_autorizada',
+        'intencion_registrada_sin_publicar')
+    Must-RejectResponse {
+        Assert-ViewtvBrokerTestSignedResponse (
+            $forgedStatus) $challenge $requestSample $keyPath
+    }
+    $results['acuse_modificado']='rechazado'
+
+    $staleChallenge=New-ViewtvBrokerTestChallenge
+    Must-RejectResponse {
+        Assert-ViewtvBrokerTestSignedResponse (
+            $legitimateReply) $staleChallenge $requestSample $keyPath
+    }
+    $results['acuse_de_conexion_anterior']='rechazado'
+
+    Must-RejectResponse {
+        Assert-ViewtvBrokerTestSignedResponse (
+            $legitimateReply) $challenge 'otra solicitud' $keyPath
+    }
+    $results['acuse_de_otra_peticion']='rechazado'
+
+    Must-RejectResponse {
+        Assert-ViewtvBrokerTestSignedResponse (
+            $legitimateReply) $challenge $requestSample $otherKey
+    }
+    $results['acuse_con_clave_ajena']='rechazado'
+
+    # An impostor process answers with an unsigned "success". The client
+    # MUST reject it even though it connected to a correctly named pipe.
+    $fakePipeName='viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')
+    $fakeServer=Start-Job -ArgumentList $broker,$fakePipeName -ScriptBlock {
+        param($scriptPath,$name)
+        . $scriptPath
+        $acl=New-ViewtvBrokerPipeAcl
+        $server=[IO.Pipes.NamedPipeServerStream]::new(
+            $name,[IO.Pipes.PipeDirection]::InOut,1,
+            [IO.Pipes.PipeTransmissionMode]::Byte,[IO.Pipes.PipeOptions]::None,
+            4096,4096,$acl)
+        try {
+            $server.WaitForConnection()
+            $reader=[IO.BinaryReader]::new($server,[Text.Encoding]::UTF8,$true)
+            $writer=[IO.BinaryWriter]::new(
+                $server,[Text.UTF8Encoding]::new($false),$true)
+            try {
+                $nonce=$reader.ReadBytes(32)
+                $len=$reader.ReadInt32()
+                if($nonce.Length -ne 32 -or $len -lt 1 -or $len -gt 8192){
+                    throw 'Prueba de servidor falso recibió solicitud inválida.'
+                }
+                $null=$reader.ReadBytes($len)
+                $plain='{"estado":"intencion_registrada_sin_publicar","publicacion_iniciada":false}'
+                $buffer=[Text.Encoding]::UTF8.GetBytes($plain)
+                $writer.Write([int]$buffer.Length)
+                $writer.Write($buffer)
+                $writer.Flush()
+            } finally { $reader.Dispose(); $writer.Dispose() }
+        } finally { $server.Dispose() }
+    }
+    try {
+        Start-Sleep -Milliseconds 200
+        Must-RejectResponse {
+            & $broker -Mode Client -PipeName $fakePipeName -KeyPath $keyPath -EnvelopeText 'peticion ficticia'
+        }
+        $null=$fakeServer | Wait-Job -Timeout 10
+        if($fakeServer.State -ne 'Completed'){
+            throw 'Proceso suplantador de prueba no terminó.'
+        }
+        $null=$fakeServer | Receive-Job -ErrorAction Stop
+    } finally {
+        if($fakeServer.State -eq 'Running'){$null=$fakeServer|Stop-Job}
+        $fakeServer|Remove-Job -Force
+    }
+    $results['servidor_suplantador_sin_firma']='rechazado'
 
     $good=New-ValidPayload
     $envelope=Signed $good $keyPath
@@ -129,7 +220,6 @@ try {
     Assert-State (Signed $badNonce $keyPath) 'no_autorizada'
     $results['nonce_malformado']='rechazado'
 
-    $otherKey=New-ViewtvTestKey
     Assert-State (Signed (New-ValidPayload) $otherKey) 'no_autorizada'
     $results['clave_ajena']='rechazada'
 
@@ -178,9 +268,9 @@ try {
         }
         Start-Sleep -Milliseconds 200
         foreach($name in $racingNames) {
-            $clients+=Start-Job -ArgumentList $broker,$name,$racingPayload -ScriptBlock {
-                param($script,$pipeName,$payload)
-                & $script -Mode Client -PipeName $pipeName -EnvelopeText $payload
+            $clients+=Start-Job -ArgumentList $broker,$name,$racingPayload,$keyPath -ScriptBlock {
+                param($script,$pipeName,$payload,$secret)
+                & $script -Mode Client -PipeName $pipeName -EnvelopeText $payload -KeyPath $secret
             }
         }
         $null=$clients|Wait-Job -Timeout 15
