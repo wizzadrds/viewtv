@@ -162,10 +162,11 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [x] **La PWA real permite ver resultados y seleccionar**:
   el usuario lo confirmó y creó una selección, pero era un
   episodio ajeno. Corregido por filtro en API y worker.
-- [x] **Usuario corrigió la selección errónea**: la PWA real
-  muestra ahora «Nadie.2.2025.DVDRip.SPANISH», solicitud #3,
-  descarga canónica #1. El título supera el filtro, pero la
-  autenticidad del contenido no ha sido verificada.
+- [x] **Usuario detectó otra selección incorrecta**: la PWA
+  mostró «Nadie.2.2025.DVDRip.SPANISH», solicitud #3, ID 1.
+  Aunque el título superaba el filtro, el usuario confirmó que
+  **no era el torrent correcto** y lo eliminó personalmente
+  de qBittorrent. No intentar recuperarlo ni iniciarlo.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
@@ -186,8 +187,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   qBittorrent mostró transitoriamente un torrent detenido con
   etiqueta y staging verificados; VIEWTV lo reconcilió sin otro
   POST y guardó hash y estado `enviada`. Sin embargo, posteriores
-  GET por etiqueta y hash dieron **cero**: el torrent desapareció
-  de qBittorrent. No declarar alta estable ni progreso verificado.
+  GET por etiqueta y hash dieron **cero** tras la **eliminación
+  voluntaria realizada por el usuario al reconocer el torrent
+  incorrecto**. No volver a añadirlo ni iniciarlo.
 - [x] **Compatibilidad qBittorrent 5.3 y prevención de duplicados**:
   se corrigió la URL interna Jackett para qBit Windows, se reconoció
   JSON/HTTP 202 como alta pendiente y se implementó consulta posterior
@@ -195,13 +197,31 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   con envío/inicio `false`, ID vacía; backend **796/796**, smoke
   **10/10**. Informe y respaldos:
   [AVANCE-ALTA-DETENIDA-QBIT-ASYNC-0012-20261120.md](AVANCE-ALTA-DETENIDA-QBIT-ASYNC-0012-20261120.md).
-- [ ] **Bloqueo: estabilidad del torrent y arranque**. La fila SQLite
-  ID 1 figura `enviada` e inicio `pendiente`, pero qBittorrent
-  no encuentra su hash. Diagnosticar desaparición, reconciliar estado
-  antes de repetir cualquier alta; no iniciar ni activar envíos
-  globales. El usuario quiere descargas automáticas como resultado
-  final, pero solo autorizó esta alta individual detenida; el inicio
-  exige permiso separado y verificación previa de identidad.
+- [x] **Corregir interpretación del torrent eliminado**:
+  el usuario confirmó que **él mismo reanudó, detuvo y eliminó**
+  el torrent porque no correspondía al contenido buscado.
+  Por tanto, la desaparición no fue un fallo de estabilidad
+  atribuido a qBittorrent. La fila SQLite original sigue
+  `enviada`/`inicio=pendiente`, sin transferencia existente.
+- [x] **Descarte explícito, seguro y con historial**: API autenticada
+  `POST /solicitudes/descargas/{id}/descartar-incorrecta` comprueba
+  por hash y etiqueta que el torrent ya no existe; exige 0 %,
+  inicio nunca intentado y ausencia de leases. Conserva la descarga
+  en SQLite como `fallida` con marca de descarte del usuario
+  (sin nueva migración), cancela la solicitud y la oculta por
+  defecto de «Mis descargas». El botón requiere confirmación.
+  **805/805 tests** y **4/4** en copia real aislada, frontend compilado,
+  smoke **10/10** tras desplegar únicamente API/frontend. Ver
+  [AVANCE-DESCARTE-SELECCION-INCORRECTA-20261121.md](AVANCE-DESCARTE-SELECCION-INCORRECTA-20261121.md).
+- [ ] **Acción pendiente del usuario**: pulsar «Descartar torrent
+  incorrecto» para la ID 1; no se ha escrito ese descarte en
+  producción sin su confirmación.
+- [ ] **Automatización de descargas correctas**: el usuario desea
+  buscar, seleccionar y descargar automáticamente, pero
+  un título coincidente no garantiza identidad. Validar primero
+  un candidato correcto y autorizado, estabilidad de qBittorrent,
+  inicio individual con permiso específico, progreso, verificación
+  y publicación, antes de habilitar la cola general.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 

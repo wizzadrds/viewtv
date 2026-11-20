@@ -1,0 +1,4 @@
+# Endpoint 0012 para descartar sin pérdida de historial una selección manualmente retirada.
+# Solo API; la imagen base y el esquema permanecen compatibles con el worker.
+FROM viewtv:relevancia-api-0012
+COPY backend/app/solicitudes.py /opt/viewtv/backend/app/solicitudes.py

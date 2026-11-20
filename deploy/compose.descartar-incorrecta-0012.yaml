@@ -1,0 +1,6 @@
+# Última capa 0012. Worker se mantiene en qbit-async-0012 con envío e inicio OFF.
+services:
+  api:
+    image: viewtv:descartar-incorrecta-api-0012
+  frontend:
+    image: viewtv-frontend:descartar-incorrecta-0012

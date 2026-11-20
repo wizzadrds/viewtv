@@ -4,6 +4,16 @@
 **Rama única:** `viewtv-seguimiento-descargas-0012`.
 **Plan:** [PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md](PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md).
 
+> **Aclaración del usuario, 21/11/2026:** fue el propio usuario
+> quien reanudó, detuvo y eliminó el torrent porque comprobó que
+> **no era el archivo correcto**. Su ausencia posterior no es un
+> fallo de estabilidad sin explicación; fue una retirada voluntaria.
+> La ID 1 **no debe recuperarse ni iniciarse**. Se añade un flujo
+> de descarte confirmado por el usuario en
+> [AVANCE-DESCARTE-SELECCION-INCORRECTA-20261121.md](AVANCE-DESCARTE-SELECCION-INCORRECTA-20261121.md).
+> El análisis que sigue describe las observaciones hechas **antes**
+> de conocer esta aclaración.
+
 ## Autorización y objetivo
 
 El usuario autorizó expresamente **dar de alta detenida únicamente la

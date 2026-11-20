@@ -66,7 +66,7 @@ function describeDownload(item: DownloadItem): {
   if (item.inicio_estado === "pendiente") {
     return {
       title: "Inicio pendiente",
-      detail: "La descarga espera a que el worker confirme su inicio.",
+      detail: "La descarga aún no tiene un inicio confirmado. Si eliminaste el torrent de qBittorrent porque era incorrecto, puedes descartarlo aquí.",
       tone: "info",
     };
   }
@@ -174,6 +174,33 @@ export default function DownloadsPanel({
     };
   }, [offset, onUnauthorized, reload]);
 
+  async function discardWrongSelection(id: number) {
+    if (undoBusy !== null) return;
+    if (!window.confirm(
+      "¿Marcar esta selección como incorrecta? VIEWTV comprobará que el torrent ya no existe en qBittorrent. No borrará archivos ni otros torrents; la solicitud se conservará en el historial.",
+    )) {
+      return;
+    }
+    setUndoBusy(id);
+    setError("");
+    setNotice("");
+    try {
+      await apiRequest(`/solicitudes/descargas/${id}/descartar-incorrecta`, {
+        method: "POST",
+      });
+      setNotice("Selección incorrecta descartada. Ya puedes buscar otra opción correcta.");
+      setReload((current) => current + 1);
+    } catch (cause) {
+      if ((cause as Error & { status?: number }).status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setError((cause as Error).message || "No se pudo descartar la selección.");
+    } finally {
+      setUndoBusy(null);
+    }
+  }
+
   async function undoSelection(id: number) {
     if (undoBusy !== null) return;
     if (!window.confirm("¿Deshacer esta selección que todavía no se ha enviado? Podrás elegir otro resultado desde Buscar y solicitar.")) {
@@ -257,6 +284,17 @@ export default function DownloadsPanel({
                   </span>
                 </div>
                 <p className="download-detail">{state.detail}</p>
+                {item.estado === "enviada" && item.inicio_estado === "pendiente" && item.progreso === 0 && (
+                  <button
+                    className="quiet-button"
+                    data-spatial
+                    disabled={undoBusy !== null}
+                    onClick={() => void discardWrongSelection(item.id)}
+                    type="button"
+                  >
+                    {undoBusy === item.id ? "Comprobando…" : "Descartar torrent incorrecto"}
+                  </button>
+                )}
                 {item.estado === "seleccionada" && (
                   <button
                     className="quiet-button"

@@ -743,3 +743,155 @@ def test_undo_requires_correct_profile(
         app.dependency_overrides[get_current_profile] = original
     with Session(engine) as session:
         assert session.get(Descarga, did) is not None
+
+
+def _prepare_discardable_download(client: TestClient, engine: Engine) -> int:
+    rid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    with Session(engine) as session:
+        request = session.get(Solicitud, rid)
+        assert request is not None
+        request.estado = "completada"
+        session.add(request)
+        download = Descarga(
+            solicitud_id=rid,
+            titulo="Archivo que el usuario descartó",
+            estado="enviada",
+            inicio_estado="pendiente",
+            qbittorrent_hash="a" * 40,
+            progreso=0,
+        )
+        session.add(download)
+        session.commit()
+        session.refresh(download)
+        return download.id
+
+
+class _FakeQbitForDiscard:
+    def __init__(self, *, matches_hash=None, matches_tag=None, error=None):
+        self.matches_hash = matches_hash or []
+        self.matches_tag = matches_tag or []
+        self.error = error
+        self.calls = []
+
+    def torrents_info(self, hashes=None, *, tag=None):
+        self.calls.append(("hash" if hashes is not None else "tag", tag))
+        if self.error:
+            raise self.error
+        return self.matches_hash if hashes is not None else self.matches_tag
+
+
+def test_discard_wrong_selection_preserves_history_and_hides_download(
+    solicitudes_context: tuple[TestClient, Engine], monkeypatch,
+) -> None:
+    import app.solicitudes as routes
+
+    client, engine = solicitudes_context
+    did = _prepare_discardable_download(client, engine)
+    qbit = _FakeQbitForDiscard()
+    monkeypatch.setattr(routes, "QBittorrentClient", lambda: qbit)
+
+    assert client.get("/solicitudes/descargas").json()["total"] == 1
+    response = client.post(f"/solicitudes/descargas/{did}/descartar-incorrecta")
+    assert response.status_code == 200
+    assert response.json() == {"id": did, "estado": "descartada"}
+    assert qbit.calls == [("hash", None), ("tag", f"viewtv-descarga-{did}")]
+
+    assert client.get("/solicitudes/descargas").json()["total"] == 0
+    history = client.get("/solicitudes/descargas?incluir_descartadas=true").json()
+    assert history["total"] == 1
+    assert history["elementos"][0]["estado"] == "fallida"
+    assert client.get("/solicitudes?solo_activas=true").json() == []
+
+    with Session(engine) as session:
+        download = session.get(Descarga, did)
+        request = session.get(Solicitud, download.solicitud_id)
+        assert download.inicio_estado == "requiere_revision"
+        assert download.qbittorrent_hash == "a" * 40
+        assert request.estado == "cancelada"
+
+    assert client.post(f"/solicitudes/descargas/{did}/descartar-incorrecta").status_code == 409
+
+
+@pytest.mark.parametrize("where", ["hash", "tag"])
+def test_discard_refuses_existing_qbit_torrent(
+    solicitudes_context: tuple[TestClient, Engine], monkeypatch, where,
+) -> None:
+    import app.solicitudes as routes
+
+    client, engine = solicitudes_context
+    did = _prepare_discardable_download(client, engine)
+    qbit = _FakeQbitForDiscard(
+        matches_hash=[{"hash": "a" * 40}] if where == "hash" else [],
+        matches_tag=[{"hash": "a" * 40}] if where == "tag" else [],
+    )
+    monkeypatch.setattr(routes, "QBittorrentClient", lambda: qbit)
+    response = client.post(f"/solicitudes/descargas/{did}/descartar-incorrecta")
+    assert response.status_code == 409
+    assert client.get("/solicitudes/descargas").json()["total"] == 1
+
+
+def test_discard_refuses_qbit_connection_error(
+    solicitudes_context: tuple[TestClient, Engine], monkeypatch,
+) -> None:
+    import app.solicitudes as routes
+    from app.qbittorrent import QBittorrentError
+
+    client, engine = solicitudes_context
+    did = _prepare_discardable_download(client, engine)
+    monkeypatch.setattr(routes, "QBittorrentClient", lambda: _FakeQbitForDiscard(
+        error=QBittorrentError("Simulación sin conexión")
+    ))
+    response = client.post(f"/solicitudes/descargas/{did}/descartar-incorrecta")
+    assert response.status_code == 503
+    assert client.get("/solicitudes/descargas").json()["total"] == 1
+
+
+@pytest.mark.parametrize("field,value", [
+    ("progreso", 0.1),
+    ("inicio_intentos", 1),
+    ("inicio_estado", "iniciada"),
+    ("estado", "descargando"),
+])
+def test_discard_refuses_download_with_activity(
+    solicitudes_context: tuple[TestClient, Engine], monkeypatch, field, value,
+) -> None:
+    import app.solicitudes as routes
+
+    client, engine = solicitudes_context
+    did = _prepare_discardable_download(client, engine)
+    with Session(engine) as session:
+        item = session.get(Descarga, did)
+        setattr(item, field, value)
+        session.add(item)
+        session.commit()
+    qbit = _FakeQbitForDiscard()
+    monkeypatch.setattr(routes, "QBittorrentClient", lambda: qbit)
+    response = client.post(f"/solicitudes/descargas/{did}/descartar-incorrecta")
+    assert response.status_code == 409
+    assert qbit.calls == []
+
+
+def test_discard_requires_owner_profile(
+    solicitudes_context: tuple[TestClient, Engine], monkeypatch,
+) -> None:
+    import app.solicitudes as routes
+
+    client, engine = solicitudes_context
+    did = _prepare_discardable_download(client, engine)
+    with Session(engine) as session:
+        session.add(Perfil(nombre="Segundo", pin_hash="ficticio"))
+        session.commit()
+    original = app.dependency_overrides[get_current_profile]
+
+    def other_profile():
+        with Session(engine) as session:
+            return session.get(Perfil, 2)
+
+    app.dependency_overrides[get_current_profile] = other_profile
+    qbit = _FakeQbitForDiscard()
+    monkeypatch.setattr(routes, "QBittorrentClient", lambda: qbit)
+    try:
+        assert client.post(f"/solicitudes/descargas/{did}/descartar-incorrecta").status_code == 404
+        assert qbit.calls == []
+    finally:
+        app.dependency_overrides[get_current_profile] = original

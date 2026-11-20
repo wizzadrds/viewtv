@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import func, text
+from sqlalchemy import func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
@@ -13,12 +13,14 @@ from app.auth import get_current_profile
 from app.database import get_session
 from app.metadatos_resultado import extraer_metadatos
 from app.relevancia_resultado import coincide_con_solicitud
+from app.qbittorrent import QBittorrentClient, QBittorrentError
 from app.models import (
     Descarga,
     Medio,
     Perfil,
     ResultadoBusqueda,
     Solicitud,
+    utc_now,
 )
 
 router = APIRouter(prefix="/solicitudes", tags=["solicitudes"])
@@ -29,6 +31,8 @@ ESTADOS_ACTIVOS = (
     "vigilando",
     "esperando_seleccion",
 )
+MARCA_DESCARTE_USUARIO = "Selección incorrecta descartada por el usuario."
+
 ESTADOS_DESCARGA_ACTIVOS = (
     "seleccionada",
     "enviada",
@@ -216,6 +220,7 @@ def listar_descargas(
     session: Annotated[Session, Depends(get_session)],
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0)] = 0,
+    incluir_descartadas: bool = False,
 ) -> dict[str, object]:
     """Seguimiento de descargas del perfil, sin datos internos del torrent."""
     if perfil.id is None:
@@ -225,16 +230,23 @@ def listar_descargas(
         )
 
     filtro_perfil = Solicitud.perfil_id == perfil.id
+    filtro_visibilidad = () if incluir_descartadas else (
+        or_(
+            Descarga.estado != "fallida",
+            Descarga.ultimo_error.is_(None),
+            Descarga.ultimo_error != MARCA_DESCARTE_USUARIO,
+        ),
+    )
     total = session.exec(
         select(func.count(Descarga.id))
         .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
-        .where(filtro_perfil)
+        .where(filtro_perfil, *filtro_visibilidad)
     ).one()
 
     descargas = session.exec(
         select(Descarga)
         .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
-        .where(filtro_perfil)
+        .where(filtro_perfil, *filtro_visibilidad)
         .order_by(Descarga.creado_en.desc(), Descarga.id.desc())
         .offset(offset)
         .limit(limit)
@@ -260,6 +272,116 @@ def listar_descargas(
         "limit": limit,
         "offset": offset,
     }
+
+
+@router.post("/descargas/{descarga_id}/descartar-incorrecta")
+def descartar_descarga_incorrecta(
+    descarga_id: int,
+    perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int | str]:
+    """Descarta una selección que el usuario retiró manualmente de qBittorrent.
+
+    No detiene ni borra torrents: exige comprobar que la descarga ya no
+    existe en qBittorrent por su hash ni por su etiqueta propia.
+    Conserva registros históricos y evita cualquier inicio posterior.
+    """
+    if perfil.id is None:
+        raise HTTPException(status_code=401, detail="Perfil no autenticado.")
+
+    def es_descartable(descarga: Descarga) -> bool:
+        return (
+            descarga.estado == "enviada"
+            and descarga.inicio_estado == "pendiente"
+            and descarga.progreso == 0
+            and descarga.inicio_intentos == 0
+            and bool(descarga.qbittorrent_hash)
+            and descarga.locked_by is None
+            and descarga.locked_until is None
+            and descarga.inicio_locked_by is None
+            and descarga.inicio_locked_until is None
+        )
+
+    descarga = session.exec(
+        select(Descarga)
+        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+        .where(
+            Descarga.id == descarga_id,
+            Solicitud.perfil_id == perfil.id,
+        )
+    ).first()
+    if descarga is None:
+        raise HTTPException(status_code=404, detail="Descarga no encontrada.")
+    if not es_descartable(descarga):
+        raise HTTPException(
+            status_code=409,
+            detail="Esta descarga no puede descartarse de forma segura.",
+        )
+
+    torrent_hash = descarga.qbittorrent_hash
+    # Nunca tomar la ausencia por cierta si no responde qBittorrent.
+    try:
+        qbit = QBittorrentClient()
+        por_hash = qbit.torrents_info(hashes=[torrent_hash])
+        por_etiqueta = qbit.torrents_info(tag=f"viewtv-descarga-{descarga_id}")
+    except (QBittorrentError, ValueError, OSError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo comprobar qBittorrent. La selección no se ha modificado.",
+        ) from exc
+    if por_hash or por_etiqueta:
+        raise HTTPException(
+            status_code=409,
+            detail="El torrent aún existe en qBittorrent. No se ha descartado.",
+        )
+
+    _begin_write(session)
+    try:
+        descarga = session.exec(
+            select(Descarga)
+            .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+            .where(
+                Descarga.id == descarga_id,
+                Solicitud.perfil_id == perfil.id,
+            )
+        ).first()
+        if descarga is None or not es_descartable(descarga):
+            raise HTTPException(
+                status_code=409,
+                detail="El estado cambió. La selección no se ha descartado.",
+            )
+        if descarga.qbittorrent_hash != torrent_hash:
+            raise HTTPException(
+                status_code=409,
+                detail="La identidad del torrent cambió. Revisa su estado.",
+            )
+
+        solicitud = session.exec(
+            select(Solicitud).where(
+                Solicitud.id == descarga.solicitud_id,
+                Solicitud.perfil_id == perfil.id,
+                Solicitud.estado == "completada",
+            )
+        ).first()
+        if solicitud is None:
+            raise HTTPException(status_code=409, detail="Solicitud no descartable.")
+
+        # El esquema 0012 restringe estado a valores existentes:
+        # "fallida" + marcador inequívoco evita una migración de SQLite.
+        descarga.estado = "fallida"
+        descarga.inicio_estado = "requiere_revision"
+        descarga.inicio_disponible_desde = None
+        descarga.ultimo_error = MARCA_DESCARTE_USUARIO
+        descarga.actualizado_en = utc_now()
+        solicitud.estado = "cancelada"
+        solicitud.actualizado_en = utc_now()
+        session.add(descarga)
+        session.add(solicitud)
+        session.commit()
+        return {"id": descarga_id, "estado": "descartada"}
+    except HTTPException:
+        session.rollback()
+        raise
 
 
 @router.post("/descargas/{descarga_id}/deshacer-seleccion")
