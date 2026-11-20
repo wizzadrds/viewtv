@@ -8,7 +8,8 @@ param(
     [Parameter(Mandatory=$true)][string]$FinalName,
     [Parameter(Mandatory=$true)][string]$ApprovalName,
     [Parameter(Mandatory=$true)][string]$KeyPath,
-    [switch]$BrokerHandoff
+    [switch]$BrokerHandoff,
+    [switch]$RequireFinalSandboxAuthority
 )
 
 Set-StrictMode -Version Latest
@@ -121,11 +122,14 @@ if ($identityBeforeHash -cne (Get-ViewtvTestStageFingerprint $root $StageName)) 
 # Directory.Move uses the native Windows move operation, without replacing
 # destination. Both paths are direct siblings on the SAME NTFS volume.
 # If Windows returns an error, NEVER auto-retry: state may be ambiguous.
+if($RequireFinalSandboxAuthority -and -not $BrokerHandoff){
+    throw 'El control final requiere entrega privada de broker.'
+}
 if($BrokerHandoff){
     . (Join-Path $PSScriptRoot 'viewtv_windows_broker_handoff_sandbox.ps1')
     # Copy identity is pinned in a private enrollment record. A caller cannot
     # supply -CopySid or -BrokerSid to this entrypoint.
-    Invoke-ViewtvSandboxBrokerHandoff $root $StageName $FinalName $ApprovalName $KeyPath
+    Invoke-ViewtvSandboxBrokerHandoff $root $StageName $FinalName $ApprovalName $KeyPath ([bool]$RequireFinalSandboxAuthority)
 } else {
     # Historical mode, intentionally unprotected against the TOCTOU gap.
     [System.IO.Directory]::Move($staged, $final)

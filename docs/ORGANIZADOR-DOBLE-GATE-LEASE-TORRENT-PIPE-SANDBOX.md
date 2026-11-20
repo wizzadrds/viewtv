@@ -139,9 +139,16 @@ anterior que respaldar.
   elevado, con HMAC de prueba compartido. NO existe todavía un
   servicio real bajo SID Windows separado de bajo privilegio ni
   control exclusivo de credenciales por un broker independiente.
-- La consulta SQLite/HTTP es puntual. Puede cambiar la autoridad
-  después del GET y antes de la reserva; no hay validación terminal
-  antes de un movimiento NTFS. El canal **no mueve archivos**.
+- La consulta SQLite/HTTP del **pipe** es puntual. Puede cambiar
+  la autoridad después del GET y antes de la reserva; el canal
+  de admisión **no mueve archivos**.
+  **Actualización posterior:** en otro modo estricto del
+  publicador NTFS de sandbox se han integrado nuevas consultas a
+  lease/HTTP antes de cada rename, leídas de una configuración
+  privada asociada al hash del plan firmado. La validación final
+  sigue siendo una operación NO transaccional; el modo histórico
+  no exige todavía esta política. Véase
+  [ORGANIZADOR-REVALIDACION-FINAL-LEASE-TORRENT-SANDBOX.md](ORGANIZADOR-REVALIDACION-FINAL-LEASE-TORRENT-SANDBOX.md).
 - El journal es local al GUID, no una autoridad global persistente
   entre instancias. No existe transacción NTFS+SQLite ni protocolo
   completo de recuperación para corte de energía o fallos multigiB.

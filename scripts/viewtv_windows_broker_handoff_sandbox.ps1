@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_copy_acl_gate_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pinned_identity_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_final_gate_sandbox.ps1')
 
 function Assert-ViewtvSandboxHandoffVault([string]$Root,[string]$BrokerSid) {
     $vault=Assert-ViewtvRestrictedSandboxPath $Root (Join-Path $Root '.viewtv-broker-handoff')
@@ -57,7 +58,8 @@ function Get-ViewtvSandboxHandoffFingerprint([string]$Folder) {
 
 function Invoke-ViewtvSandboxBrokerHandoff(
     [string]$SandboxRoot,[string]$StageName,[string]$FinalName,
-    [string]$ApprovalName,[string]$KeyPath
+    [string]$ApprovalName,[string]$KeyPath,
+    [bool]$RequireFinalAuthority=$false
 ) {
     $root=[IO.Path]::GetFullPath($SandboxRoot).TrimEnd('\')
     if($StageName -cnotmatch '^\.viewtv-stage-[1-9][0-9]{0,9}$'){
@@ -93,6 +95,12 @@ function Invoke-ViewtvSandboxBrokerHandoff(
     $declared=@($plan.files)
     if($declared.Count -ne $quiet.archivos){
         throw 'Manifiesto inconsistente.'
+    }
+    # Strict LABORATORY mode: revalidate the broker-private lease and the
+    # marked fake torrent immediately before FIRST NTFS rename. Old sandbox
+    # mode deliberately remains available for historical regression tests.
+    if($RequireFinalAuthority){
+        $null=Assert-ViewtvSandboxFinalGate $root $vault $StageName $FinalName $ApprovalName $KeyPath
     }
     # First rename is NOT a publication: it hands the sealed directory to
     # a broker-only parent. On tested NTFS, preopened writer handles make
@@ -142,6 +150,11 @@ function Invoke-ViewtvSandboxBrokerHandoff(
         throw 'Identidad privada cambiada antes de publicar; requiere revisión.'
     }
     $null=Assert-ViewtvSandboxHandoffCopyGate $root $escrow $CopySid $broker
+    # The lease or HTTP state may have changed while the files were in
+    # escrow. Failure leaves escrow in place for manual reconciliation.
+    if($RequireFinalAuthority){
+        $null=Assert-ViewtvSandboxFinalGate $root $vault $StageName $FinalName $ApprovalName $KeyPath
+    }
     [IO.Directory]::Move($escrow,$final)
     $null=Assert-ViewtvSandboxHandoffCopyGate $root $final $CopySid $broker
 }
