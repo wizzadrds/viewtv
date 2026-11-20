@@ -86,10 +86,16 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   y estado detenido verificados con HTTP simulado, o se falla cerrado.
   **Los tres controles siguen desactivados/vacíos en producción**.
   Ver [AVANCE-ENSAYO-TORRENT-UNICO-VIEWTV-20261120.md](AVANCE-ENSAYO-TORRENT-UNICO-VIEWTV-20261120.md).
-- [ ] **Validación real pendiente con el usuario:** crear una solicitud
-  autorizada desde la interfaz, esperar resultados de Jackett y
-  seleccionar uno; no se han creado solicitudes durante las pruebas.
-  Documentación en
+- [x] **Solicitud real creada y procesada desde la interfaz**:
+  el usuario confirmó «Nadie 2» sin año en `sin_resultados` y otra
+  solicitud anterior con año 2025 `fallida`. El worker registró
+  la solicitud 2 procesada con cero resultados seleccionables.
+  No se inició descarga. Diagnóstico del proveedor en
+  [AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md](AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md).
+- [ ] **Sigue pendiente resultado y selección desde la PWA real**:
+  probar una solicitud nueva de «Nadie 2», película, año 2025;
+  revisar las coincidencias antes de elegir contenido autorizado.
+  El flujo de selección sin envío se documentó en
   [AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md](AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md).
 - [x] Consultas GET de conectividad: Jackett responde a la lista de
   indexadores con uno configurado; qBittorrent responde a la lectura
@@ -125,12 +131,17 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   funciona para este título; no hace falta modificar Cloudflare,
   FlareSolverr ni otros indexadores para esta comprobación.
   Ver [AVANCE-BUSQUEDA-RESULTADOS-VIEWTV-20261120.md](AVANCE-BUSQUEDA-RESULTADOS-VIEWTV-20261120.md).
-- [ ] **Resultado desde la interfaz aún no verificado**: crear desde
-  «Buscar y pedir» una solicitud autorizada con sesión propia, esperar
-  `esperando_seleccion`, comprobar resultados y escoger uno sin alta
-  de torrent. No confundir el GET directo con una operación completa
-  de la PWA; si la UI indica `sin_resultados`, revisar el indexador
-  y sus pruebas en el panel de Jackett antes de alterar la API.
+- [x] **Diagnóstico del cero en «Nadie 2»**: la PWA registró una
+  solicitud real que terminó en `sin_resultados`; el worker corroboró
+  cero elementos. Jackett GET con `Nadie 2` también dio cero, pero
+  `Nadie 2 2025` dio **62 registros aptos**, de los cuales solo
+  **3** contienen título relacionado y **2** mencionan 2025.
+  `Nobody 2` y `Nobody 2 2025` dieron cero. No hay evidencia
+  de que cambiar Cloudflare/FlareSolverr resuelva el problema.
+  Ver [AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md](AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md).
+- [ ] **Confirmar una nueva búsqueda real con año desde PWA**
+  y comprobar `esperando_seleccion` y resultados relevantes.
+  No marcar la selección completada hasta verla efectivamente.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
@@ -258,8 +269,10 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - Sección «Buscar y pedir» desplegada, con formulario y resultados
   del perfil autenticado, actualización cada 10 segundos y acciones
   explícitas de solicitud/selección. La API ya exponía las cuatro
-  operaciones y no requirió cambios. **Aún falta una prueba con una
-  solicitud real autorizada**; no se ha iniciado ningún torrent.
+  operaciones y no requirió cambios. El usuario confirmó una
+  solicitud real «Nadie 2», sin año, procesada y sin resultados;
+  aún falta ver candidatos seleccionables desde esa interfaz.
+  No se ha iniciado ningún torrent.
 - Worker con filtros **por una sola ID tanto para el envío como
   para el inicio**, y comprobación de staging, etiqueta, hash y
   estado de qBittorrent. Probados GET-POST-GET del alta y GET-POST
@@ -285,13 +298,15 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
   de vídeos satisfactoria. No se ha verificado por separado
   la operación de cierre de sesión.
-- **NO verificados aún:** una búsqueda nueva con resultados desde
-  la interfaz, selección, una descarga real, seguimiento completo
-  y organización automática. Las consultas GET de prueba sí
-  alcanzaron Jackett, pero ambas devolvieron cero resultados.
-  El único proveedor configurado anuncia compatibilidad con
-  búsqueda general, de películas y series; **su estado operativo
-  no quedó confirmado** por la API administrativa.
+- **NO verificados aún:** una búsqueda con resultados desde la
+  interfaz, selección, una descarga real, seguimiento completo
+  y organización automática. Jackett devolvió cuatro candidatos
+  para otro título y, en el caso «Nadie 2», cero sin año pero
+  62 con «2025» (solo tres coincidencias de título).
+  El único indexador configurado anuncia compatibilidad, pero
+  **su estado administrativo no quedó confirmado**. La solicitud
+  real sin año se procesó con cero resultados; no es una caída
+  general del servicio ni una transferencia probada.
   La carpeta Windows y la preferencia por defecto de qBittorrent
   coinciden; eso no sustituye el ensayo de una transferencia.
 
