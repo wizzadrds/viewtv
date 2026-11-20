@@ -1,5 +1,5 @@
 # VIEWTV 0013 — Local Windows named-pipe admission prototype, SANDBOX ONLY.
-# No NTFS publication, no qBittorrent, no SQLite production, no Windows service.
+# No NTFS publication, no real qBittorrent, no SQLite production or service.
 [CmdletBinding()]
 param(
     [ValidateSet('Library','Server','Client')][string]$Mode='Library',
@@ -9,6 +9,8 @@ param(
     [string]$EnvelopeText,
     [switch]$RequireSandboxLease,
     [string]$LeaseDatabase,
+    [switch]$RequireSandboxTorrent,
+    [string]$TorrentFixtureUrl,
     [int]$AcceptTimeoutMs=5000,
     [int]$ReadTimeoutMs=4000
 )
@@ -19,6 +21,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_io_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_first_instance_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_lease_auth_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_pipe_torrent_auth_sandbox.ps1')
 
 function Assert-ViewtvBrokerTestJournal([string]$path) {
     $temp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -84,7 +87,7 @@ function Reserve-ViewtvBrokerTestClaim([string]$Path,[byte[]]$Bytes) {
         if($null -ne $stream){$stream.Dispose()}
     }
 }
-function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root,[string]$LeaseDatabase='') {
+function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root,[string]$LeaseDatabase='',[string]$TorrentFixtureUrl='') {
     # The caller must have validated Root + ACL BEFORE touching the ledger.
     if ([Text.Encoding]::UTF8.GetByteCount($Raw) -gt 8192) {
         return 'no_autorizada'
@@ -130,7 +133,8 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             $intent.download_id -is [long])
         $attemptNumeric=($intent.attempt -is [int] -or
             $intent.attempt -is [long])
-        if ($intent.version -ne $(if($LeaseDatabase){2}else{1}) -or
+        $expectedVersion=$(if($TorrentFixtureUrl){3}elseif($LeaseDatabase){2}else{1})
+        if ($intent.version -ne $expectedVersion -or
             -not $idNumeric -or
             -not $attemptNumeric -or
             [long]$intent.download_id -le 0 -or
@@ -146,14 +150,23 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             $expiry -le $now -or $expiry -gt $now.AddMinutes(5)) {
             return 'no_autorizada'
         }
-        # Gate is mandatory in the v2 server mode and must run before any
-        # durable reservation. Failure leaves zero new claims.
+        # Lease gate is mandatory for v2/v3 admission before reservation;
+        # the v3 fake-torrent gate follows it. Any failure reserves nothing.
         if($LeaseDatabase -and (
             [string]$intent.torrent_hash -cnotmatch '^(?:[a-f0-9]{40}|[a-f0-9]{64})$' -or
             -not (Test-ViewtvBrokerSandboxLease $LeaseDatabase `
                 ([long]$intent.download_id) ([string]$intent.worker) `
                 ([int]$intent.attempt) ([string]$intent.torrent_hash)))){
             return 'no_autorizada'
+        }
+        # Dual-gate sandbox mode: the server decides the fixture source.
+        # A valid lease alone cannot authorize a claim in v3 mode.
+        if($TorrentFixtureUrl){
+            $guid=([string]$intent.sandbox).Substring('viewtv-win-sandbox-'.Length)
+            if(-not (Test-ViewtvBrokerSandboxTorrent $TorrentFixtureUrl $guid `
+                ([long]$intent.download_id) ([string]$intent.torrent_hash))){
+                return 'no_autorizada'
+            }
         }
         $nonceFile=Join-Path $Root ('.viewtv-nonce-'+[string]$intent.nonce+'.json')
         $downloadFile=Join-Path $Root (
@@ -166,7 +179,7 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
         # missing nonce can never authorize another attempt for this download.
         # Never remove a partial claim on errors; require manual review.
         $downloadClaim=[ordered]@{
-            version=$(if($LeaseDatabase){2}else{1})
+            version=$expectedVersion
             download_id=[long]$intent.download_id
             attempt=[int]$intent.attempt
             worker=[string]$intent.worker
@@ -222,14 +235,27 @@ function New-ViewtvBrokerPipeAcl {
     return $acl
 }
 if($Mode -eq 'Library'){ return }
-if($Mode -ne 'Server' -and ($RequireSandboxLease -or $LeaseDatabase)){
+if($Mode -ne 'Server' -and ($RequireSandboxLease -or $LeaseDatabase -or
+    $RequireSandboxTorrent -or $TorrentFixtureUrl)){
     throw 'El lease solo puede configurarlo el servidor de prueba.'
 }
 if($Mode -eq 'Server'){
     if(($RequireSandboxLease -and
        $LeaseDatabase -cnotmatch '^/tmp/viewtv-lease-gate-[a-f0-9]{32}/organization\.sqlite3$') -or
-       (-not $RequireSandboxLease -and $LeaseDatabase)){
+       (-not $RequireSandboxLease -and $LeaseDatabase) -or
+       ($RequireSandboxTorrent -and (-not $RequireSandboxLease -or
+           $TorrentFixtureUrl -cnotmatch '^http://127\.0\.0\.1:([0-9]{5})$')) -or
+       (-not $RequireSandboxTorrent -and $TorrentFixtureUrl)){
         throw 'Configuración de lease incompleta o fuera de sandbox.'
+    }
+}
+if($Mode -eq 'Server' -and $RequireSandboxTorrent) {
+    $urlMatch=[regex]::Match($TorrentFixtureUrl,
+        '^http://127\.0\.0\.1:([0-9]{5})$')
+    if(-not $urlMatch.Success -or
+       [int]$urlMatch.Groups[1].Value -lt 49152 -or
+       [int]$urlMatch.Groups[1].Value -gt 65535){
+        throw 'Fuente HTTP del torrent fuera del sandbox de loopback.'
     }
 }
 if ($PipeName -cnotmatch '^viewtv-test-pipe-[a-f0-9]{32}$') {
@@ -312,7 +338,7 @@ try {
         $request=''
         if(-not $frame.TooLargeOrInvalid) {
             $request=[Text.Encoding]::UTF8.GetString($frame.Data)
-            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root $(if($RequireSandboxLease){$LeaseDatabase}else{''})
+            $state=Test-ViewtvBrokerTestMessage $request $KeyPath $root $(if($RequireSandboxLease){$LeaseDatabase}else{''}) $(if($RequireSandboxTorrent){$TorrentFixtureUrl}else{''})
         }
         $answer=New-ViewtvBrokerTestSignedResponse $state $challenge $request $KeyPath
         $bytes=[Text.Encoding]::UTF8.GetBytes($answer)

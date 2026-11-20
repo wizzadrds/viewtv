@@ -136,6 +136,15 @@ Los dos scripts de lease para pipe y este documento son nuevos.
 - La API 0012 sigue requiriendo diagnóstico y recuperación aparte:
   imagen `viewtv:local` reiniciándose con worker en imagen distinta.
 
+## Actualización posterior: doble gate lease + torrent ficticio
+
+Se añadió la **modalidad v3** que exige lease WSL y consulta HTTP GET de
+un origen qBittorrent **ficticio** antes de reservar. La fuente HTTP
+queda fijada por el servidor y no puede elegirse desde el cliente.
+Las modalidades v1 y v2 siguen disponibles para regresiones de sandbox,
+**no como vías productivas de publicación**. Véase
+[ORGANIZADOR-DOBLE-GATE-LEASE-TORRENT-PIPE-SANDBOX.md](ORGANIZADOR-DOBLE-GATE-LEASE-TORRENT-PIPE-SANDBOX.md).
+
 **Decisión:** admisión por pipe vinculada a lease de sandbox demostrada.
 La **fase 1 sigue abierta** y el PR #2 continúa en borrador,
 sin publicación ni despliegue.

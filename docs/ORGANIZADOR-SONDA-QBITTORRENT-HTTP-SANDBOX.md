@@ -77,9 +77,13 @@ se instalaron servicios o cuentas de sistema.
 
 ## Límites estrictos y próximos pasos
 
-1. La sonda de este hito **no está conectada al canal del broker**.
-   Incorporarla como verificación **servidor-obligatoria** requerirá
-   una autoridad independiente, no un URL aportado por el worker.
+1. **Actualización posterior:** la sonda se conectó en la modalidad
+   de servidor v3 del canal de admisión sandbox, junto al lease de
+   SQLite ficticia. El servidor fija la URL de ensayo; el cliente
+   no puede indicar el origen. Véase
+   [ORGANIZADOR-DOBLE-GATE-LEASE-TORRENT-PIPE-SANDBOX.md](ORGANIZADOR-DOBLE-GATE-LEASE-TORRENT-PIPE-SANDBOX.md).
+   Aún falta una autoridad independiente real y la revisión final
+   antes de mover archivos; NO es una ruta de producción.
 2. El marcador no autentica una fuente hostil y la credencial
    de ensayo es pública; este test no debe usarse en producción.
 3. No se ha consultado un qBittorrent real. Tampoco se ha cotejado
