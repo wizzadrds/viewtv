@@ -1,0 +1,5 @@
+# Superponer al final de los compose activos para recrear SOLO api.
+# No modificar ni recrear worker, frontend, base de datos o volúmenes.
+services:
+  api:
+    image: viewtv:resultados-fecha-0012

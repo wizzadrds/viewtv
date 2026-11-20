@@ -139,9 +139,20 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   `Nobody 2` y `Nobody 2 2025` dieron cero. No hay evidencia
   de que cambiar Cloudflare/FlareSolverr resuelva el problema.
   Ver [AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md](AVANCE-BUSQUEDA-NADIE2-VIEWTV-20261120.md).
-- [ ] **Confirmar una nueva búsqueda real con año desde PWA**
-  y comprobar `esperando_seleccion` y resultados relevantes.
-  No marcar la selección completada hasta verla efectivamente.
+- [x] **Solicitud real con resultados disponibles en PWA**:
+  el usuario confirmó que una solicitud de «Nadie 2» pasó a
+  `esperando_seleccion`, pero «Ver resultados» fallaba con HTTP 500.
+  El log de API demostró que `publicado_en` era un `datetime`
+  incompatible con la anotación de respuesta. Se normalizó a ISO 8601,
+  se ensayó con fechas reales/nulas y con una copia SQLite productiva;
+  HTTP 200 y mismas filas, sin URLs internas. API corregida
+  `viewtv:resultados-fecha-0012` desplegada sola y sana,
+  smoke 10/10. Informe:
+  [AVANCE-CORRECCION-RESULTADOS-500-VIEWTV-20261120.md](AVANCE-CORRECCION-RESULTADOS-500-VIEWTV-20261120.md).
+- [ ] **Confirmar «Ver resultados» y «Seleccionar» en la PWA**:
+  el usuario debe actualizar la pestaña y abrir la solicitud
+  existente (no crear otra). La elección y seguimiento siguen
+  sin verificarse desde su sesión; no autorizar descargas aún.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de

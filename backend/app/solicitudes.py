@@ -312,7 +312,11 @@ def listar_resultados(
                 "peers": resultado.peers,
                 "tamano_bytes": resultado.tamano_bytes,
                 "categorias": resultado.categorias,
-                "publicado_en": resultado.publicado_en,
+                "publicado_en": (
+                    resultado.publicado_en.isoformat()
+                    if resultado.publicado_en is not None
+                    else None
+                ),
                 **extraer_metadatos(resultado.titulo),
             }
         )

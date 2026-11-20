@@ -1,6 +1,7 @@
 """Pruebas del endpoint autenticado de creación de solicitudes."""
 
 from collections.abc import Generator
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -269,6 +270,32 @@ def test_list_results_does_not_expose_download_urls(
 
     forbidden_fields = {"download_url", "magnet_url", "info_hash", "clave"}
     assert forbidden_fields.isdisjoint(data[0])
+
+
+def test_list_results_serializes_publication_datetime_without_500(
+    solicitudes_context: tuple[TestClient, Engine],
+) -> None:
+    """Fechas de Jackett pobladas no deben provocar ResponseValidationError."""
+    client, engine = solicitudes_context
+    created = client.post("/solicitudes", json={"medio_id": 1})
+    assert created.status_code == 201
+    solicitud_id = created.json()["id"]
+    resultado_id = _prepare_search_results(engine, solicitud_id)
+
+    with Session(engine) as session:
+        resultado = session.get(ResultadoBusqueda, resultado_id)
+        assert resultado is not None
+        resultado.publicado_en = datetime(2025, 8, 15, 17, 30, tzinfo=timezone.utc)
+        session.add(resultado)
+        session.commit()
+
+    response = client.get(f"/solicitudes/{solicitud_id}/resultados")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["publicado_en"].startswith("2025-08-15T17:30:00")
+    assert isinstance(data[0]["publicado_en"], str)
+    assert {"download_url", "magnet_url", "info_hash", "clave"}.isdisjoint(data[0])
 
 
 def test_list_results_preserves_and_orders_different_qualities(
