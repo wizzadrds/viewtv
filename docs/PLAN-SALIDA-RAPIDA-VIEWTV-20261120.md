@@ -43,6 +43,11 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [x] El usuario confirmó que ya puede entrar en VIEWTV, consultar
   la biblioteca y **reproducir vídeos correctamente** en su navegador
   (20-11-2026), sin compartir contraseñas ni PIN.
+- [x] **Descargas sin botón manual**: la consulta GET del seguimiento
+  ya se repetía cada **15 segundos** con la pestaña visible.
+  Se retiró el botón redundante y se añadió refresco inmediato al
+  volver a la pestaña, preservando errores, paginación y autenticación.
+  Ver [AVANCE-DESCARGAS-AUTOREFRESCO-VIEWTV-20261120.md](AVANCE-DESCARGAS-AUTOREFRESCO-VIEWTV-20261120.md).
 - [ ] La operación de cierre de sesión no se ha ensayado por separado.
 - [x] Diagnóstico de la única solicitud `fallida`, sin acceder a su
   título, URLs o perfiles: fallo histórico de comunicación con
@@ -112,6 +117,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   metadata refrescada en la primera ejecución sin mover archivos.
   Primer paso seguro del catálogo automatizado; conserva rollback
   transaccional ante un fallo de consulta.
+- Panel «Mis descargas» con auto-GET cada 15 segundos, sin botón
+  «Actualizar», y consulta inmediata al volver a la pestaña;
+  solo consulta estados, sin iniciar torrents.
 - Diagnóstico registrado en
   [AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md](AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md).
 - Entrega de catálogo automático en

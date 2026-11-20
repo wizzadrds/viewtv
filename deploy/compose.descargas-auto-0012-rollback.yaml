@@ -1,0 +1,5 @@
+# Reversión del panel de descargas sin cambios de datos ni worker.
+# Poner como ultimo -f tras compose.descargas-auto-0012.yaml.
+services:
+  frontend:
+    image: viewtv-frontend:catalog-auto-0012

@@ -105,7 +105,6 @@ export default function DownloadsPanel({
   onUnauthorized: () => void;
 }) {
   const [offset, setOffset] = useState(0);
-  const [refreshIndex, setRefreshIndex] = useState(0);
   const [data, setData] = useState<DownloadsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -152,15 +151,18 @@ export default function DownloadsPanel({
     }
 
     void refresh(true);
-    const intervalId = window.setInterval(() => {
+    const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") void refresh();
-    }, REFRESH_MS);
+    };
+    const intervalId = window.setInterval(refreshWhenVisible, REFRESH_MS);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       controller.abort();
       window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [offset, refreshIndex, onUnauthorized]);
+  }, [offset, onUnauthorized]);
 
   const entries = data?.elementos ?? [];
   const total = data?.total ?? 0;
@@ -176,15 +178,7 @@ export default function DownloadsPanel({
             Consulta el estado de tus selecciones. Esta pantalla no inicia ni reanuda torrents.
           </p>
         </div>
-        <button
-          className="quiet-button"
-          data-spatial
-          disabled={loading}
-          onClick={() => setRefreshIndex((index) => index + 1)}
-          type="button"
-        >
-          ↻ Actualizar
-        </button>
+        <p className="muted">Se actualiza automáticamente</p>
       </div>
 
       {error && (

@@ -1,0 +1,6 @@
+# Extiende el despliegue catalog-auto-0012; solo cambia el frontend.
+# Guardar como ultimo -f sobre los cuatro Compose existentes y
+# deploy/compose.catalog-auto-0012.yaml.
+services:
+  frontend:
+    image: viewtv-frontend:descargas-auto-0012
