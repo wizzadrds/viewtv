@@ -122,7 +122,7 @@ if (-not [IO.File]::Exists($approvalPath)) {
     throw 'No hay autorización firmada.'
 }
 $approvalInfo = [IO.FileInfo]::new($approvalPath)
-if ($approvalInfo.Length -gt 8192 -or
+if ($approvalInfo.Length -gt 32768 -or
     ($approvalInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw 'Autorización insegura.'
 }

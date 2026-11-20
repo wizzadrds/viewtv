@@ -124,3 +124,19 @@ puede ser publicado de nuevo con ella.
 Docker → Windows superadas.** Es un mecanismo de pruebas; todavía NO
 hay un broker de producción con ACL e identidad separadas.
 Ver [ORGANIZADOR-AUTORIZACION-RECUPERACION-SANDBOX.md](ORGANIZADOR-AUTORIZACION-RECUPERACION-SANDBOX.md).
+
+## Avance del 20 de noviembre de 2026: identidad NTFS del staging
+
+El plan HMAC de pruebas ahora incluye identificadores NTFS (volumen, carpeta
+y archivos); el publicador revalida la identidad antes y después de los
+hashes, y rechaza archivos con hardlinks múltiples o reparse points.
+Una sustitución por **otro archivo de bytes/SHA-256 idénticos** ya no
+coincide con la autorización firmada. Los registros anteriores que no
+incluían esta información fallan de forma conservadora.
+
+**No se ha cerrado TOCTOU:** se comprobó que mantener descriptores
+abiertos mientras se mueve una carpeta impide `Directory.Move`
+en el NTFS de este equipo. Continúan siendo obligatorias identidades
+Windows separadas, ACL y revalidaciones del lease en el broker real.
+Resultados, pruebas y límites:
+[Identidad NTFS y TOCTOU en sandbox](ORGANIZADOR-IDENTIDAD-NTFS-TOCTOU-SANDBOX.md).

@@ -107,12 +107,16 @@ foreach ($subtitle in $subtitles) {
     }
 }
 
+$identityBeforeHash = Get-ViewtvTestStageFingerprint $root $StageName
 # The exact stage, destination and SHA-256 must match an authorization signed
 # with a key that was NOT mounted in Docker. This is a test-only boundary.
 if (-not (Assert-ViewtvTestApproval -SandboxRoot $root -StageName $StageName -FinalName $FinalName -ApprovalName $ApprovalName -KeyPath $KeyPath -Location Stage)) {
     throw 'Autorización firmada no válida.'
 }
 
+if ($identityBeforeHash -cne (Get-ViewtvTestStageFingerprint $root $StageName)) {
+    throw 'Staging sustituido durante la verificación: requiere revisión.'
+}
 # Directory.Move uses the native Windows move operation, without replacing
 # destination. Both paths are direct siblings on the SAME NTFS volume.
 # If Windows returns an error, NEVER auto-retry: state may be ambiguous.

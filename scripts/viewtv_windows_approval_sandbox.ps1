@@ -2,6 +2,7 @@
 # The signing key lives in a private Windows TEMP folder outside Docker mounts.
 # This is not a production security boundary or a production credential store.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'viewtv_windows_stage_identity_sandbox.ps1')
 
 function Assert-TestKeyPath([string]$KeyPath) {
     $tempRoot = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -71,6 +72,7 @@ function New-ViewtvTestApproval {
         sandbox = [System.IO.Path]::GetFileName($root)
         stage = $StageName
         final = $FinalName
+        stage_identity = (Get-ViewtvTestStageFingerprint $root $StageName)
         nonce = [Guid]::NewGuid().ToString('N')
         expires_utc = [DateTime]::UtcNow.AddMinutes($ExpiryMinutes).ToString('o')
         files = @($files)
@@ -121,7 +123,7 @@ function Assert-ViewtvTestApproval {
     }
     $info = [System.IO.FileInfo]::new($approvalPath)
     if (($info.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
-        $info.Length -gt 8192) {
+        $info.Length -gt 32768) {
         throw 'Archivo de autorización inseguro.'
     }
 
@@ -206,6 +208,13 @@ function Assert-ViewtvTestApproval {
             (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$entry.sha256) {
             throw 'El contenido no coincide con los hashes autorizados.'
         }
+    }
+    $actualIdentity = Get-ViewtvTestFolderFingerprint $root $(
+        if ($Location -eq 'Stage') { $StageName } else { $FinalName }
+    )
+    if ($intent.PSObject.Properties.Name -notcontains 'stage_identity' -or
+        [string]$intent.stage_identity -cne $actualIdentity) {
+        throw 'La identidad NTFS del staging no coincide con el plan firmado.'
     }
     return $true
 }
