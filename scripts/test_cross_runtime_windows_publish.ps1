@@ -41,7 +41,7 @@ try {
     $subtitleHash = (Get-FileHash (Join-Path $sources $subtitle) -Algorithm SHA256).Hash
     $linuxRoot = '/mnt/c/Users/Public/' + [System.IO.Path]::GetFileName($root)
 
-    $dockerOutput = & wsl.exe -d Ubuntu-24.04 -e /usr/bin/env PYTHONPATH=/home/viewtv/projects/viewtv/backend:/home/viewtv/projects/viewtv /home/viewtv/projects/viewtv/backend/.venv/bin/python -m worker.organization_cross_runtime_probe --stage $linuxRoot 2>&1
+    $dockerOutput = & wsl.exe -d Ubuntu-24.04 -u viewtv -e /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/viewtv/projects/viewtv-broker-0013-20261119/backend:/home/viewtv/projects/viewtv-broker-0013-20261119 /home/viewtv/projects/viewtv/backend/.venv/bin/python -B -m worker.organization_cross_runtime_probe --stage $linuxRoot 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "La preparación Docker devolvió código $LASTEXITCODE."
     }
@@ -55,6 +55,17 @@ try {
         throw 'El staging no se creó correctamente.'
     }
     $results['docker_staging_y_sha256'] = 'correcto'
+
+    # Before Windows publication, even a marked Docker stage must NEVER
+    # trigger a Jellyfin scan or produce a visible VIEWTV catalog item.
+    $preOutput = & wsl.exe -d Ubuntu-24.04 -u viewtv -e /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/viewtv/projects/viewtv-broker-0013-20261119/backend:/home/viewtv/projects/viewtv-broker-0013-20261119 /home/viewtv/projects/viewtv/backend/.venv/bin/python -B -m worker.organization_windows_catalog_probe_sandbox --sandbox $linuxRoot --phase before 2>&1
+    if ($LASTEXITCODE -ne 0) { throw 'El preflight de catálogo sin publicar ha fallado.' }
+    $pre = ($preOutput | Out-String).Trim() | ConvertFrom-Json
+    if ($pre.estado -ne 'pendiente_sin_escaneo' -or
+        $pre.solicitudes_escaneo -ne 0 -or $pre.catalogo -ne 0) {
+        throw 'El staging previo no debe activar Jellyfin.'
+    }
+    $results['prepublicacion_sin_escaneo'] = 'correcto'
 
     $approval = New-ViewtvTestApproval -SandboxRoot $root -StageName '.viewtv-stage-1' -FinalName $title -KeyPath $keyPath
 
@@ -96,6 +107,21 @@ try {
         throw 'No se reconcilió la publicación multifichero.'
     }
     $results['reconciliacion_de_lectura'] = 'publicada_verificada'
+
+    # Only a signed Windows publication reconciled as published can enter
+    # this synthetic Jellyfin integration. HTTP is ALWAYS MockTransport
+    # in the Python probe; no real scan, library or SQLite is accessed.
+    $postOutput = & wsl.exe -d Ubuntu-24.04 -u viewtv -e /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/viewtv/projects/viewtv-broker-0013-20261119/backend:/home/viewtv/projects/viewtv-broker-0013-20261119 /home/viewtv/projects/viewtv/backend/.venv/bin/python -B -m worker.organization_windows_catalog_probe_sandbox --sandbox $linuxRoot --phase after 2>&1
+    if ($LASTEXITCODE -ne 0) { throw 'La prueba Windows a catálogo ficticio ha fallado.' }
+    $post = ($postOutput | Out-String).Trim() | ConvertFrom-Json
+    if ($post.estado -ne 'publicacion_windows_catalogo_simulado_ok' -or
+        $post.solicitudes_escaneo -ne 1 -or
+        $post.catalogo_antes -ne 0 -or
+        $post.catalogo_antes_finalizar -ne 0 -or
+        $post.catalogo_despues -ne 1) {
+        throw 'El escaneo simulado se completó en orden incorrecto.'
+    }
+    $results['ntfs_jellyfin_catalogo_ficticio'] = 'correcto'
 
     $duplicate = Join-Path $root '.viewtv-stage-2'
     [System.IO.Directory]::CreateDirectory($duplicate) | Out-Null

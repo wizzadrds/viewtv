@@ -15,7 +15,7 @@ from pathlib import Path
 from worker.organization_planner import UnsafeOrganizationPlan
 
 PUBLIC = Path("/mnt/c/Users/Public")
-REPO = Path("/home/viewtv/projects/viewtv")
+REPO = Path("/home/viewtv/projects/viewtv-broker-0013-20261119")
 IMAGE = "viewtv:predeploy-0013-dev"
 MARKER = "VIEWTV_WINDOWS_SANDBOX_ONLY_V1\n"
 STAGE = ".viewtv-stage-1"

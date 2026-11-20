@@ -162,10 +162,22 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [x] Probar un único medio sintético hasta catálogo visible
   en SQLite de laboratorio, con un destino, copia sin sobrescribir,
   escaneo simulado y recuperación sin repetir publicación.
-- [ ] Repetir el circuito con publicación confinada **en Windows NTFS**
-  y una biblioteca de demostración, todavía NO con medios del usuario.
-- [ ] Demostrar movimiento seguro y detección en Jellyfin
-  con datos autorizados antes de habilitar automatización productiva.
+- [x] **Conectar la prueba Docker → publicación NTFS Windows →
+  escaneo y catálogo Jellyfin ficticios** en un solo ensayo:
+  8 controles correctos en sandbox nuevo y marcado bajo
+  `C:\Users\Public`, con vídeo y subtítulo sintéticos.
+  Antes de publicar: 0 escaneos; tras reconciliación firmada
+  Windows, `POST /Library/Refresh` simulado y catálogo
+  visible solo tras finalizar el escaneo simulado. Las fuentes
+  quedan intactas, no hay sobrescritura ni escritura en medios
+  reales. Ver
+  [AVANCE-CADENA-NTFS-JELLYFIN-VIEWTV-20261120.md](AVANCE-CADENA-NTFS-JELLYFIN-VIEWTV-20261120.md).
+- [ ] Integrar una autoridad **operativa** de publicación confinada
+  en Windows, con verificación de torrent/lease y comunicación
+  autenticada, y probarla en una biblioteca de demostración.
+  **La prueba en C:\Users\Public NO equivale a publicación real.**
+- [ ] Demostrar movimiento seguro y detección en Jellyfin real
+  con datos expresamente autorizados antes de habilitar automatización.
 
 ### Hito D — Publicación controlada y cierre (PENDIENTE)
 
@@ -224,9 +236,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   [AVANCE-CATALOGO-AUTOMATICO-VIEWTV-20261120.md](AVANCE-CATALOGO-AUTOMATICO-VIEWTV-20261120.md),
   con respaldo de SQLite, imágenes de rollback y pruebas.
 - Puente de laboratorio **organización confirmada → escaneo
-  Jellyfin simulado → actualización de catálogo** implementado
-  en el branch de desarrollo; en producción el worker **no ejecuta
-  organización ni solicita escaneos por esta ruta**.
+  Jellyfin simulado → actualización de catálogo** implementado.
+  Integración posterior ensayada **en NTFS real sobre una carpeta
+  de pruebas Windows**, acoplando Docker, publicación y
+  reconciliación Windows y catálogo Jellyfin falso.
+  En producción el worker **no ejecuta organización ni solicita
+  escaneos por esta ruta**.
 - PR #2 sigue en borrador; no significa que 0013 esté desplegado.
 - El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
   de vídeos satisfactoria. No se ha verificado por separado
