@@ -213,9 +213,31 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   **805/805 tests** y **4/4** en copia real aislada, frontend compilado,
   smoke **10/10** tras desplegar únicamente API/frontend. Ver
   [AVANCE-DESCARTE-SELECCION-INCORRECTA-20261121.md](AVANCE-DESCARTE-SELECCION-INCORRECTA-20261121.md).
-- [ ] **Acción pendiente del usuario**: pulsar «Descartar torrent
-  incorrecto» para la ID 1; no se ha escrito ese descarte en
-  producción sin su confirmación.
+- [x] **Usuario descartó la descarga #1**: SQLite real muestra
+  `estado=fallida` y solicitud #3 `cancelada`, sin torrent
+  en qBittorrent. Se conserva el histórico.
+- [x] **Detectar tamaño real y torrent duplicado en nueva selección**:
+  solicitud #4, descarga #2 «Nadie.2.2025.DVDRip.SPANISH».
+  Dos URLs diferentes de Jackett devuelven el **mismo infohash**,
+  que coincide con el hash histórico de #1: el torrent ya
+  descartado. El indexador anuncia 1,4 GiB, pero los metadatos
+  reales señalan **16,47 GiB** (17.686.540.911 bytes), dos
+  archivos (uno vídeo). No transmitir la ID 2.
+- [x] **Validación de metadatos antes de alta en qBittorrent**:
+  nuevo lector bencode solo para el Jackett configurado,
+  sin redirecciones, con límite 4MB, cotejo de tamaño real
+  y hash contra anteriores descartes del perfil. Si el
+  tamaño difiere en más de la tolerancia o el hash ya
+  fue descartado, bloquea ANTES del POST y del intento.
+  Worker `viewtv:validacion-tamano-0012` desplegado
+  con envío e inicio `false`, ID autorizada vacía.
+  Tests **829/829**, focales **68/68**, sin alterar
+  SQLite ni otros torrents. Informe:
+  [AVANCE-VALIDACION-TAMANO-TORRENT-20261121.md](AVANCE-VALIDACION-TAMANO-TORRENT-20261121.md).
+- [ ] **El usuario debe pulsar «Deshacer selección» en la ID 2**:
+  sigue `seleccionada`, 0 %, 0 intentos y sin torrent
+  en qBittorrent. Necesitamos un candidato distinto, con
+  metadatos coherentes, para el ensayo de transferencia.
 - [ ] **Automatización de descargas correctas**: el usuario desea
   buscar, seleccionar y descargar automáticamente, pero
   un título coincidente no garantiza identidad. Validar primero

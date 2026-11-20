@@ -356,3 +356,150 @@ def test_submitted_download_persists_start_pending(monkeypatch):
         assert download.inicio_intentos == 0
         assert download.inicio_locked_by is None
         assert download.inicio_locked_until is None
+
+def _setup_jackett_verification(monkeypatch, engine, download_id):
+    from types import SimpleNamespace
+
+    with Session(engine) as session:
+        d = session.get(Descarga, download_id)
+        r = session.get(ResultadoBusqueda, d.resultado_busqueda_id)
+        r.magnet_url = None
+        r.download_url = "http://host.docker.internal:9117/dl/fixture-ficticia"
+        r.tamano_bytes = 1_503_238_554
+        session.add(r)
+        session.commit()
+
+    monkeypatch.setattr(
+        processor, "get_settings",
+        lambda: SimpleNamespace(jackett_base_url="http://host.docker.internal:9117"),
+    )
+
+
+def test_tamano_real_incoherente_bloquea_antes_de_abrir_qbit(monkeypatch):
+    from worker.torrent_metadata import TorrentMetadata
+
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    with Session(test_engine) as session:
+        request_id, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, test_engine, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda url, base: TorrentMetadata(17_686_540_911, "c" * 40),
+    )
+
+    qbit = FakeQBittorrent(responses=[[]])
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=did,
+        save_path=processor.STAGING_PATH,
+    )
+
+    with Session(test_engine) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "fallida"
+        assert d.intentos_envio == 0
+        assert d.qbittorrent_hash is None
+        assert "tamaño" in d.ultimo_error
+        assert session.get(Solicitud, request_id).estado == "esperando_seleccion"
+    assert qbit.add_calls == []
+
+
+def test_torrent_ya_rechazado_no_se_reenvia_aunque_tamano_coincida(monkeypatch):
+    from worker.torrent_metadata import TorrentMetadata
+
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    with Session(test_engine) as session:
+        request_id, did = add_selected_download(session)
+        original = session.get(Solicitud, request_id)
+        old = Solicitud(
+            perfil_id=original.perfil_id,
+            titulo="Contenido antiguo",
+            tipo_medio="pelicula",
+            estado="cancelada",
+        )
+        session.add(old)
+        session.commit()
+        session.refresh(old)
+        session.add(Descarga(
+            solicitud_id=old.id,
+            titulo="Contenido descartado",
+            estado="fallida",
+            qbittorrent_hash="d" * 40,
+        ))
+        session.commit()
+    _setup_jackett_verification(monkeypatch, test_engine, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda url, base: TorrentMetadata(1_503_238_554, "d" * 40),
+    )
+
+    qbit = FakeQBittorrent(responses=[[]])
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=did,
+        save_path=processor.STAGING_PATH,
+    )
+    with Session(test_engine) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "fallida"
+        assert d.intentos_envio == 0
+        assert "descartado" in d.ultimo_error
+    assert qbit.add_calls == []
+
+
+def test_jackett_sin_metadatos_no_inicia_envio(monkeypatch):
+    from worker.torrent_metadata import TorrentMetadataError
+
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    with Session(test_engine) as session:
+        _, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, test_engine, did)
+    def missing(url, base):
+        raise TorrentMetadataError("Respuesta externa no disponible")
+    monkeypatch.setattr(processor, "obtener_metadatos_jackett", missing)
+
+    qbit = FakeQBittorrent(responses=[[]])
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=did,
+        save_path=processor.STAGING_PATH,
+    )
+    with Session(test_engine) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "fallida"
+        assert d.intentos_envio == 0
+    assert qbit.add_calls == []
+
+
+def test_torrent_con_tamano_coherente_admite_solo_alta_detenida(monkeypatch):
+    from worker.torrent_metadata import TorrentMetadata
+
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    with Session(test_engine) as session:
+        _, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, test_engine, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda url, base: TorrentMetadata(1_503_238_554, "e" * 40),
+    )
+
+    qbit = FakeQBittorrent(responses=[
+        [],
+        [{
+            "hash": "e" * 40,
+            "tags": f"viewtv-descarga-{did}",
+            "save_path": processor.STAGING_PATH,
+            "state": "stoppedDL",
+        }],
+    ])
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=did,
+        save_path=processor.STAGING_PATH,
+    )
+    with Session(test_engine) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "enviada"
+        assert d.intentos_envio == 1
+    assert len(qbit.add_calls) == 1
+    assert qbit.add_calls[0]["stopped"] is True

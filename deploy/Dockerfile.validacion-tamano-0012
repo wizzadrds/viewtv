@@ -1,0 +1,4 @@
+# Bloqueo conservador antes de añadir torrents: contraste metainfo Jackett.
+FROM viewtv:qbit-async-0012
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py
+COPY worker/torrent_metadata.py /opt/viewtv/worker/torrent_metadata.py

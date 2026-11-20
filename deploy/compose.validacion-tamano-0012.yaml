@@ -1,0 +1,8 @@
+# Nueva imagen del worker. Mantiene envío e inicio completamente desactivados.
+services:
+  worker:
+    image: viewtv:validacion-tamano-0012
+    environment:
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"

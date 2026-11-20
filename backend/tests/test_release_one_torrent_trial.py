@@ -314,6 +314,12 @@ def test_jackett_url_windows_rewritten_and_only_one_paused_post(lab, monkeypatch
         "get_settings",
         lambda: SimpleNamespace(jackett_base_url="http://host.docker.internal:9117"),
     )
+    from worker.torrent_metadata import TorrentMetadata
+    monkeypatch.setattr(
+        processor,
+        "obtener_metadatos_jackett",
+        lambda url, base: TorrentMetadata(1000, "f" * 40),
+    )
     qbit = FakeQbit([[], [torrent(second)]])
     assert processor.process_one_download(
         "worker-prueba", qbit,

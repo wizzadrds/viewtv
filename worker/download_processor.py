@@ -7,7 +7,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 from app.database import engine
 from app.config import get_settings
-from app.models import ResultadoBusqueda
+from app.models import Descarga, ResultadoBusqueda, Solicitud
 from app.qbittorrent import (
     QBittorrentAddPending,
     QBittorrentClient,
@@ -20,6 +20,12 @@ from app.queue import (
     record_download_attempt,
 )
 from sqlmodel import Session, select
+from worker.torrent_metadata import (
+    TorrentMetadataError,
+    es_url_jackett_dl,
+    obtener_metadatos_jackett,
+    tamano_incoherente,
+)
 
 logger = logging.getLogger("viewtv.worker.download_processor")
 
@@ -247,6 +253,62 @@ def process_one_download(
                 "No se encontró el torrent en qBittorrent tras agotar los intentos.",
             )
             return True
+
+        # Validamos el metainfo real, NO el tamaño anunciado por el
+        # indexador. Esta lectura de Jackett es solo de metadatos
+        # y ocurre ANTES de consumir el intento y llamar a qBittorrent.
+        if download_url and es_url_jackett_dl(
+            download_url, get_settings().jackett_base_url
+        ):
+            try:
+                metadatos = obtener_metadatos_jackett(
+                    download_url, get_settings().jackett_base_url
+                )
+            except TorrentMetadataError:
+                _record_failure(
+                    download_id,
+                    worker_id,
+                    "No se pudieron validar los metadatos .torrent; envío bloqueado.",
+                    permanent=True,
+                )
+                return True
+
+            if tamano_incoherente(result.tamano_bytes, metadatos.size_bytes):
+                _record_failure(
+                    download_id,
+                    worker_id,
+                    "El tamaño publicado no coincide con el tamaño real del torrent.",
+                    permanent=True,
+                )
+                return True
+
+            # Un torrent previamente retirado por el usuario no debe
+            # volver a incorporarse si otro resultado apunta al mismo infohash.
+            with Session(engine) as session:
+                profile = session.get(Solicitud, request_id)
+                repetido = (
+                    session.exec(
+                        select(Descarga.id)
+                        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
+                        .where(
+                            Descarga.id != download_id,
+                            Descarga.estado == "fallida",
+                            Solicitud.estado == "cancelada",
+                            Solicitud.perfil_id == profile.perfil_id,
+                            Descarga.qbittorrent_hash == metadatos.info_hash,
+                        )
+                        .limit(1)
+                    ).first()
+                    if profile is not None else None
+                )
+            if repetido is not None:
+                _record_failure(
+                    download_id,
+                    worker_id,
+                    "El torrent ya fue descartado en una selección anterior.",
+                    permanent=True,
+                )
+                return True
 
         # Consumimos el intento justo antes de llamar a qBittorrent.
         with Session(engine) as session:
