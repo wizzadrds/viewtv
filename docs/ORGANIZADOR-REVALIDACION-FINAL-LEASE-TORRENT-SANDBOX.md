@@ -135,11 +135,14 @@ no tenían versión previa que respaldar.
    registro de autoridad emitido por un servicio broker persistente
    con cuenta Windows no administrativa e independencia del worker.
    Una cuenta administradora hostil puede alterar el registro.
-3. **La configuración no se coteja todavía con una reserva v3
-   duradera del canal de admisión**. El siguiente paso es asociar
-   de modo verificable la reserva por download_id con el plan HMAC,
-   worker, attempt y estado de publicación. No considerar que el
-   doble gate por sí solo sustituye ese vínculo.
+3. **Actualización posterior:** la modalidad estricta ahora
+   exige dos reservas durables del canal de admisión v3 en un diario
+   GUID privado, cotejadas con el nonce y hash del plan HMAC,
+   download_id, worker, intento, staging, destino y torrent.
+   La integración se probó mediante el pipe real de sandbox.
+   Véase [ORGANIZADOR-RESERVA-V3-VINCULADA-PUBLICACION-SANDBOX.md](ORGANIZADOR-RESERVA-V3-VINCULADA-PUBLICACION-SANDBOX.md).
+   **Sigue faltando un journal global independiente**, protección
+   ante administradores hostiles y reconciliación real.
 4. **Origen externo no transaccional:** una consulta HTTP y otra
    SQLite pueden cambiar después de la validación y antes de
    Directory.Move. No se ha cerrado completamente TOCTOU, ni

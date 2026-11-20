@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_copy_acl_gate_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_lease_auth_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_torrent_auth_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_v3_claim_gate_sandbox.ps1')
 
 function Assert-ViewtvSandboxFinalGate(
     [string]$SandboxRoot,[string]$Vault,[string]$StageName,
@@ -58,7 +59,7 @@ function Assert-ViewtvSandboxFinalGate(
         $item=$raw | ConvertFrom-Json
         $keys=@('version','sandbox','broker_sid','stage','final',
           'download_id','attempt','worker','torrent_hash',
-          'approval_sha256','lease_database','torrent_fixture_url',
+          'approval_sha256','journal_root','lease_database','torrent_fixture_url',
           'expires_utc')
         if(@($item.PSObject.Properties.Name).Count -ne $keys.Count){
             throw 'Campos de autoridad inesperados.'
@@ -84,6 +85,7 @@ function Assert-ViewtvSandboxFinalGate(
            [string]$item.worker -cnotmatch '^[A-Za-z0-9_-]{1,128}$' -or
            [string]$item.torrent_hash -cnotmatch '^(?:[a-f0-9]{40}|[a-f0-9]{64})$' -or
            [string]$item.approval_sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+           [string]$item.journal_root -cnotmatch '^.*\\viewtv-pipe-broker-[a-f0-9]{32}$' -or
            [string]$item.lease_database -cnotmatch '^/tmp/viewtv-lease-gate-[a-f0-9]{32}/organization\.sqlite3$' -or
            [string]$item.torrent_fixture_url -cnotmatch '^http://127\.0\.0\.1:([0-9]{5})$' -or
            $end -le $now -or $end -gt $now.AddMinutes(31)){
@@ -107,6 +109,7 @@ function Assert-ViewtvSandboxFinalGate(
             worker=[string]$item.worker
             torrent_hash=[string]$item.torrent_hash
             approval_sha256=[string]$item.approval_sha256
+            journal_root=[string]$item.journal_root
             lease_database=[string]$item.lease_database
             torrent_fixture_url=[string]$item.torrent_fixture_url
             expires_utc=[string]$item.expires_utc
@@ -135,9 +138,20 @@ function Assert-ViewtvSandboxFinalGate(
         if($digest -cne [string]$item.approval_sha256){
             throw 'Plan firmado no coincide con la identidad del lease.'
         }
-        # The signed plan itself was verified by the publisher before
-        # the first rename; the protected config is NOT a replacement
-        # for that HMAC and stage-by-stage NTFS verification.
+        # The HMAC plan is verified by the publisher before handoff.
+        # The protected config alone is NOT an admission. Require BOTH
+        # durable v3 records, including exact plan SHA, signed nonce,
+        # identity, worker, attempt, torrent hash and original file ACLs.
+        $signedPlan=$approval.payload | ConvertFrom-Json
+        if([string]$signedPlan.nonce -cnotmatch '^[a-f0-9]{32}$'){
+            throw 'Nonce firmado inválido o ausente.'
+        }
+        $null=Assert-ViewtvSandboxPinnedV3Admission (
+            [string]$item.journal_root) ([long]$item.download_id) (
+            [int]$item.attempt) ([string]$item.worker) (
+            [string]$item.sandbox) ([string]$StageName) (
+            [string]$FinalName) ([string]$item.torrent_hash) (
+            [string]$item.approval_sha256) ([string]$signedPlan.nonce)
         if(-not (Test-ViewtvBrokerSandboxLease (
             [string]$item.lease_database) ([long]$item.download_id) (
             [string]$item.worker) ([int]$item.attempt) (

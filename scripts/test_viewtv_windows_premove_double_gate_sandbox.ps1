@@ -3,6 +3,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_final_gate_sandbox.ps1')
+$brokerScript=Join-Path $PSScriptRoot 'viewtv_windows_pipe_broker_sandbox.ps1'
+. $brokerScript
 $publisher=Join-Path $PSScriptRoot 'viewtv_windows_publish_sandbox.ps1'
 $public=[IO.Path]::GetFullPath($env:PUBLIC).TrimEnd('\')
 if($public -ine 'C:\Users\Public'){throw 'Public root differs.'}
@@ -14,6 +16,9 @@ $key=$null
 $db=$null
 $fixtureUrl=''
 $fixtureJob=$null
+$journal=$null
+$journals=@()
+$temp=[IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
 $result=[ordered]@{}
 $repo='/home/viewtv/projects/viewtv-broker-0013-20261119'
 $python='/home/viewtv/projects/viewtv/backend/.venv/bin/python'
@@ -100,6 +105,7 @@ function Set-GateConfig([object]$Stage,[string]$BrokerSid='', [string]$Digest=''
         worker=[string]$fixture.worker_id
         torrent_hash=[string]$fixture.torrent_hash
         approval_sha256=$actualDigest
+        journal_root=$journal
         lease_database=$db
         torrent_fixture_url=$fixtureUrl
         expires_utc=[DateTime]::UtcNow.AddMinutes(30).ToString('o')
@@ -107,6 +113,57 @@ function Set-GateConfig([object]$Stage,[string]$BrokerSid='', [string]$Digest=''
     $data=$record|ConvertTo-Json -Compress
     [IO.File]::WriteAllText($gateFile,$data,[Text.UTF8Encoding]::new($false))
     Protect-Private $gateFile $false
+}
+function New-AdmissionJournal(){
+    $path=Join-Path $temp ('viewtv-pipe-broker-'+[Guid]::NewGuid().ToString('N'))
+    if([IO.Directory]::Exists($path)){throw 'Diario de prueba GUID ocupado.'}
+    [IO.Directory]::CreateDirectory($path)|Out-Null
+    $script:journals+=,$path
+    Protect-Private $path $true
+    [IO.File]::WriteAllText((Join-Path $path '.viewtv-pipe-only'),
+        ('VIEWTV_PIPE_BROKER_TEST_ONLY_V1'+[char]10))
+    return $path
+}
+function Admit-Stage([object]$Stage){
+    $signed=[IO.File]::ReadAllText((Join-Path $root $Stage.approval))|ConvertFrom-Json
+    $plan=$signed.payload|ConvertFrom-Json
+    $hasher=[Security.Cryptography.SHA256]::Create()
+    try {
+        $digest=[BitConverter]::ToString($hasher.ComputeHash(
+            [Text.Encoding]::UTF8.GetBytes($signed.payload))
+        ).Replace('-','').ToLowerInvariant()
+    } finally {$hasher.Dispose()}
+    $message=([ordered]@{
+        version=3
+        download_id=[int]$fixture.download_id
+        attempt=[int]$fixture.attempt
+        worker=[string]$fixture.worker_id
+        sandbox=[IO.Path]::GetFileName($root)
+        stage=[string]$Stage.stage
+        final=[string]$Stage.final
+        manifest_sha256=$digest
+        nonce=[string]$plan.nonce
+        expires_utc=[DateTime]::UtcNow.AddMinutes(3).ToString('o')
+        torrent_hash=[string]$fixture.torrent_hash
+    }|ConvertTo-Json -Compress)
+    $envelope=New-ViewtvBrokerTestEnvelope $message $key
+    $pipe='viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')
+    $job=Start-Job -ArgumentList $brokerScript,$pipe,$journal,$key,$db,$fixtureUrl -ScriptBlock {
+        param($script,$name,$rootJournal,$secret,$database,$url)
+        & $script -Mode Server -PipeName $name -JournalRoot $rootJournal -KeyPath $secret -RequireSandboxLease -LeaseDatabase $database -RequireSandboxTorrent -TorrentFixtureUrl $url
+    }
+    try {
+        $answer=& $brokerScript -Mode Client -PipeName $pipe -EnvelopeText $envelope -KeyPath $key
+        $null=$job|Wait-Job -Timeout 12
+        if($job.State -ne 'Completed'){throw 'El broker v3 no terminó.'}
+        $null=$job|Receive-Job -ErrorAction Stop
+        $reply=$answer|ConvertFrom-Json
+        Check ($reply.estado -ceq 'intencion_registrada_sin_publicar' -and
+               $reply.publicacion_iniciada -eq $false) 'El broker no admitió el plan real.'
+    } finally {
+        if($job.State -eq 'Running'){$null=$job|Stop-Job}
+        $job|Remove-Job -Force
+    }
 }
 function Strict-Publish([object]$Stage){
     $parameters=@{SandboxRoot=$root;StageName=$Stage.stage;FinalName=$Stage.final;ApprovalName=$Stage.approval;KeyPath=$key;BrokerHandoff=$true;RequireFinalSandboxAuthority=$true}
@@ -141,6 +198,7 @@ try {
         try {$source=Call-Http 'status';$fixtureUrl=[string]$source.base_url;break} catch {}
     }
     Check ($fixtureUrl -cmatch '^http://127\.0\.0\.1:[0-9]{5}$') 'No hay servidor falso.'
+    $journal=New-AdmissionJournal
     $first=New-Stage 1 'ResultadoUno'
     # Strict policy cannot run through historical direct publication.
     $directRejected=$false
@@ -170,6 +228,52 @@ try {
     $result['configuracion_ace_users']='rechazada'
     Set-GateConfig $first
 
+    Expect-StrictDenial $first 'Sin la pareja de reservas v3'
+    $result['reservas_v3_obligatorias']='rechazadas'
+    Admit-Stage $first
+    $result['admision_real_pipe_v3']='registrada'
+    $nonce=([IO.File]::ReadAllText((Join-Path $root $first.approval)) | ConvertFrom-Json).payload | ConvertFrom-Json
+    $noncePath=Join-Path $journal ('.viewtv-nonce-'+[string]$nonce.nonce+'.json')
+    $claimPath=Join-Path $journal ('.viewtv-download-'+[int]$fixture.download_id+'.json')
+    Check ([IO.File]::Exists($claimPath) -and [IO.File]::Exists($noncePath)) 'Faltan dos reservas reales.'
+    $rawClaim=[IO.File]::ReadAllText($claimPath)
+    $rawNonce=[IO.File]::ReadAllText($noncePath)
+    $altered=$rawClaim | ConvertFrom-Json
+    $altered.worker='worker-otro'
+    [IO.File]::WriteAllText($claimPath,($altered|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+    Expect-StrictDenial $first 'La reserva no coincide con el worker'
+    $result['reserva_worker_falsificado']='rechazada'
+    [IO.File]::WriteAllText($claimPath,$rawClaim,[Text.UTF8Encoding]::new($false))
+    $alteredVersion=$rawClaim | ConvertFrom-Json
+    $alteredVersion.version=2
+    [IO.File]::WriteAllText($claimPath,($alteredVersion|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+    Expect-StrictDenial $first 'Reserva versión v2 no concede publicar'
+    $result['reserva_v2_reutilizada']='rechazada'
+    [IO.File]::WriteAllText($claimPath,$rawClaim,[Text.UTF8Encoding]::new($false))
+    $alteredTorrent=$rawClaim | ConvertFrom-Json
+    $alteredTorrent.torrent_hash='c'*40
+    [IO.File]::WriteAllText($claimPath,($alteredTorrent|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+    Expect-StrictDenial $first 'Hash torrent distinto en la reserva'
+    $result['reserva_torrent_incorrecto']='rechazada'
+    [IO.File]::WriteAllText($claimPath,$rawClaim,[Text.UTF8Encoding]::new($false))
+    $alteredNonce=$rawNonce | ConvertFrom-Json
+    $alteredNonce.manifest_sha256='c'*64
+    [IO.File]::WriteAllText($noncePath,($alteredNonce|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+    Expect-StrictDenial $first 'Nonce no corresponde al plan'
+    $result['reserva_nonce_ajeno']='rechazada'
+    [IO.File]::WriteAllText($noncePath,$rawNonce,[Text.UTF8Encoding]::new($false))
+    [IO.File]::Move($noncePath,($noncePath+'.hidden'))
+    Expect-StrictDenial $first 'No hay nonce durable'
+    $result['reserva_parcial_sin_nonce']='rechazada'
+    [IO.File]::Move(($noncePath+'.hidden'),$noncePath)
+    $users=[Security.Principal.SecurityIdentifier]::new([Security.Principal.WellKnownSidType]::BuiltinUsersSid,$null)
+    $claimAcl=[IO.File]::GetAccessControl($claimPath)
+    $claimAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($users,$read,$allow))
+    [IO.File]::SetAccessControl($claimPath,$claimAcl)
+    Expect-StrictDenial $first 'Registro visible a Users'
+    $result['reserva_ace_users']='rechazada'
+    Protect-Private $claimPath $false
+
     $null=Call-Http 'set-mode' 'foreign_tag'
     Expect-StrictDenial $first 'Torrent pertenece a otra descarga'
     $result['torrent_ajeno_pre_move']='rechazado'
@@ -181,7 +285,11 @@ try {
     # Inject a changed fake HTTP state AFTER a synthetic first rename.
     # This calls the same gate used in the publisher before its final move.
     $second=New-Stage 2 'ResultadoDos'
+    # A distinct lab journal is required for a second synthetic admission
+    # using the same fixture download_id. Real services need ONE global one.
+    $journal=New-AdmissionJournal
     Set-GateConfig $second
+    Admit-Stage $second
     $null=Assert-ViewtvSandboxFinalGate $root $vault $second.stage $second.final $second.approval $key
     $escrow=Join-Path $vault '.viewtv-handoff-2'
     [IO.Directory]::Move($second.folder,$escrow)
@@ -206,6 +314,22 @@ try {
         $fixtureJob|Remove-Job -Force
     }
     if($db){$null=Call-Lease 'cleanup' $db}
+    foreach($path in $journals){
+        $mark=Join-Path $path '.viewtv-pipe-only'
+        if([IO.Directory]::Exists($path) -and
+           [IO.Path]::GetDirectoryName($path) -ieq $temp -and
+           [IO.Path]::GetFileName($path) -cmatch '^viewtv-pipe-broker-[a-f0-9]{32}$' -and
+           ([IO.DirectoryInfo]::new($path).Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0 -and
+           [IO.File]::Exists($mark) -and
+           [IO.File]::ReadAllText($mark) -ceq ('VIEWTV_PIPE_BROKER_TEST_ONLY_V1'+[char]10)){
+            foreach($entry in (Get-ChildItem -LiteralPath $path -Recurse -Force)){
+                if(($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){
+                    throw 'Diario con reparse, no se limpia.'
+                }
+            }
+            [IO.Directory]::Delete($path,$true)
+        }
+    }
     if($key -and [IO.File]::Exists($key) -and [IO.Path]::GetFileName($key) -ceq 'key.bin' -and [IO.Path]::GetFileName([IO.Path]::GetDirectoryName($key)) -cmatch '^viewtv-test-key-[a-f0-9]{32}$' -and [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($key)) -ieq $env:TEMP){
         [IO.Directory]::Delete([IO.Path]::GetDirectoryName($key),$true)
     }
