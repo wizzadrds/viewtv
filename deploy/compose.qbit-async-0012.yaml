@@ -1,0 +1,9 @@
+# Capa final del worker compatible con WebAPI 5.3.
+# Esta instalación NO permite envío/inicio globales.
+services:
+  worker:
+    image: viewtv:qbit-async-0012
+    environment:
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"

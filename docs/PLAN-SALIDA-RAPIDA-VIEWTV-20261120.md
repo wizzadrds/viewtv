@@ -162,8 +162,10 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [x] **La PWA real permite ver resultados y seleccionar**:
   el usuario lo confirmó y creó una selección, pero era un
   episodio ajeno. Corregido por filtro en API y worker.
-- [ ] **Usuario debe deshacer la selección errónea y volver a
-  seleccionar con el filtro**. No asumir transferencia validada.
+- [x] **Usuario corrigió la selección errónea**: la PWA real
+  muestra ahora «Nadie.2.2025.DVDRip.SPANISH», solicitud #3,
+  descarga canónica #1. El título supera el filtro, pero la
+  autenticidad del contenido no ha sido verificada.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
@@ -174,20 +176,32 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   solo ordena iniciar ese hash. Pruebas con dos descargas
   ficticias, qBittorrent simulado y recuperación sin doble POST.
   **Imagen original** `viewtv:inicio-torrent-unico-0012`; actualmente
-  worker `viewtv:relevancia-worker-0012`, con esos mismos filtros
-  de ID, flags de alta/inicio `false` e ID vacía. Backend previo
-  **684 pruebas aprobadas**, smoke posterior **10/10**.
+  worker `viewtv:qbit-async-0012`, que conserva los mismos filtros
+  por ID, envío e inicio en `false` e ID vacía. Prueba histórica
+  **684 aprobadas**; última suite completa **796/796** y smoke **10/10**.
   Ver [AVANCE-INICIO-TORRENT-UNICO-VIEWTV-20261120.md](AVANCE-INICIO-TORRENT-UNICO-VIEWTV-20261120.md).
-- [ ] **Alta e inicio reales pendientes**: mantener
-  `VIEWTV_ENABLE_TORRENT_SUBMIT=false`,
-  `VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID` vacío y
-  `VIEWTV_ENABLE_DOWNLOAD_START=false` hasta comprobar una
-  búsqueda con resultados y una descarga autorizada. La ruta
-  de staging existe y coincide con la configuración de qBittorrent;
-  todavía falta comprobar la operación real y la identidad del
-  torrent seleccionado. Activar primero el alta detenida y
-  después el inicio de esa misma ID, con autorización específica,
-  respaldo y reversión manual.
+- [x] **Ensayo real de alta DETENIDA de ID 1, con permiso
+  específico del usuario**: GET de Jackett válido, tres intentos
+  de envío controlados en total, último POST HTTP 202 asíncrono.
+  qBittorrent mostró transitoriamente un torrent detenido con
+  etiqueta y staging verificados; VIEWTV lo reconcilió sin otro
+  POST y guardó hash y estado `enviada`. Sin embargo, posteriores
+  GET por etiqueta y hash dieron **cero**: el torrent desapareció
+  de qBittorrent. No declarar alta estable ni progreso verificado.
+- [x] **Compatibilidad qBittorrent 5.3 y prevención de duplicados**:
+  se corrigió la URL interna Jackett para qBit Windows, se reconoció
+  JSON/HTTP 202 como alta pendiente y se implementó consulta posterior
+  sin un segundo POST. Worker `viewtv:qbit-async-0012` desplegado
+  con envío/inicio `false`, ID vacía; backend **796/796**, smoke
+  **10/10**. Informe y respaldos:
+  [AVANCE-ALTA-DETENIDA-QBIT-ASYNC-0012-20261120.md](AVANCE-ALTA-DETENIDA-QBIT-ASYNC-0012-20261120.md).
+- [ ] **Bloqueo: estabilidad del torrent y arranque**. La fila SQLite
+  ID 1 figura `enviada` e inicio `pendiente`, pero qBittorrent
+  no encuentra su hash. Diagnosticar desaparición, reconciliar estado
+  antes de repetir cualquier alta; no iniciar ni activar envíos
+  globales. El usuario quiere descargas automáticas como resultado
+  final, pero solo autorizó esta alta individual detenida; el inicio
+  exige permiso separado y verificación previa de identidad.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 

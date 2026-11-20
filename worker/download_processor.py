@@ -3,10 +3,16 @@
 import logging
 import re
 from pathlib import PureWindowsPath
+from urllib.parse import urlsplit, urlunsplit
 
 from app.database import engine
+from app.config import get_settings
 from app.models import ResultadoBusqueda
-from app.qbittorrent import QBittorrentClient, QBittorrentError
+from app.qbittorrent import (
+    QBittorrentAddPending,
+    QBittorrentClient,
+    QBittorrentError,
+)
 from app.queue import (
     claim_next_download,
     fail_download,
@@ -19,6 +25,35 @@ logger = logging.getLogger("viewtv.worker.download_processor")
 
 # Mismo destino exigido por el iniciador de VIEWTV; nunca se crea aquí.
 STAGING_PATH = r"C:\VIEWTV\media\descargas_temporales"
+
+
+def _qbit_url_for_windows_jackett(url: str, jackett_base_url: str) -> str:
+    """Convierte SOLO la URL interna Jackett a loopback para qBit Windows.
+
+    El contenedor resuelve host.docker.internal, pero qBittorrent
+    ejecutado en Windows no. No reescribe dominios externos, enlaces
+    magnet, orígenes diferentes ni rutas distintas de /dl/.
+    """
+    parsed = urlsplit(url)
+    jackett = urlsplit(jackett_base_url)
+    if (
+        parsed.scheme != "http"
+        or parsed.hostname != "host.docker.internal"
+        or parsed.username is not None
+        or parsed.password is not None
+        or not parsed.path.startswith("/dl/")
+        or jackett.scheme != parsed.scheme
+        or jackett.hostname != parsed.hostname
+        or jackett.port is None
+        or parsed.port != jackett.port
+    ):
+        return url
+    return urlunsplit(
+        parsed._replace(netloc=f"127.0.0.1:{jackett.port}")
+    )
+
+
+PENDING_ADD_MARKER = "Alta asíncrona pendiente en qBittorrent; no reenviar."
 
 
 class TrialAdmissionError(QBittorrentError):
@@ -109,6 +144,7 @@ def process_one_download(
         result_id = download.resultado_busqueda_id
         attempts = download.intentos_envio
         max_attempts = download.max_intentos_envio
+        previous_pending = download.ultimo_error == PENDING_ADD_MARKER
 
         result = None
         if result_id is not None:
@@ -137,6 +173,16 @@ def process_one_download(
 
     # Preferimos el magnet; usamos la URL torrent como alternativa.
     torrent_url = magnet_url or download_url
+    if (
+        allowed_download_id is not None
+        and magnet_url is None
+        and torrent_url
+    ):
+        # El enlace /dl/ de Jackett es válido desde Docker, pero el
+        # qBittorrent Windows necesita el mismo servicio por loopback.
+        torrent_url = _qbit_url_for_windows_jackett(
+            torrent_url, get_settings().jackett_base_url
+        )
     if not torrent_url or not torrent_url.strip():
         _record_failure(
             download_id,
@@ -186,6 +232,13 @@ def process_one_download(
                 )
             return True
 
+        # HTTP 202 (qBittorrent 5.3): el alta ya está pendiente.
+        # Si aún no aparece la etiqueta, consultar más tarde SIN
+        # efectuar ningún segundo POST ni consumir otro intento.
+        if previous_pending:
+            _record_failure(download_id, worker_id, PENDING_ADD_MARKER)
+            return True
+
         # Si ya se consumieron todos los intentos, no volvemos a enviar.
         if attempts >= max_attempts:
             _record_failure(
@@ -218,6 +271,9 @@ def process_one_download(
                 stopped=True,
                 **({"save_path": save_path} if allowed_download_id is not None else {}),
             )
+        except QBittorrentAddPending:
+            # El POST 202 puede materializarse después; nunca duplicarlo.
+            add_error = QBittorrentAddPending(PENDING_ADD_MARKER)
         except QBittorrentError as error:
             # Una respuesta ambigua no garantiza que el alta fallara.
             add_error = error

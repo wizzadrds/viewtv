@@ -1,0 +1,4 @@
+# Corrección de URL interna de Jackett para qBittorrent en Windows.
+# No modifica API, esquema ni flags de inicio.
+FROM viewtv:relevancia-worker-0012
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py

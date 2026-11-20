@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from app.config import get_settings
-from app.qbittorrent import QBittorrentClient, QBittorrentError
+from app.qbittorrent import QBittorrentAddPending, QBittorrentClient, QBittorrentError
 
 
 def _settings(monkeypatch):
@@ -276,3 +276,62 @@ def test_torrent_files_rejects_invalid_json(monkeypatch):
 
     with pytest.raises(QBittorrentError, match="JSON"):
         client.torrent_files("a" * 40)
+
+def test_add_torrent_202_is_asynchronous_and_not_a_definitive_error(monkeypatch):
+    """En WebAPI 2.14+ HTTP 202 significa que el torrent está PENDIENTE."""
+    settings = _settings(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/api/v2/torrents/add"
+        fields = parse_qs(request.content.decode())
+        assert fields["stopped"] == ["true"]
+        return httpx.Response(
+            202,
+            json={
+                "success_count": 0,
+                "pending_count": 1,
+                "failure_count": 0,
+                "added_torrent_ids": [],
+            },
+        )
+
+    client = QBittorrentClient(settings, transport=httpx.MockTransport(handler))
+    with pytest.raises(QBittorrentAddPending, match="pendiente"):
+        client.add_torrent("http://127.0.0.1:9117/dl/fixture", stopped=True)
+
+
+def test_add_torrent_202_ambiguous_is_also_pending(monkeypatch):
+    settings = _settings(monkeypatch)
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(lambda req: httpx.Response(202, text="")),
+    )
+    with pytest.raises(QBittorrentAddPending):
+        client.add_torrent("magnet:?xt=urn:btih:fixture", stopped=True)
+
+
+def test_add_torrent_200_json_success_accepted(monkeypatch):
+    settings = _settings(monkeypatch)
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(lambda req: httpx.Response(
+            200,
+            json={"success_count": 1, "pending_count": 0, "failure_count": 0,
+                  "added_torrent_ids": []},
+        )),
+    )
+    client.add_torrent("magnet:?xt=urn:btih:fixture", stopped=True)
+
+
+def test_add_torrent_200_json_failure_rejected(monkeypatch):
+    settings = _settings(monkeypatch)
+    client = QBittorrentClient(
+        settings,
+        transport=httpx.MockTransport(lambda req: httpx.Response(
+            200,
+            json={"success_count": 0, "pending_count": 0, "failure_count": 1},
+        )),
+    )
+    with pytest.raises(QBittorrentError, match="no confirmó"):
+        client.add_torrent("magnet:?xt=urn:btih:fixture", stopped=True)

@@ -3,6 +3,8 @@
 No permite torrents reales. Ninguna ruta productiva recibe POST.
 """
 
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from urllib.parse import parse_qs
 
 import httpx
@@ -11,11 +13,11 @@ import worker.download_processor as processor
 import worker.main as worker_main
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
-from worker.download_processor import STAGING_PATH
+from worker.download_processor import PENDING_ADD_MARKER, STAGING_PATH
 
 from app.config import Settings
 from app.models import Descarga, Perfil, ResultadoBusqueda, Solicitud
-from app.qbittorrent import QBittorrentClient
+from app.qbittorrent import QBittorrentAddPending, QBittorrentClient
 from app.queue import claim_next_download
 
 
@@ -292,3 +294,96 @@ def test_globally_enabled_without_target_never_calls_submission(monkeypatch):
     monkeypatch.setattr(worker_main.time, "sleep", finish_cycle)
     worker_main.main()
     assert calls == ["search", "monitor", "status"]
+
+def test_jackett_url_windows_rewritten_and_only_one_paused_post(lab, monkeypatch):
+    """La URL Docker se convierte en loopback antes de enviarla a qBit Windows."""
+    engine, (first, second) = lab
+    original = "http://host.docker.internal:9117/dl/ficticio?apikey=solo-fixture"
+    with Session(engine) as session:
+        download = session.get(Descarga, second)
+        assert download is not None
+        result = session.get(ResultadoBusqueda, download.resultado_busqueda_id)
+        assert result is not None
+        result.magnet_url = None
+        result.download_url = original
+        session.add(result)
+        session.commit()
+
+    monkeypatch.setattr(
+        processor,
+        "get_settings",
+        lambda: SimpleNamespace(jackett_base_url="http://host.docker.internal:9117"),
+    )
+    qbit = FakeQbit([[], [torrent(second)]])
+    assert processor.process_one_download(
+        "worker-prueba", qbit,
+        allowed_download_id=second, save_path=STAGING_PATH,
+    )
+    assert len(qbit.added) == 1
+    url, params = qbit.added[0]
+    assert url == "http://127.0.0.1:9117/dl/ficticio?apikey=solo-fixture"
+    assert params["stopped"] is True
+    assert params["save_path"] == STAGING_PATH
+    assert params["tags"] == [f"viewtv-descarga-{second}"]
+    assert _saved(engine, first).intentos_envio == 0
+    assert _saved(engine, second).estado == "enviada"
+
+def test_pending_202_never_posts_twice_and_later_reconciles(lab):
+    """Alta async: GET sin etiqueta -> cero rePOST; GET con etiqueta -> guardar."""
+    engine, (first, second) = lab
+
+    class PendingQbit:
+        def __init__(self):
+            self.adds = 0
+            self.gets = 0
+
+        def torrents_info(self, hashes=None, *, tag=None):
+            assert tag == f"viewtv-descarga-{second}"
+            self.gets += 1
+            return [torrent(second)] if self.gets >= 4 else []
+
+        def add_torrent(self, url, **kwargs):
+            self.adds += 1
+            assert kwargs["stopped"] is True
+            raise QBittorrentAddPending(
+                "Alta aceptada y pendiente de confirmación en qBittorrent."
+            )
+
+    qbit = PendingQbit()
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=second, save_path=STAGING_PATH,
+    )
+    first_try = _saved(engine, second)
+    assert first_try.estado == "seleccionada"
+    assert first_try.ultimo_error == PENDING_ADD_MARKER
+    assert first_try.intentos_envio == 1
+    assert qbit.adds == 1
+
+    with Session(engine) as session:
+        item = session.get(Descarga, second)
+        item.disponible_desde = datetime.now(UTC) - timedelta(days=1)
+        session.add(item)
+        session.commit()
+
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=second, save_path=STAGING_PATH,
+    )
+    assert qbit.adds == 1
+    assert _saved(engine, second).intentos_envio == 1
+
+    with Session(engine) as session:
+        item = session.get(Descarga, second)
+        item.disponible_desde = datetime.now(UTC) - timedelta(days=1)
+        session.add(item)
+        session.commit()
+
+    assert processor.process_one_download(
+        "worker-test", qbit, allowed_download_id=second, save_path=STAGING_PATH,
+    )
+    done = _saved(engine, second)
+    assert done.estado == "enviada"
+    assert done.qbittorrent_hash == "a" * 40
+    assert done.inicio_estado == "pendiente"
+    assert qbit.adds == 1
+    assert _saved(engine, first).estado == "seleccionada"
+    assert _saved(engine, first).intentos_envio == 0

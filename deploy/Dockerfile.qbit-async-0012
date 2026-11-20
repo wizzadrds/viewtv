@@ -1,0 +1,5 @@
+# Corrección API qBittorrent >=5.3: HTTP 202 implica alta asíncrona.
+# Conserva versión 0012, URL para Windows y los bloqueos por ID.
+FROM viewtv:qbit-windows-url-0012
+COPY backend/app/qbittorrent.py /opt/viewtv/backend/app/qbittorrent.py
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py

@@ -9,6 +9,10 @@ class QBittorrentError(Exception):
     """Error controlado al comunicarse con qBittorrent."""
 
 
+class QBittorrentAddPending(QBittorrentError):
+    """qBittorrent aceptó un alta asíncrona; NO repetir su POST."""
+
+
 class QBittorrentClient:
     def __init__(
         self,
@@ -174,7 +178,42 @@ class QBittorrentClient:
             "/api/v2/torrents/add",
             data=data,
         )
-        if response.text.strip().lower() != "ok.":
-            raise QBittorrentError(
-                "qBittorrent no confirmó el alta del torrent."
+        # WebAPI 2.14+/qBittorrent 5.3 ya no responde solo "Ok.":
+        # HTTP 202 y pending_count>0 significa que qBittorrent está
+        # resolviendo el enlace ASÍNCRONAMENTE. Nunca repetir el POST
+        # hasta reconciliar mediante GET de la etiqueta.
+        if response.text.strip().lower() == "ok.":
+            return
+
+        try:
+            details = response.json()
+        except ValueError:
+            details = None
+
+        if isinstance(details, dict):
+            if (
+                details.get("success_count") == 1
+                and details.get("pending_count") == 0
+                and details.get("failure_count") == 0
+            ):
+                return
+
+            if (
+                response.status_code == 202
+                and isinstance(details.get("pending_count"), int)
+                and details["pending_count"] > 0
+            ):
+                raise QBittorrentAddPending(
+                    "Alta aceptada y pendiente de confirmación en qBittorrent."
+                )
+
+        if response.status_code == 202:
+            # Respuesta 202 sin JSON interpretable: posible alta aún
+            # pendiente; fallo cerrado para impedir reenvío duplicado.
+            raise QBittorrentAddPending(
+                "Alta aceptada y pendiente de confirmación en qBittorrent."
             )
+
+        raise QBittorrentError(
+            "qBittorrent no confirmó el alta del torrent."
+        )
