@@ -107,3 +107,46 @@ retirar el script nuevo, el informe y el backlog y restaurar exclusivamente
 la versión previa del plan desde el tar verificado, preservando cualquier
 cambio posterior. Preferir `git revert` del commit de documentación tras
 revisar su contenido; no usar `git reset --hard` ni borrar `.bak`.
+
+## Ampliación: circuito de API sin producción (20-11-2026)
+
+Se ha probado el mismo recorrido funcional del formulario mediante
+`scripts/viewtv_search_api_sandbox.py`. Se ejecutó en un contenedor
+efímero `viewtv:predeploy-0012-release`, **sin red**, con sistema de archivos
+de solo lectura, código montado solo lectura, `/tmp` temporal y
+`DATABASE_URL=sqlite:///:memory:`. Exige un marcador de laboratorio y
+ambos permisos de torrent en `false`; no se montó la base de producción.
+El proveedor Torznab es `httpx.MockTransport` con exactamente dos resultados
+ficticios, sin enlaces que puedan descargarse realmente.
+
+Salida real (exit 0): **6 comprobaciones correctas**: POST solicitud,
+búsqueda y cambio a `esperando_seleccion` por cola del worker, GET de dos
+resultados, aislamiento entre perfiles (404 al consultar datos ajenos),
+POST selección y GET de seguimiento con una descarga `seleccionada`,
+progreso cero, sin hash de qBittorrent ni intentos de envío.
+Se observó una advertencia conocida de deprecación de Starlette.
+
+**Qué desbloquea:** confirma que el backend conecta las operaciones
+necesarias entre búsqueda, selección y seguimiento. Se suma al GET
+real del indexador (4/4 resultados aptos); ambas evidencias son
+**independientes**, no una solicitud de producción comprobada.
+
+**Qué no está probado:** sesión real de la PWA, POST autenticado a SQLite
+de producción, descarga, progreso, organización y detección en Jellyfin.
+La prueba no usa PIN de usuario ni cookies. La casilla de interfaz
+permanece abierta; tampoco justifica autorizar alta o inicio de torrent.
+
+**Respaldo previo del hito**, verificado con SHA-256 y `tar -tzf`:
+
+`/home/viewtv/viewtv-backups/ensayo-api-solicitud-pre-20261120-224647.tar.gz`
+
+SHA-256: `30b04936bfe6810f5c5e1b6a0bd09c28a793f832fcba0c00fcc63ce7d5889737`
+
+El tar contiene el plan, el informe de diagnóstico anterior y el test de
+integración ya existente. El script nuevo no existía antes. No se
+desplegaron contenedores, ni se cambiaron servicios ni variables de producción.
+
+**Reversión:** eliminar únicamente el script de laboratorio y revertir
+las líneas de esta ampliación mediante el commit, tras revisar la
+reversión para conservar cambios posteriores; no restaurar SQLite ni
+alterar servicios o bibliotecas. No usar `git reset --hard`.

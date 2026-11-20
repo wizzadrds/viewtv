@@ -66,8 +66,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [x] Recorrido **sintético completo** probado: POST manual de solicitud,
   búsqueda Torznab con `httpx.MockTransport` sin red, worker/lease/SQLite
   ficticios, GET de resultados, selección, GET de Descargas, duplicados,
-  fallo sin resultados y aislamiento entre perfiles. No se tocó qBittorrent
-  real ni la SQLite productiva.
+  fallo sin resultados y aislamiento entre perfiles. Revalidado en
+  contenedor aislado sin red el 20-11-2026: **6/6 comprobaciones** de
+  creación, cola, resultados, permisos por perfil, selección y seguimiento
+  con SQLite en memoria y Jackett simulado. No se tocó qBittorrent
+  real ni la SQLite productiva. Ver
+  [AVANCE-BUSQUEDA-RESULTADOS-VIEWTV-20261120.md](AVANCE-BUSQUEDA-RESULTADOS-VIEWTV-20261120.md).
 - [x] Separado el permiso de **añadir torrents a qBittorrent** del permiso
   de **iniciarlos**. `VIEWTV_ENABLE_TORRENT_SUBMIT=false` (nuevo, por
   defecto) deja seleccionada una descarga sin darla de alta en qBittorrent.
