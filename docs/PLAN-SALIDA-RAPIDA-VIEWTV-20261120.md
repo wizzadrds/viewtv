@@ -73,6 +73,15 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   defecto) deja seleccionada una descarga sin darla de alta en qBittorrent.
   `VIEWTV_ENABLE_DOWNLOAD_START=false` sigue vigente. Ninguno se
   activa sin autorización del ensayo.
+- [x] **Preparado y desplegado el filtro de un solo ensayo**:
+  `VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID` debe indicar una ID positiva
+  específica para poder enviar un torrent, incluso si se activa el
+  permiso general. El lease se filtra por esa ID; no se reclama
+  ninguna otra descarga. Además se exige staging Windows conocido
+  `C:\VIEWTV\media\descargas_temporales`, un único hash/etiqueta
+  y estado detenido verificados con HTTP simulado, o se falla cerrado.
+  **Los tres controles siguen desactivados/vacíos en producción**.
+  Ver [AVANCE-ENSAYO-TORRENT-UNICO-VIEWTV-20261120.md](AVANCE-ENSAYO-TORRENT-UNICO-VIEWTV-20261120.md).
 - [ ] **Validación real pendiente con el usuario:** crear una solicitud
   autorizada desde la interfaz, esperar resultados de Jackett y
   seleccionar uno; no se han creado solicitudes durante las pruebas.
@@ -83,10 +92,13 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   de versión. Sin buscar, iniciar ni modificar ningún torrent.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [ ] La **alta del torrent** y su **inicio** son dos pasos separados:
-  `VIEWTV_ENABLE_TORRENT_SUBMIT=false` y
-  `VIEWTV_ENABLE_DOWNLOAD_START=false`. Activar primero el alta en
-  modo detenido y después el inicio únicamente con autorización
-  específica, respaldo y comprobación de destino.
+  `VIEWTV_ENABLE_TORRENT_SUBMIT=false`,
+  `VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID` vacío y
+  `VIEWTV_ENABLE_DOWNLOAD_START=false`. Antes de un ensayo real,
+  comprobar ruta e identidad de qBittorrent; autorizar primero la
+  alta de **una sola ID**, dejando su torrent detenido. El iniciador
+  todavía necesita una restricción equivalente por ID: **no activar
+  `VIEWTV_ENABLE_DOWNLOAD_START`** antes de implantarla y probarla.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 
@@ -146,6 +158,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   explícitas de solicitud/selección. La API ya exponía las cuatro
   operaciones y no requirió cambios. **Aún falta una prueba con una
   solicitud real autorizada**; no se ha iniciado ningún torrent.
+- Worker con control **exacto de una ID para el envío** y comprobación
+  de staging/etiqueta/hash/torrent detenido en laboratorio; prueba
+  del protocolo GET-POST-GET con qBittorrent simulado, sin red.
+  Nueva imagen desplegada con envío `false`, ID vacía e inicio
+  `false`. Para la primera transferencia real, falta probar el
+  control de ID del iniciador y la ruta de Windows antes de activarlo.
 - Diagnóstico registrado en
   [AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md](AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md).
 - Entrega de catálogo automático en

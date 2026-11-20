@@ -6,7 +6,9 @@ import worker.main as worker_main
 def test_monitor_error_does_not_stop_worker(monkeypatch):
     llamadas = []
 
-    def process_download(worker_id):
+    def process_download(worker_id, *, allowed_download_id, save_path):
+        assert allowed_download_id == 7
+        assert save_path == worker_main.STAGING_PATH
         llamadas.append("descarga")
         return False
 
@@ -26,6 +28,7 @@ def test_monitor_error_does_not_stop_worker(monkeypatch):
         raise KeyboardInterrupt
 
     monkeypatch.setattr(worker_main, "SUBMISSION_ENABLED", True)
+    monkeypatch.setattr(worker_main, "SUBMISSION_TARGET_ID", 7)
     monkeypatch.setattr(worker_main, "process_one_download", process_download)
     monkeypatch.setattr(worker_main, "process_one_request", process_request)
     monkeypatch.setattr(worker_main, "monitor_downloads_once", failing_monitor)

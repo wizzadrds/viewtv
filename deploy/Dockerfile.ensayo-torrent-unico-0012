@@ -1,0 +1,6 @@
+# Ensayo de una sola descarga: solo código de cola, alta detenida y worker.
+# La API y el esquema SQLite permanecen en 0012; no se instalan servicios.
+FROM viewtv:seleccion-sin-envio-0012
+COPY backend/app/queue.py /opt/viewtv/backend/app/queue.py
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py
+COPY worker/main.py /opt/viewtv/worker/main.py

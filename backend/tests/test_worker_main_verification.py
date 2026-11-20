@@ -17,7 +17,9 @@ def worker_cycle(monkeypatch):
         "report": 0,
     }
 
-    def download(_worker_id):
+    def download(_worker_id, *, allowed_download_id, save_path):
+        assert allowed_download_id == 7
+        assert save_path == module.STAGING_PATH
         calls["download"] += 1
         return False
 
@@ -41,6 +43,7 @@ def worker_cycle(monkeypatch):
 
     # Los tests históricos del ciclo verifican la ruta autorizada.
     monkeypatch.setattr(module, "SUBMISSION_ENABLED", True)
+    monkeypatch.setattr(module, "SUBMISSION_TARGET_ID", 7)
     monkeypatch.setattr(module, "process_one_download", download)
     monkeypatch.setattr(module, "process_one_request", request)
     monkeypatch.setattr(module, "monitor_downloads_once", monitor)

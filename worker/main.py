@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import socket
 import time
 
@@ -10,7 +11,7 @@ from app.queue import get_queue_counts
 from sqlmodel import Session
 from worker.catalog_sync import CatalogSyncScheduler
 from worker.download_monitor import monitor_downloads_once
-from worker.download_processor import process_one_download
+from worker.download_processor import STAGING_PATH, process_one_download
 from worker.download_starter import process_one_start
 from worker.download_verifier import (
     new_verification_worker_id,
@@ -30,6 +31,20 @@ START_ENABLED = (
 # La preparación y el inicio son dos permisos independientes y explícitos.
 SUBMISSION_ENABLED = (
     os.environ.get("VIEWTV_ENABLE_TORRENT_SUBMIT", "false").strip().lower() == "true"
+)
+
+
+def parse_submission_target(value: str) -> int | None:
+    """Sin ID positiva explícita, la activación global no envía nada."""
+    raw = value.strip()
+    if re.fullmatch(r"[1-9][0-9]{0,17}", raw) is None:
+        return None
+    target = int(raw)
+    return target if target <= 2**63 - 1 else None
+
+
+SUBMISSION_TARGET_ID = parse_submission_target(
+    os.environ.get("VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID", "")
 )
 VERIFICATION_WORKER_ID = new_verification_worker_id()
 WORKER_ID = f"{socket.gethostname()[:80]}-{os.getpid()}"
@@ -51,11 +66,17 @@ def report_worker_status() -> None:
 
 def main():
     catalog_sync = CatalogSyncScheduler()
+    if SUBMISSION_ENABLED and SUBMISSION_TARGET_ID is None:
+        logger.error("Alta de torrent BLOQUEADA: falta ID individual autorizada.")
     while True:
         try:
             download_processed = False
-            if SUBMISSION_ENABLED:
-                download_processed = process_one_download(WORKER_ID)
+            if SUBMISSION_ENABLED and SUBMISSION_TARGET_ID is not None:
+                download_processed = process_one_download(
+                    WORKER_ID,
+                    allowed_download_id=SUBMISSION_TARGET_ID,
+                    save_path=STAGING_PATH,
+                )
             request_processed = process_one_request(WORKER_ID)
 
             start_processed = False

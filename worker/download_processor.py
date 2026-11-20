@@ -1,7 +1,8 @@
-
 """Procesamiento de descargas seleccionadas por el usuario."""
 
 import logging
+import re
+from pathlib import PureWindowsPath
 
 from app.database import engine
 from app.models import ResultadoBusqueda
@@ -15,6 +16,41 @@ from app.queue import (
 from sqlmodel import Session, select
 
 logger = logging.getLogger("viewtv.worker.download_processor")
+
+# Mismo destino exigido por el iniciador de VIEWTV; nunca se crea aquí.
+STAGING_PATH = r"C:\VIEWTV\media\descargas_temporales"
+
+
+class TrialAdmissionError(QBittorrentError):
+    """El torrent no tiene la identidad, ruta o estado seguro esperados."""
+
+
+def _trial_torrent_hash(torrents: list[dict], tag: str) -> str | None:
+    """Exige un único torrent detenido, etiquetado y en staging correcto."""
+    if not torrents:
+        return None
+    if len(torrents) != 1:
+        raise TrialAdmissionError("No hay una coincidencia única de la etiqueta.")
+    torrent = torrents[0]
+    value = torrent.get("hash")
+    if (
+        not isinstance(value, str)
+        or re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", value) is None
+    ):
+        raise TrialAdmissionError("Hash de torrent no válido.")
+    tags = torrent.get("tags")
+    if not isinstance(tags, str) or tag not in {
+        part.strip() for part in tags.split(",")
+    }:
+        raise TrialAdmissionError("La etiqueta del torrent no coincide.")
+    path = torrent.get("save_path")
+    if not isinstance(path, str) or ".." in PureWindowsPath(path).parts:
+        raise TrialAdmissionError("Ruta del torrent no autorizada.")
+    if str(PureWindowsPath(path)).casefold() != STAGING_PATH.casefold():
+        raise TrialAdmissionError("El torrent está fuera del staging permitido.")
+    if torrent.get("state") not in {"stoppedDL", "stoppedUP", "pausedDL", "pausedUP"}:
+        raise TrialAdmissionError("El torrent no está detenido.")
+    return value.lower()
 
 
 def _torrent_hash(torrents: list[dict]) -> str | None:
@@ -52,10 +88,18 @@ def _record_failure(
 def process_one_download(
     worker_id: str,
     client: QBittorrentClient | None = None,
+    *,
+    allowed_download_id: int | None = None,
+    save_path: str | None = None,
 ) -> bool:
-    """Procesa una descarga seleccionada; False indica que no había trabajo."""
+    """Ensayo acotado: filtra ID y destino antes de reclamar una descarga."""
+    if allowed_download_id is not None and save_path != STAGING_PATH:
+        raise ValueError("La ruta de staging autorizada no coincide")
+
     with Session(engine) as session:
-        download = claim_next_download(session, worker_id)
+        download = claim_next_download(
+            session, worker_id, allowed_download_id=allowed_download_id
+        )
 
         if download is None:
             return False
@@ -110,7 +154,11 @@ def process_one_download(
         # Primero reconciliamos: el envío pudo completarse antes de
         # que un worker anterior perdiera su lease o se interrumpiera.
         existing = qbittorrent.torrents_info(tag=tag)
-        existing_hash = _torrent_hash(existing)
+        existing_hash = (
+            _trial_torrent_hash(existing, tag)
+            if allowed_download_id is not None
+            else _torrent_hash(existing)
+        )
 
         if existing:
             if existing_hash is None:
@@ -168,6 +216,7 @@ def process_one_download(
                 torrent_url,
                 tags=[tag],
                 stopped=True,
+                **({"save_path": save_path} if allowed_download_id is not None else {}),
             )
         except QBittorrentError as error:
             # Una respuesta ambigua no garantiza que el alta fallara.
@@ -176,7 +225,11 @@ def process_one_download(
         # Confirmamos mediante la etiqueta, no suponiendo que el alta
         # HTTP equivale a que el torrent ya esté registrado.
         submitted = qbittorrent.torrents_info(tag=tag)
-        torrent_hash = _torrent_hash(submitted)
+        torrent_hash = (
+            _trial_torrent_hash(submitted, tag)
+            if allowed_download_id is not None
+            else _torrent_hash(submitted)
+        )
 
         if torrent_hash is None:
             if add_error is not None:
@@ -222,6 +275,7 @@ def process_one_download(
                 download_id,
                 worker_id,
                 message,
+                permanent=isinstance(error, TrialAdmissionError),
             )
         except Exception:
             logger.exception(

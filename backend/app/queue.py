@@ -337,19 +337,32 @@ def claim_next_download(
     *,
     lease_seconds: int = LEASE_SECONDS_DEFAULT,
     now: datetime | None = None,
+    allowed_download_id: int | None = None,
 ) -> Descarga | None:
-    """Reclama una descarga seleccionada sin consumir intentos de envío."""
+    """Reclama únicamente la descarga autorizada cuando se limita por ID."""
     if not worker_id or len(worker_id) > 128:
         raise ValueError("worker_id debe tener entre 1 y 128 caracteres")
     if lease_seconds <= 0:
         raise ValueError("lease_seconds debe ser mayor que cero")
+    if allowed_download_id is not None and (
+        isinstance(allowed_download_id, bool)
+        or not isinstance(allowed_download_id, int)
+        or not 0 < allowed_download_id <= 2**63 - 1
+    ):
+        raise ValueError("La ID autorizada debe ser un entero positivo de SQLite")
 
+    id_filter = (
+        (Descarga.id == allowed_download_id,)
+        if allowed_download_id is not None
+        else ()
+    )
     current_time = _now(now)
     _begin_write(session)
     try:
         download_id = session.exec(
             select(Descarga.id)
             .where(
+                *id_filter,
                 Descarga.estado == "seleccionada",
                 Descarga.disponible_desde <= current_time,
                 or_(
