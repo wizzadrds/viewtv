@@ -61,3 +61,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "\\wsl.localhost\Ubuntu-
 ```
 
 **Criterio de cierre de este bloque:** contrato documentado y ACL de sandbox demostrada. **Bloqueo para siguiente fase:** falta una identidad Windows independiente para el broker y ensayos reales de acceso denegado entre cuentas; no declarar el protocolo completo ni habilitar producción.
+
+## Ensayo posterior: canal IPC Windows sin permisos de publicación (20-11-2026)
+
+Se añadió un prototipo de admisión por `NamedPipeServerStream` restringido
+a sandbox Windows, con HMAC-SHA-256, mensajes acotados y registro durable
+de nonce contra replay. Está documentado y probado en
+[ORGANIZADOR-CANAL-BROKER-WINDOWS-SANDBOX.md](ORGANIZADOR-CANAL-BROKER-WINDOWS-SANDBOX.md).
+**No es un broker operativo:** continúa utilizando una clave compartida por
+el mismo usuario Windows, sin prueba entre cuentas ni autenticación mutua del
+servidor, y **no llama al publicador ni verifica la cola 0013**.
+No invalida ninguno de los bloqueos de seguridad anteriores.
