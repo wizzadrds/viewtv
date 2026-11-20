@@ -103,6 +103,20 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   de resultados ni funcionamiento final de la búsqueda. Procedimiento
   y pruebas en
   [AVANCE-PREFLIGHT-RUTAS-Y-PROVEEDOR-VIEWTV-20261120.md](AVANCE-PREFLIGHT-RUTAS-Y-PROVEEDOR-VIEWTV-20261120.md).
+- [x] **Capacidades Torznab del proveedor comprobadas en vivo**:
+  de 654 indexadores listados en Jackett, **uno configurado**.
+  Este admite `search`, `movie-search`, `tv-search` y búsqueda
+  por título `q` en los tres modos. El endpoint administrativo
+  de estado **no facilitó un estado verificable** mediante GET,
+  por lo que NO se considera saludable solo por las capacidades.
+  Hay pruebas y diagnóstico sin revelar el nombre del indexador
+  en
+  [AVANCE-CAPACIDADES-JACKETT-VIEWTV-20261120.md](AVANCE-CAPACIDADES-JACKETT-VIEWTV-20261120.md).
+- [ ] **Bloqueador de búsqueda real**: probar un título legítimo
+  desde «Buscar y pedir» y comprobar en el panel de Jackett
+  el indexador configurado y sus pruebas propias si vuelve a salir
+  `sin_resultados`. No inventar corrección de la API cuando el
+  proveedor responde 0 y declara capacidades correctas.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
@@ -204,6 +218,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   la interfaz, selección, una descarga real, seguimiento completo
   y organización automática. Las consultas GET de prueba sí
   alcanzaron Jackett, pero ambas devolvieron cero resultados.
+  El único proveedor configurado anuncia compatibilidad con
+  búsqueda general, de películas y series; **su estado operativo
+  no quedó confirmado** por la API administrativa.
   La carpeta Windows y la preferencia por defecto de qBittorrent
   coinciden; eso no sustituye el ensayo de una transferencia.
 
