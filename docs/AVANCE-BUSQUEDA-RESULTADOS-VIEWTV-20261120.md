@@ -20,10 +20,14 @@ modificación de configuración. Consultó el título español conocido
 | `movie` | OK | **4** | **4** |
 | `search` | OK | **4** | **4** |
 
-Ambas consultas terminaron sin errores. El script nunca expone API keys,
-identidad del indexador, resultados individuales, enlaces, magnets ni hashes.
-Los cuatro resultados no demuestran calidad, validez ni legalidad de los
-ficheros, disponibilidad de pares, selección desde VIEWTV o transferencia real.
+Ambas consultas terminaron sin errores. En una segunda ejecución se pasó
+la respuesta real por `worker.processor._to_database_results` **sin guardar
+SQLite**: `movie` y `search` produjeron **4 de 4 registros aptos para
+guardar**. El conversor no descartó elementos por duplicados o enlaces
+vacíos en esta muestra. El script nunca expone API keys, identidad del
+indexador, resultados individuales, enlaces, magnets ni hashes. Los cuatro
+resultados no demuestran calidad, validez ni legalidad de los ficheros,
+disponibilidad de pares, selección desde VIEWTV o transferencia real.
 
 Jackett está funcionando **para ese título y ese momento**: no se identificó
 un bloqueo general por Cloudflare. No se ha modificado la URL de FlareSolverr
@@ -35,6 +39,16 @@ la instrucción de revisar log, test y dominio aplicaba si el GET daba cero.
 
 - Smoke de solo lectura `scripts/viewtv_release_smoke_0012_readonly.py`:
   **10/10 PASS**. Incluye HTML de PWA, proxy y API, Jellyfin y 401 sin sesión.
+- El formulario real (`frontend/components/requests-panel.tsx`) usa POST
+  `/solicitudes`, GET de solicitudes/resultados y POST de selección;
+  esa secuencia está cubierta con proveedores ficticios en
+  `backend/tests/test_release_search_selection_flow.py`. Se intentó
+  reejecutar esta prueba en contenedor efímero sin red, con fuentes
+  montadas en solo lectura y SQLite en memoria, pero la imagen de
+  producción no incluye `pytest` (`No module named pytest`). **No se
+  registra como prueba pasada en esta sesión** y no se instaló nada.
+- No había una ventana abierta de VIEWTV en el navegador remoto;
+  por ello no se utilizó una sesión autenticada ni se pidieron PINs.
 - El único indexador previamente configurado anunciaba `movie-search`,
   `search` y `q`; esta vez respondió con resultados reales.
 - **No verificado desde una sesión autenticada de «Buscar y pedir»**:
@@ -58,6 +72,15 @@ SHA-256:
 `tar -tzf` confirmó el documento preexistente que íbamos a editar:
 `docs/PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md`. El backlog, el script
 y este informe eran archivos nuevos.
+
+Para la ampliación del diagnóstico también se verificaron:
+
+- `/home/viewtv/viewtv-backups/verificacion-ui-busqueda-20261120-224106.tar.gz`
+  — SHA-256 `66fa942fd82bab1aa4ed5aab947cab592ffcacb0599e0002be3d606864a3e978`;
+  `tar -tzf` confirmó plan, formulario PWA y prueba de integración.
+- `/home/viewtv/viewtv-backups/verificacion-proveedor-conversion-20261120-224143.tar.gz`
+  — SHA-256 `5f0afff4fbbb50bef041ca02cc3ccaf6ba6c157ab6d181d59e156f725ce89a60`;
+  `tar -tzf` confirmó script, informe y plan previos a editar.
 
 ## Próximo paso para cerrar tarea 1
 

@@ -114,7 +114,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   [AVANCE-CAPACIDADES-JACKETT-VIEWTV-20261120.md](AVANCE-CAPACIDADES-JACKETT-VIEWTV-20261120.md).
 - [x] **Búsqueda GET con resultados reales**: desde el worker de
   producción, Torznab `movie` y `search` con «Ocho apellidos vascos»
-  devolvieron **4 resultados cada una, todos con enlace seleccionable**.
+  devolvieron **4 resultados cada una, todos con enlace seleccionable**;
+  el conversor del worker mantuvo **4/4 aptos para guardar** en ambas
+  modalidades, sin escribir SQLite.
   No se creó ninguna solicitud ni se descargó contenido. Jackett
   funciona para este título; no hace falta modificar Cloudflare,
   FlareSolverr ni otros indexadores para esta comprobación.
