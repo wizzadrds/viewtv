@@ -55,10 +55,17 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Jackett ya responde en una consulta de estado, pero aún falta
   comprobar una búsqueda nueva desde la aplicación.
 
-### Hito B — Solicitudes y descarga de prueba (PENDIENTE)
+### Hito B — Solicitudes y descarga de prueba (EN CURSO)
 
-- [ ] Verificar búsqueda y selección en interfaz con un trabajo
-  de prueba que el usuario autorice.
+- [x] Añadida y desplegada la pestaña **«Buscar y pedir»**. Permite
+  crear una solicitud manual de película o serie (año opcional),
+  consultar solicitudes y resultados, y seleccionar uno con las
+  rutas de API existentes. Refresca listas cada 10 segundos y al
+  volver a la pestaña. No dispara acciones POST por abrirla.
+  Ver [AVANCE-SOLICITUDES-UI-VIEWTV-20261120.md](AVANCE-SOLICITUDES-UI-VIEWTV-20261120.md).
+- [ ] **Validación real pendiente con el usuario:** crear una solicitud
+  autorizada desde la interfaz, esperar resultados de Jackett y
+  seleccionar uno. No se han creado solicitudes durante las pruebas.
 - [x] Consultas GET de conectividad: Jackett responde a la lista de
   indexadores con uno configurado; qBittorrent responde a la lectura
   de versión. Sin buscar, iniciar ni modificar ningún torrent.
@@ -120,6 +127,11 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - Panel «Mis descargas» con auto-GET cada 15 segundos, sin botón
   «Actualizar», y consulta inmediata al volver a la pestaña;
   solo consulta estados, sin iniciar torrents.
+- Sección «Buscar y pedir» desplegada, con formulario y resultados
+  del perfil autenticado, actualización cada 10 segundos y acciones
+  explícitas de solicitud/selección. La API ya exponía las cuatro
+  operaciones y no requirió cambios. **Aún falta una prueba con una
+  solicitud real autorizada**; no se ha iniciado ningún torrent.
 - Diagnóstico registrado en
   [AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md](AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md).
 - Entrega de catálogo automático en

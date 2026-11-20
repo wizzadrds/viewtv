@@ -1,0 +1,5 @@
+# VIEWTV 0012: búsqueda y selección desde el frontend.
+# Mantener los overrides previos y añadir este como último.
+services:
+  frontend:
+    image: viewtv-frontend:solicitudes-0012

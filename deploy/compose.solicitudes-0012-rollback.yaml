@@ -1,0 +1,5 @@
+# Reversión del frontend de solicitudes, sin alterar worker/API/datos.
+# Añadir como último -f después de compose.solicitudes-0012.yaml.
+services:
+  frontend:
+    image: viewtv-frontend:descargas-auto-0012
