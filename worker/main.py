@@ -26,6 +26,11 @@ VERIFICATION_ENABLED = (
 START_ENABLED = (
     os.environ.get("VIEWTV_ENABLE_DOWNLOAD_START", "false").strip().lower() == "true"
 )
+# Seleccionar un resultado NO autoriza añadir un torrent real a qBittorrent.
+# La preparación y el inicio son dos permisos independientes y explícitos.
+SUBMISSION_ENABLED = (
+    os.environ.get("VIEWTV_ENABLE_TORRENT_SUBMIT", "false").strip().lower() == "true"
+)
 VERIFICATION_WORKER_ID = new_verification_worker_id()
 WORKER_ID = f"{socket.gethostname()[:80]}-{os.getpid()}"
 
@@ -48,7 +53,9 @@ def main():
     catalog_sync = CatalogSyncScheduler()
     while True:
         try:
-            download_processed = process_one_download(WORKER_ID)
+            download_processed = False
+            if SUBMISSION_ENABLED:
+                download_processed = process_one_download(WORKER_ID)
             request_processed = process_one_request(WORKER_ID)
 
             start_processed = False

@@ -1,0 +1,9 @@
+# Último override para impedir que una selección cree torrents en qBittorrent.
+# La búsqueda sigue habilitada y la verificación de descargas existentes sigue viva.
+# No afecta a API, frontend, Jellyfin ni archivos multimedia.
+services:
+  worker:
+    image: viewtv:seleccion-sin-envio-0012
+    environment:
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"

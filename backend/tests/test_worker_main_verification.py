@@ -39,6 +39,8 @@ def worker_cycle(monkeypatch):
     def stop_after_cycle(_seconds):
         raise KeyboardInterrupt
 
+    # Los tests históricos del ciclo verifican la ruta autorizada.
+    monkeypatch.setattr(module, "SUBMISSION_ENABLED", True)
     monkeypatch.setattr(module, "process_one_download", download)
     monkeypatch.setattr(module, "process_one_request", request)
     monkeypatch.setattr(module, "monitor_downloads_once", monitor)
@@ -47,6 +49,22 @@ def worker_cycle(monkeypatch):
     monkeypatch.setattr(module.time, "sleep", stop_after_cycle)
 
     return module, calls
+
+
+def test_submission_disabled_does_not_prevent_requests_or_monitoring(worker_cycle, monkeypatch):
+    module, calls = worker_cycle
+    monkeypatch.setattr(module, "SUBMISSION_ENABLED", False)
+    monkeypatch.setattr(module, "VERIFICATION_ENABLED", False)
+
+    module.main()
+
+    assert calls == {
+        "download": 0,
+        "request": 1,
+        "monitor": 1,
+        "verify": 0,
+        "report": 1,
+    }
 
 
 def test_verification_disabled(worker_cycle, monkeypatch):
@@ -64,9 +82,7 @@ def test_verification_disabled(worker_cycle, monkeypatch):
     }
 
 
-def test_successful_verification_counts_as_activity(
-    worker_cycle, monkeypatch
-):
+def test_successful_verification_counts_as_activity(worker_cycle, monkeypatch):
     module, calls = worker_cycle
     monkeypatch.setattr(module, "VERIFICATION_ENABLED", True)
 
@@ -94,9 +110,7 @@ def test_no_verification_reports_idle(worker_cycle, monkeypatch):
     assert calls["report"] == 1
 
 
-def test_verification_error_does_not_interrupt_cycle(
-    worker_cycle, monkeypatch, caplog
-):
+def test_verification_error_does_not_interrupt_cycle(worker_cycle, monkeypatch, caplog):
     module, calls = worker_cycle
     monkeypatch.setattr(module, "VERIFICATION_ENABLED", True)
 
@@ -104,9 +118,7 @@ def test_verification_error_does_not_interrupt_cycle(
         calls["verify"] += 1
         raise RuntimeError("Error simulado")
 
-    monkeypatch.setattr(
-        module, "process_one_verification", failing_verify
-    )
+    monkeypatch.setattr(module, "process_one_verification", failing_verify)
 
     module.main()
 

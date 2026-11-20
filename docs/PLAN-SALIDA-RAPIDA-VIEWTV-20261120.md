@@ -63,16 +63,30 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   rutas de API existentes. Refresca listas cada 10 segundos y al
   volver a la pestaña. No dispara acciones POST por abrirla.
   Ver [AVANCE-SOLICITUDES-UI-VIEWTV-20261120.md](AVANCE-SOLICITUDES-UI-VIEWTV-20261120.md).
+- [x] Recorrido **sintético completo** probado: POST manual de solicitud,
+  búsqueda Torznab con `httpx.MockTransport` sin red, worker/lease/SQLite
+  ficticios, GET de resultados, selección, GET de Descargas, duplicados,
+  fallo sin resultados y aislamiento entre perfiles. No se tocó qBittorrent
+  real ni la SQLite productiva.
+- [x] Separado el permiso de **añadir torrents a qBittorrent** del permiso
+  de **iniciarlos**. `VIEWTV_ENABLE_TORRENT_SUBMIT=false` (nuevo, por
+  defecto) deja seleccionada una descarga sin darla de alta en qBittorrent.
+  `VIEWTV_ENABLE_DOWNLOAD_START=false` sigue vigente. Ninguno se
+  activa sin autorización del ensayo.
 - [ ] **Validación real pendiente con el usuario:** crear una solicitud
   autorizada desde la interfaz, esperar resultados de Jackett y
-  seleccionar uno. No se han creado solicitudes durante las pruebas.
+  seleccionar uno; no se han creado solicitudes durante las pruebas.
+  Documentación en
+  [AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md](AVANCE-SELECCION-SIN-ENVIO-VIEWTV-20261120.md).
 - [x] Consultas GET de conectividad: Jackett responde a la lista de
   indexadores con uno configurado; qBittorrent responde a la lectura
   de versión. Sin buscar, iniciar ni modificar ningún torrent.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
-- [ ] El inicio de descargas permanece en
-  `VIEWTV_ENABLE_DOWNLOAD_START=false`. Activarlo **solo**
-  tras verificación del flujo y autorización para el ensayo real.
+- [ ] La **alta del torrent** y su **inicio** son dos pasos separados:
+  `VIEWTV_ENABLE_TORRENT_SUBMIT=false` y
+  `VIEWTV_ENABLE_DOWNLOAD_START=false`. Activar primero el alta en
+  modo detenido y después el inicio únicamente con autorización
+  específica, respaldo y comprobación de destino.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 
