@@ -1,0 +1,12 @@
+# VIEWTV — backlog aplazado tras el primer circuito funcional
+
+**Regla:** no reabrir estas tareas sin una instrucción expresa del usuario; primero completar búsqueda → selección → descarga real → seguimiento → organización → Jellyfin.
+
+- Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.
+- Pulido cosmético de estilos, textos, iconografía y animaciones no bloqueantes.
+- Mejoras de rendimiento y optimizaciones sin efecto en la reproducción de una película.
+- Casuística rara de errores que no impida búsqueda, descarga, organización, integridad o reproducción.
+- Endurecimiento adicional del sandbox: TOCTOU residual, quiescencia definitiva y tratamiento ampliado de descriptores abiertos.
+- Identidades Windows independientes, aislamiento extra de cuentas y ACL adicionales no indispensables para un único ensayo autorizado.
+- Más escenarios del broker, tuberías, firmas, reintentos y fallos físicos que no bloqueen la publicación inicial controlada.
+- Automatizaciones, funciones complementarias y cualquier mejora oportunista no imprescindible para terminar la aplicación.

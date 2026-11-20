@@ -112,11 +112,19 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Hay pruebas y diagnóstico sin revelar el nombre del indexador
   en
   [AVANCE-CAPACIDADES-JACKETT-VIEWTV-20261120.md](AVANCE-CAPACIDADES-JACKETT-VIEWTV-20261120.md).
-- [ ] **Bloqueador de búsqueda real**: probar un título legítimo
-  desde «Buscar y pedir» y comprobar en el panel de Jackett
-  el indexador configurado y sus pruebas propias si vuelve a salir
-  `sin_resultados`. No inventar corrección de la API cuando el
-  proveedor responde 0 y declara capacidades correctas.
+- [x] **Búsqueda GET con resultados reales**: desde el worker de
+  producción, Torznab `movie` y `search` con «Ocho apellidos vascos»
+  devolvieron **4 resultados cada una, todos con enlace seleccionable**.
+  No se creó ninguna solicitud ni se descargó contenido. Jackett
+  funciona para este título; no hace falta modificar Cloudflare,
+  FlareSolverr ni otros indexadores para esta comprobación.
+  Ver [AVANCE-BUSQUEDA-RESULTADOS-VIEWTV-20261120.md](AVANCE-BUSQUEDA-RESULTADOS-VIEWTV-20261120.md).
+- [ ] **Resultado desde la interfaz aún no verificado**: crear desde
+  «Buscar y pedir» una solicitud autorizada con sesión propia, esperar
+  `esperando_seleccion`, comprobar resultados y escoger uno sin alta
+  de torrent. No confundir el GET directo con una operación completa
+  de la PWA; si la UI indica `sin_resultados`, revisar el indexador
+  y sus pruebas en el panel de Jackett antes de alterar la API.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [x] **Inicio individual implantado y ensayado sin red**: la orden
   de arranque utiliza la **misma ID canónica** de
