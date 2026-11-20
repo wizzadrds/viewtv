@@ -291,12 +291,34 @@ try {
     Assert-State (Signed $wrongAttempt $keyPath) 'no_autorizada'
     $results['intento_como_texto']='rechazado'
 
+    # A fresh signed nonce CANNOT reopen the same download: global replay.
+    $sameDownload=New-ValidPayload
+    $sameDownload.nonce=[Guid]::NewGuid().ToString('N')
+    Assert-State (Signed $sameDownload $keyPath) 'replay_bloqueado'
+    $results['replay_download_id_nuevo_nonce']='bloqueado'
+    $sameAttempt=New-ValidPayload
+    $sameAttempt.attempt=2
+    Assert-State (Signed $sameAttempt $keyPath) 'replay_bloqueado'
+    $results['replay_download_id_nuevo_intento']='bloqueado'
+
+    $otherDownloadSameNonce=New-ValidPayload
+    $otherDownloadSameNonce.download_id=22
+    $otherDownloadSameNonce.nonce=$good.nonce
+    Assert-State (Signed $otherDownloadSameNonce $keyPath) 'replay_bloqueado'
+    if([IO.File]::Exists((Join-Path $journal '.viewtv-download-22.json'))){
+        throw 'Una solicitud de nonce repetido consumió otra descarga.'
+    }
+    $results['nonce_usado_descarga_diferente']='bloqueado_sin_reserva'
+
     $newGood=New-ValidPayload
+    $newGood.download_id=18
     Assert-State (Signed $newGood $keyPath) 'intencion_registrada_sin_publicar'
     $results['otro_nonce_legitimo']='registrado'
 
     # Two separate broker/server processes race for a single signed nonce.
-    $racingPayload=Signed (New-ValidPayload) $keyPath
+    $racingIntent=New-ValidPayload
+    $racingIntent.download_id=19
+    $racingPayload=Signed $racingIntent $keyPath
     $racingNames=@(
       ('viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')),
       ('viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N'))
@@ -343,11 +365,100 @@ try {
         }
     }
 
-    $ledgers=@(Get-ChildItem -LiteralPath $journal -File -Filter '.viewtv-nonce-*.json')
-    if($ledgers.Count -ne 3){
-        throw 'El diario contiene intenciones no autorizadas.'
+    # Crash window: a flushed download reservation exists, but its nonce
+    # record is absent. Recovery must deny all freshly signed requests.
+    $interrupted=New-ValidPayload
+    $interrupted.download_id=20
+    $orphanPath=Join-Path $journal '.viewtv-download-20.json'
+    $partial=[IO.FileStream]::new($orphanPath,[IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,[IO.FileShare]::None,4096,
+        [IO.FileOptions]::WriteThrough)
+    try {
+        $partial.WriteByte(123)
+        $partial.Flush($true)
+    } finally {$partial.Dispose()}
+    Assert-State (Signed $interrupted $keyPath) 'replay_bloqueado'
+    if([IO.File]::Exists((Join-Path $journal ('.viewtv-nonce-'+$interrupted.nonce+'.json')))){
+        throw 'Un registro incompleto de descarga produjo un nonce.'
     }
-    $results['reservas_durables_totales']=$ledgers.Count
+    $results['caida_entre_reservas']='rechazo_conservador'
+
+    # Two independent brokers race with DIFFERENT nonces for the same
+    # download_id. Both HMAC envelopes are valid; only one may be admitted.
+    $raceA=New-ValidPayload
+    $raceA.download_id=21
+    $raceB=New-ValidPayload
+    $raceB.download_id=21
+    $raceA.nonce=[Guid]::NewGuid().ToString('N')
+    $raceB.nonce=[Guid]::NewGuid().ToString('N')
+    $raceMessages=@((Signed $raceA $keyPath),(Signed $raceB $keyPath))
+    $separatePipeNames=@(
+       ('viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N')),
+       ('viewtv-test-pipe-'+[Guid]::NewGuid().ToString('N'))
+    )
+    $servers=@()
+    $clients=@()
+    try {
+        foreach($name in $separatePipeNames){
+            $servers+=Start-Job -ArgumentList $broker,$name,$journal,$keyPath -ScriptBlock {
+                param($script,$pipeName,$root,$secret)
+                & $script -Mode Server -PipeName $pipeName -JournalRoot $root -KeyPath $secret
+            }
+        }
+        Start-Sleep -Milliseconds 200
+        for($i=0;$i -lt 2;$i++){
+            $clients+=Start-Job -ArgumentList $broker,$separatePipeNames[$i],$raceMessages[$i],$keyPath -ScriptBlock {
+                param($script,$pipeName,$payload,$secret)
+                & $script -Mode Client -PipeName $pipeName -EnvelopeText $payload -KeyPath $secret
+            }
+        }
+        $null=$clients|Wait-Job -Timeout 15
+        $null=$servers|Wait-Job -Timeout 15
+        foreach($job in @($clients)+@($servers)){
+            if($job.State -ne 'Completed'){
+                throw 'La carrera de distintos nonces no finalizó.'
+            }
+        }
+        $states=@(foreach($job in $clients){
+            $record=Receive-Job -Job $job -ErrorAction Stop | ConvertFrom-Json
+            $record.estado
+        })
+        foreach($job in $servers){$null=$job|Receive-Job -ErrorAction Stop}
+        if(@($states|Where-Object {$_ -ceq 'intencion_registrada_sin_publicar'}).Count -ne 1 -or
+           @($states|Where-Object {$_ -ceq 'replay_bloqueado'}).Count -ne 1){
+            throw 'Dos brokers aceptaron la misma descarga con nonces distintos.'
+        }
+        $results['dos_brokers_distinto_nonce_misma_descarga']='una_sola_reserva'
+    } finally {
+        foreach($job in @($clients)+@($servers)){
+            if($job.State -eq 'Running'){$null=$job|Stop-Job}
+            $job|Remove-Job -Force
+        }
+    }
+
+    $ledgers=@(Get-ChildItem -LiteralPath $journal -File -Filter '.viewtv-nonce-*.json')
+    $downloads=@(Get-ChildItem -LiteralPath $journal -File -Filter '.viewtv-download-*.json')
+    if($ledgers.Count -ne 4 -or $downloads.Count -ne 5){
+        throw 'El diario no refleja cuatro admisiones y una reserva incompleta.'
+    }
+    if(([IO.FileInfo]::new($orphanPath)).Length -ne 1){
+        throw 'El registro incompleto no ha quedado intacto.'
+    }
+    foreach($id in @(17,18,19,21)){
+        $claim=Join-Path $journal ('.viewtv-download-'+$id+'.json')
+        if(-not [IO.File]::Exists($claim)){
+            throw 'Falta reserva durable por download_id.'
+        }
+        $data=([IO.File]::ReadAllText($claim)|ConvertFrom-Json)
+        if([long]$data.download_id -ne $id -or
+           $data.attempt -ne 1 -or
+           [string]$data.nonce -cnotmatch '^[a-f0-9]{32}$'){
+            throw 'Contenido de reserva por descarga incorrecto.'
+        }
+    }
+    $results['reservas_nonce_y_descarga']=[pscustomobject]@{
+        nonce=$ledgers.Count; download_id=$downloads.Count
+    }
     $results | ConvertTo-Json -Compress
 } finally {
     foreach($secret in @($keyPath,$otherKey)){

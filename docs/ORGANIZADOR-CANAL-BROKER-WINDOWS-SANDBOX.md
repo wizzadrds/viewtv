@@ -7,6 +7,18 @@ con `FILE_FLAG_FIRST_PIPE_INSTANCE`, validada únicamente en sandbox:
 [PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md](ORGANIZADOR-PRIMERA-INSTANCIA-PIPE-WIN32-SANDBOX.md).
 El apartado histórico siguiente no prueba ni presupone cuentas Windows separadas.
 
+**Actualización del 20-11-2026: reservas por descarga.**
+El broker de admisión reserva ahora tanto el `download_id` como el nonce
+en su diario restringido. Antes una petición con nonce nuevo podía volver
+a admitir la misma descarga; ahora falla aunque cambie el intento.
+Se probaron carreras con dos procesos broker para la misma descarga,
+una interrupción entre escrituras y rechazo conservador del reintento.
+El detalle, las pruebas y el respaldo están en
+[ORGANIZADOR-REPLAY-POR-DESCARGA-BROKER-WINDOWS-SANDBOX.md](ORGANIZADOR-REPLAY-POR-DESCARGA-BROKER-WINDOWS-SANDBOX.md).
+Esta garantía es **local al diario de ensayo**, sin consulta de lease
+vivo ni publicación de archivos. Los conteos históricos de pruebas
+más abajo describen el estado anterior al cambio.
+
 **Actualización posterior del mismo día:** se añadió un desafío aleatorio por
 conexión y un **acuse firmado y vinculado a la solicitud**. Consultar
 [RESPUESTA-FIRMADA-BROKER-WINDOWS-SANDBOX.md](ORGANIZADOR-RESPUESTA-FIRMADA-BROKER-WINDOWS-SANDBOX.md).
@@ -128,10 +140,12 @@ publicación.** Faltan controles fundamentales:
    mantener ocupado al servidor de una conexión. Se necesitan timeouts,
    cuotas y cancelación, pruebas de parada abrupta y confinamiento de rutas
    antes de considerar un servicio persistente.
-5. Control de replay global por `download_id` y `attempt_id`, además del
-   nonce; journal duradero en ubicación de servicio, permisos, revalidación
-   pre-movimiento, bloqueo de mutaciones TOCTOU y conciliación de la
-   divergencia NTFS/SQLite.
+5. **Actualización:** se probó la reserva por `download_id` adicional
+   al nonce, con un máximo de una admisión por descarga **dentro del
+   diario GUID de ensayo**. Sigue pendiente una autoridad global
+   durable en ubicación del servicio, tratamiento de reintentos de la
+   cola, revalidación pre-movimiento y conciliación NTFS/SQLite,
+   sin confundir una reserva con una publicación real.
 6. Copia de varios GiB con heartbeat durante bloqueo real, fallo físico,
    destinos existentes, multiarchivos y migración reversible ensayada
    sobre **copia fresca** `0012→0013→0012`.

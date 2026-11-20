@@ -60,6 +60,27 @@ function New-ViewtvBrokerTestEnvelope([string]$PayloadText,[string]$TestKeyPath)
     return ([ordered]@{payload=$PayloadText;signature=$mac} |
         ConvertTo-Json -Compress)
 }
+function Reserve-ViewtvBrokerTestClaim([string]$Path,[byte[]]$Bytes) {
+    # Caller has already authenticated the envelope and verified the marked
+    # broker-only journal. CreateNew is the inter-process serialization point.
+    # Never delete a partial claim: after a crash it must fail closed.
+    $stream=$null
+    try {
+        $stream=[IO.FileStream]::new(
+            $Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,
+            [IO.FileShare]::None,4096,[IO.FileOptions]::WriteThrough)
+        $stream.Write($Bytes,0,$Bytes.Length)
+        $stream.Flush($true)
+        return 'reservada'
+    } catch [IO.IOException] {
+        if([IO.File]::Exists($Path)){return 'replay_bloqueado'}
+        return 'requiere_revision'
+    } catch {
+        return 'requiere_revision'
+    } finally {
+        if($null -ne $stream){$stream.Dispose()}
+    }
+}
 function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]$Root) {
     # The caller must have validated Root + ACL BEFORE touching the ledger.
     if ([Text.Encoding]::UTF8.GetByteCount($Raw) -gt 8192) {
@@ -122,9 +143,34 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             return 'no_autorizada'
         }
         $nonceFile=Join-Path $Root ('.viewtv-nonce-'+[string]$intent.nonce+'.json')
-        # Reserve an authenticated nonce exclusively before acknowledging it.
-        # Durable retry rejection survives even if the broker crashes after claim.
-        $message=[ordered]@{
+        $downloadFile=Join-Path $Root (
+            '.viewtv-download-'+[long]$intent.download_id+'.json')
+        # A reused nonce may refer to a *different* download. Reject it
+        # before consuming another download claim if already visible.
+        # This early check is advisory; the later CreateNew is authoritative.
+        if([IO.File]::Exists($nonceFile)){return 'replay_bloqueado'}
+        # The download claim MUST be first: after a crash between files, a
+        # missing nonce can never authorize another attempt for this download.
+        # Never remove a partial claim on errors; require manual review.
+        $downloadRecord=[ordered]@{
+            version=1
+            download_id=[long]$intent.download_id
+            attempt=[int]$intent.attempt
+            worker=[string]$intent.worker
+            sandbox=[string]$intent.sandbox
+            stage=[string]$intent.stage
+            final=[string]$intent.final
+            manifest_sha256=[string]$intent.manifest_sha256
+            nonce=[string]$intent.nonce
+            reserved_utc=$now.ToString('o')
+        } | ConvertTo-Json -Compress
+        $downloadState=Reserve-ViewtvBrokerTestClaim $downloadFile (
+            [Text.Encoding]::UTF8.GetBytes($downloadRecord))
+        if($downloadState -cne 'reservada'){return $downloadState}
+        # Nonce remains a second, independent replay gate. A failure here
+        # leaves the download claimed (conservative, never automatically
+        # retried or refunded).
+        $nonceRecord=[ordered]@{
             version=1
             nonce=[string]$intent.nonce
             manifest_sha256=[string]$intent.manifest_sha256
@@ -132,21 +178,9 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             attempt=[int]$intent.attempt
             reserved_utc=$now.ToString('o')
         } | ConvertTo-Json -Compress
-        $bytes=[Text.Encoding]::UTF8.GetBytes($message)
-        try {
-            $stream=[IO.FileStream]::new(
-                $nonceFile,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,
-                [IO.FileShare]::None,4096,[IO.FileOptions]::WriteThrough)
-        } catch [IO.IOException] {
-            if ([IO.File]::Exists($nonceFile)) { return 'replay_bloqueado' }
-            return 'requiere_revision'
-        }
-        try {
-            $stream.Write($bytes,0,$bytes.Length)
-            $stream.Flush($true)
-        } finally {
-            $stream.Dispose()
-        }
+        $nonceState=Reserve-ViewtvBrokerTestClaim $nonceFile (
+            [Text.Encoding]::UTF8.GetBytes($nonceRecord))
+        if($nonceState -cne 'reservada'){return $nonceState}
         return 'intencion_registrada_sin_publicar'
     } catch {
         return 'no_autorizada'
