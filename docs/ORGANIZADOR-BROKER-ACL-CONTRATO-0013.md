@@ -72,3 +72,27 @@ de nonce contra replay. Está documentado y probado en
 el mismo usuario Windows, sin prueba entre cuentas ni autenticación mutua del
 servidor, y **no llama al publicador ni verifica la cola 0013**.
 No invalida ninguno de los bloqueos de seguridad anteriores.
+
+## Ensayo posterior: token restringido y ACL efectivas (20-11-2026)
+
+Se comprobaron permisos **con un token de impersonación Windows restringido**
+bajo un sandbox nuevo en `C:\Users\Public`. Se verificó la denegación de
+lectura de clave, lectura/modificación del diario, creación de destino,
+alteración de ACL y conexión al pipe del broker. Tras cambiar DACL y
+propietario de staging/vídeo bajo la identidad completa, la cuenta de
+ensayo restringida dejó de poder abrir **nuevas** escrituras; el broker
+ficticio pudo mover la carpeta por NTFS.
+
+**Hallazgo crítico:** un descriptor de escritura abierto **antes**
+del sellado siguió modificando el fichero después del cambio de ACL;
+`Directory.Move` no pudo ejecutarse mientras el descriptor permanecía
+abierto. Por ello **no se declara TOCTOU cerrado**.
+
+El token restringido sigue teniendo **el mismo SID de usuario** que
+la cuenta de prueba; no sustituye identidades Windows independientes ni
+previene que un proceso que posea el token completo omita la restricción.
+Los ensayos y detalles de protección de propietario se documentan en
+[ORGANIZADOR-TOKEN-RESTRINGIDO-ACL-WINDOWS-SANDBOX.md](ORGANIZADOR-TOKEN-RESTRINGIDO-ACL-WINDOWS-SANDBOX.md).
+No se han creado cuentas ni servicios ni tocado ACL fuera de carpetas GUID
+propias de prueba. La sesión usada para este nuevo ensayo sí dispone de
+privilegios elevados, a diferencia de la sesión inicial descrita arriba.
