@@ -37,15 +37,19 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   **sin compartir su PIN**.
 - [ ] Prueba visual real del catálogo y una reproducción existente
   con autorización normal del usuario.
-- [ ] Revisar el único elemento de cola `fallida` observado en el
-  worker; no borrarlo ni reintentarlo a ciegas.
+- [x] Diagnóstico de la única solicitud `fallida`, sin acceder a su
+  título, URLs o perfiles: fallo histórico de comunicación con
+  Jackett y reintentos agotados. No se ha borrado ni reintentado.
+  Jackett ya responde en una consulta de estado, pero aún falta
+  comprobar una búsqueda nueva desde la aplicación.
 
 ### Hito B — Solicitudes y descarga de prueba (PENDIENTE)
 
 - [ ] Verificar búsqueda y selección en interfaz con un trabajo
   de prueba que el usuario autorice.
-- [ ] Comprobar integración real con los proveedores y qBittorrent,
-  sin leer ni alterar torrents ajenos.
+- [x] Consultas GET de conectividad: Jackett responde a la lista de
+  indexadores con uno configurado; qBittorrent responde a la lectura
+  de versión. Sin buscar, iniciar ni modificar ningún torrent.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
 - [ ] El inicio de descargas permanece en
   `VIEWTV_ENABLE_DOWNLOAD_START=false`. Activarlo **solo**
@@ -92,10 +96,39 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - Jellyfin saludable en `127.0.0.1:8097` (HTTP 200).
 - Worker activo y descarga automática desactivada.
 - Script de humo de solo lectura: **10/10 correcto**.
+- Inventario SQLite de solo lectura: 2 perfiles activos, 2 medios,
+  1 disponible en Jellyfin, 1 solicitud fallida por comunicación
+  con Jackett y 0 descargas. La solicitud agotó sus reintentos.
+- Consultas de conectividad Jackett y qBittorrent: **OK**;
+  no se han lanzado torrents, búsquedas ni actualizaciones.
+- Diagnóstico registrado en
+  [AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md](AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md).
 - PR #2 sigue en borrador; no significa que 0013 esté desplegado.
 - **NO verificados aún:** login con PIN, proveedor de búsqueda
   real, una descarga real, organización automática y reproducción
   completa. Nada de esto debe declararse terminado todavía.
+
+## Regla obligatoria de documentación y publicación de avances
+
+A petición expresa del usuario, **este documento es el plan maestro de
+salida** y se actualiza con el estado real de cada hito. Cada avance
+importante debe contener:
+
+1. Qué problema del producto desbloquea y qué objetivo de uso valida.
+2. Evidencia exacta, pruebas que pasaron y funciones aún no probadas.
+3. Copia verificable antes de editar archivos existentes o SQLite.
+4. Informe nuevo o actualizado en `docs/`, referencias al código y
+   procedimiento de reversión cuando corresponda.
+5. Commit descriptivo en español, push solo a
+   `viewtv-seguimiento-descargas-0012` y verificación del PR #2
+   **abierto, en borrador y sin fusionar**.
+
+La regla de priorización es **función que bloquea la aplicación >
+prueba de esa función > errores no críticos > mejoras**. Nunca
+confundir servicio saludable con autenticación, búsqueda, descarga o
+reproducción ya verificadas. No acceder a PIN ni secretos del usuario;
+las pruebas con cambios reales de torrents y biblioteca necesitan
+una autorización de ensayo específica.
 
 ## Regla de estimación
 
