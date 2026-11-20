@@ -13,17 +13,31 @@ RETRY_SECONDS = 60
 MAX_RETRY_SECONDS = 1800
 
 
-def claim_next_start(session: Session, worker_id: str, *, now=None):
-    """Reclama un inicio pendiente mediante una escritura exclusiva."""
+def claim_next_start(
+    session: Session,
+    worker_id: str,
+    *,
+    now=None,
+    allowed_download_id: int | None = None,
+):
+    """Reclama solamente la ID autorizada bajo escritura exclusiva."""
     if not worker_id or len(worker_id) > 128:
         raise ValueError("Identidad de worker no válida.")
+    if allowed_download_id is not None and (
+        isinstance(allowed_download_id, bool)
+        or not isinstance(allowed_download_id, int)
+        or not 0 < allowed_download_id <= 2**63 - 1
+    ):
+        raise ValueError("La ID de inicio autorizada debe ser positiva y válida")
 
+    id_filter = (Descarga.id == allowed_download_id,) if allowed_download_id is not None else ()
     current = _now(now)
     _begin_write(session)
     try:
         download_id = session.exec(
             select(Descarga.id)
             .where(
+                *id_filter,
                 Descarga.estado == "enviada",
                 Descarga.inicio_estado == "pendiente",
                 Descarga.qbittorrent_hash.is_not(None),
@@ -50,6 +64,7 @@ def claim_next_start(session: Session, worker_id: str, *, now=None):
         updated = session.exec(
             update(Descarga)
             .where(
+                *id_filter,
                 Descarga.id == download_id,
                 Descarga.estado == "enviada",
                 Descarga.inicio_estado == "pendiente",
@@ -68,9 +83,7 @@ def claim_next_start(session: Session, worker_id: str, *, now=None):
             )
             .values(
                 inicio_locked_by=worker_id,
-                inicio_locked_until=current + timedelta(
-                    seconds=LEASE_SECONDS
-                ),
+                inicio_locked_until=current + timedelta(seconds=LEASE_SECONDS),
                 inicio_intentos=Descarga.inicio_intentos + 1,
                 actualizado_en=current,
             )
@@ -120,7 +133,6 @@ def confirm_start_command(
         raise
 
 
-
 def mark_start_needs_review(
     session: Session,
     download_id: int,
@@ -155,6 +167,7 @@ def mark_start_needs_review(
         session.rollback()
         raise
 
+
 def defer_start_command(
     session: Session,
     download_id: int,
@@ -180,8 +193,7 @@ def defer_start_command(
             return False
 
         delay = min(
-            RETRY_SECONDS
-            * (2 ** min(max(download.inicio_intentos - 1, 0), 10)),
+            RETRY_SECONDS * (2 ** min(max(download.inicio_intentos - 1, 0), 10)),
             MAX_RETRY_SECONDS,
         )
 
@@ -196,9 +208,7 @@ def defer_start_command(
             .values(
                 inicio_locked_by=None,
                 inicio_locked_until=None,
-                inicio_disponible_desde=current + timedelta(
-                    seconds=delay
-                ),
+                inicio_disponible_desde=current + timedelta(seconds=delay),
                 actualizado_en=current,
             )
         )

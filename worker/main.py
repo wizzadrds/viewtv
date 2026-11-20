@@ -68,6 +68,8 @@ def main():
     catalog_sync = CatalogSyncScheduler()
     if SUBMISSION_ENABLED and SUBMISSION_TARGET_ID is None:
         logger.error("Alta de torrent BLOQUEADA: falta ID individual autorizada.")
+    if START_ENABLED and SUBMISSION_TARGET_ID is None:
+        logger.error("Inicio de torrent BLOQUEADO: falta ID individual autorizada.")
     while True:
         try:
             download_processed = False
@@ -80,9 +82,13 @@ def main():
             request_processed = process_one_request(WORKER_ID)
 
             start_processed = False
-            if START_ENABLED:
+            if START_ENABLED and SUBMISSION_TARGET_ID is not None:
                 try:
-                    start_processed = process_one_start(WORKER_ID)
+                    start_processed = process_one_start(
+                        WORKER_ID,
+                        allowed_download_id=SUBMISSION_TARGET_ID,
+                        expected_save_path=STAGING_PATH,
+                    )
                 except Exception:
                     logger.exception("Error procesando inicio de torrent.")
 

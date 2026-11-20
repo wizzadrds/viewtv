@@ -1,0 +1,9 @@
+# Último override de VIEWTV 0012: inicio y envío cerrados por defecto.
+# El mismo ID explícito restringe ambas operaciones si se autoriza un ensayo.
+services:
+  worker:
+    image: viewtv:inicio-torrent-unico-0012
+    environment:
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"

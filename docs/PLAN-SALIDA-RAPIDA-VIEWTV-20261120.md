@@ -91,14 +91,25 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   indexadores con uno configurado; qBittorrent responde a la lectura
   de versión. Sin buscar, iniciar ni modificar ningún torrent.
 - [ ] Demostrar seguimiento del trabajo elegido y estados de fallo.
-- [ ] La **alta del torrent** y su **inicio** son dos pasos separados:
+- [x] **Inicio individual implantado y ensayado sin red**: la orden
+  de arranque utiliza la **misma ID canónica** de
+  `VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID`; sin ID positiva, incluso
+  con `VIEWTV_ENABLE_DOWNLOAD_START=true`, no reclama ni
+  inicia nada. El lease se filtra transaccionalmente por ID.
+  Exige una coincidencia única de hash, etiqueta y staging;
+  solo ordena iniciar ese hash. Pruebas con dos descargas
+  ficticias, qBittorrent simulado y recuperación sin doble POST.
+  **Worker desplegado** con imagen `viewtv:inicio-torrent-unico-0012`,
+  flags de alta e inicio en `false` e ID vacía. Backend completo
+  **684 pruebas aprobadas**, smoke posterior **10/10**.
+  Ver [AVANCE-INICIO-TORRENT-UNICO-VIEWTV-20261120.md](AVANCE-INICIO-TORRENT-UNICO-VIEWTV-20261120.md).
+- [ ] **Alta e inicio reales pendientes**: mantener
   `VIEWTV_ENABLE_TORRENT_SUBMIT=false`,
   `VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID` vacío y
-  `VIEWTV_ENABLE_DOWNLOAD_START=false`. Antes de un ensayo real,
-  comprobar ruta e identidad de qBittorrent; autorizar primero la
-  alta de **una sola ID**, dejando su torrent detenido. El iniciador
-  todavía necesita una restricción equivalente por ID: **no activar
-  `VIEWTV_ENABLE_DOWNLOAD_START`** antes de implantarla y probarla.
+  `VIEWTV_ENABLE_DOWNLOAD_START=false` hasta comprobar la búsqueda,
+  ruta, identidad y una descarga autorizada. Activar primero
+  el alta detenida y solo después el inicio para esa misma ID,
+  con autorización específica, respaldo y reversión manual.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 
@@ -158,12 +169,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   explícitas de solicitud/selección. La API ya exponía las cuatro
   operaciones y no requirió cambios. **Aún falta una prueba con una
   solicitud real autorizada**; no se ha iniciado ningún torrent.
-- Worker con control **exacto de una ID para el envío** y comprobación
-  de staging/etiqueta/hash/torrent detenido en laboratorio; prueba
-  del protocolo GET-POST-GET con qBittorrent simulado, sin red.
-  Nueva imagen desplegada con envío `false`, ID vacía e inicio
-  `false`. Para la primera transferencia real, falta probar el
-  control de ID del iniciador y la ruta de Windows antes de activarlo.
+- Worker con filtros **por una sola ID tanto para el envío como
+  para el inicio**, y comprobación de staging, etiqueta, hash y
+  estado de qBittorrent. Probados GET-POST-GET del alta y GET-POST
+  del inicio con clientes HTTP simulados sin red. Ambos permisos
+  permanecen `false` y la ID vacía en producción. **La ruta
+  Windows y una transferencia real siguen sin verificarse**.
 - Diagnóstico registrado en
   [AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md](AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md).
 - Entrega de catálogo automático en

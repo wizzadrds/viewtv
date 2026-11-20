@@ -1,0 +1,5 @@
+# Filtro por ID individual al iniciar una descarga; sin cambiar API ni SQLite.
+FROM viewtv:ensayo-torrent-unico-0012
+COPY backend/app/download_start_queue.py /opt/viewtv/backend/app/download_start_queue.py
+COPY worker/download_starter.py /opt/viewtv/worker/download_starter.py
+COPY worker/main.py /opt/viewtv/worker/main.py
