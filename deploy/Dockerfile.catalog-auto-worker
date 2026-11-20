@@ -1,0 +1,6 @@
+# VIEWTV 0012: image incremental con sincronización de catálogo.
+# No cambia API ni esquema SQLite. Base original conservada para rollback.
+FROM viewtv:predeploy-0012-release
+COPY backend/app/jellyfin.py /opt/viewtv/backend/app/jellyfin.py
+COPY worker/catalog_sync.py /opt/viewtv/worker/catalog_sync.py
+COPY worker/main.py /opt/viewtv/worker/main.py

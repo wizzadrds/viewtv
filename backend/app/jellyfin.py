@@ -125,9 +125,7 @@ def _upsert_media(session: Session, item: dict, now: datetime) -> bool:
     if item_type not in {"Movie", "Series"}:
         return False
 
-    media = session.exec(
-        select(Medio).where(Medio.jellyfin_id == jellyfin_id)
-    ).first()
+    media = session.exec(select(Medio).where(Medio.jellyfin_id == jellyfin_id)).first()
     if media is None:
         media = Medio(
             jellyfin_id=jellyfin_id,
@@ -142,13 +140,9 @@ def _upsert_media(session: Session, item: dict, now: datetime) -> bool:
     media.anio = year if isinstance(year, int) and 1870 <= year <= 2200 else None
     media.generos = [genre for genre in item.get("Genres", []) if isinstance(genre, str)]
     has_primary_image = bool((item.get("ImageTags") or {}).get("Primary"))
-    media.imagen_portada = (
-        f"/Items/{jellyfin_id}/Images/Primary" if has_primary_image else None
-    )
+    media.imagen_portada = f"/Items/{jellyfin_id}/Images/Primary" if has_primary_image else None
     media.imagen_fondo = (
-        f"/Items/{jellyfin_id}/Images/Backdrop/0"
-        if item.get("BackdropImageTags")
-        else None
+        f"/Items/{jellyfin_id}/Images/Backdrop/0" if item.get("BackdropImageTags") else None
     )
     media.actualizado_en = now
     media.disponible_en_jellyfin = True
@@ -174,11 +168,11 @@ def jellyfin_status(
     }
 
 
-@router.post("/catalog/sync")
-def sync_catalog(
-    _profile: Annotated[Perfil, Depends(get_current_profile)],
-    session: Annotated[Session, Depends(get_session)],
-) -> dict[str, int | str]:
+def synchronize_catalog(session: Session, client: JellyfinClient | None = None) -> int:
+    """Sincronización reutilizable por API autenticada y worker periódico.
+
+    Es una sola transacción: un fallo de Jellyfin conserva el catálogo anterior.
+    """
     total_synced = 0
     start_index = 0
     page_size = 100
@@ -186,18 +180,16 @@ def sync_catalog(
     seen_ids: set[str] = set()
 
     try:
-        client = JellyfinClient()
+        source = client or JellyfinClient()
         while True:
-            page = client.get_items(start_index, page_size)
+            page = source.get_items(start_index, page_size)
             items = page.get("Items", [])
             if not isinstance(items, list):
                 raise JellyfinError("Jellyfin devolvió un catálogo no válido.")
 
             total_count = page.get("TotalRecordCount")
             if total_count is not None and (
-                isinstance(total_count, bool)
-                or not isinstance(total_count, int)
-                or total_count < 0
+                isinstance(total_count, bool) or not isinstance(total_count, int) or total_count < 0
             ):
                 raise JellyfinError("Jellyfin devolvió un recuento no válido.")
 
@@ -222,16 +214,25 @@ def sync_catalog(
             session.add(media)
 
         session.commit()
-    except JellyfinError as exc:
-        session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from None
     except Exception:
         session.rollback()
         raise
 
+    return total_synced
+
+
+@router.post("/catalog/sync")
+def sync_catalog(
+    _profile: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int | str]:
+    try:
+        total_synced = synchronize_catalog(session)
+    except JellyfinError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from None
     return {"estado": "sincronizado", "elementos_procesados": total_synced}
 
 
@@ -256,11 +257,7 @@ def media_image(
             detail="Elemento no disponible.",
         )
 
-    image_path = (
-        media.imagen_portada
-        if image_kind == "primary"
-        else media.imagen_fondo
-    )
+    image_path = media.imagen_portada if image_kind == "primary" else media.imagen_fondo
 
     if not image_path:
         raise HTTPException(
@@ -289,7 +286,6 @@ def media_image(
     )
 
 
-
 @router.get("/catalog")
 def get_catalog(
     _profile: Annotated[Perfil, Depends(get_current_profile)],
@@ -314,8 +310,8 @@ def get_catalog(
     if tipo is not None:
         statement = statement.where(Medio.tipo == tipo)
 
-    count_statement = select(func.count()).select_from(Medio).where(
-        Medio.disponible_en_jellyfin.is_(True)
+    count_statement = (
+        select(func.count()).select_from(Medio).where(Medio.disponible_en_jellyfin.is_(True))
     )
     if tipo is not None:
         count_statement = count_statement.where(Medio.tipo == tipo)
@@ -334,14 +330,10 @@ def get_catalog(
                 "anio": medio.anio,
                 "generos": medio.generos,
                 "imagen_portada": (
-                    f"/jellyfin/media/{medio.id}/images/primary"
-                    if medio.imagen_portada
-                    else None
+                    f"/jellyfin/media/{medio.id}/images/primary" if medio.imagen_portada else None
                 ),
                 "imagen_fondo": (
-                    f"/jellyfin/media/{medio.id}/images/backdrop"
-                    if medio.imagen_fondo
-                    else None
+                    f"/jellyfin/media/{medio.id}/images/backdrop" if medio.imagen_fondo else None
                 ),
             }
             for medio in medios

@@ -133,6 +133,21 @@ export default function ViewTVApp() {
   }, [view, profile, loadCatalog]);
 
   useEffect(() => {
+    if (view !== "catalog" || !profile) return;
+    const refreshVisibleCatalog = () => {
+      if (document.visibilityState === "visible" && !selectedItem && !playbackUrl) {
+        void loadCatalog();
+      }
+    };
+    const interval = window.setInterval(refreshVisibleCatalog, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", refreshVisibleCatalog);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshVisibleCatalog);
+    };
+  }, [view, profile, selectedItem, playbackUrl, loadCatalog]);
+
+  useEffect(() => {
     if (selectedProfile) pinRef.current?.focus();
   }, [selectedProfile]);
 
@@ -167,19 +182,6 @@ export default function ViewTVApp() {
       setLoginError((error as Error).message || "No se ha podido iniciar sesión.");
       setPin("");
       pinRef.current?.focus();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSync() {
-    setBusy(true);
-    setCatalogError("");
-    try {
-      await apiRequest("/jellyfin/catalog/sync", { method: "POST" });
-      await loadCatalog();
-    } catch (error) {
-      setCatalogError((error as Error).message || "No se pudo sincronizar Jellyfin.");
     } finally {
       setBusy(false);
     }
@@ -382,9 +384,7 @@ export default function ViewTVApp() {
               <span aria-hidden="true">⌕</span>
               <input aria-label="Buscar en la biblioteca" onChange={(event) => setSearch(event.target.value)} placeholder="Buscar títulos o géneros" value={search} />
             </label>
-            <button className="quiet-button" data-spatial disabled={busy} onClick={handleSync} type="button">
-              {busy ? "Actualizando…" : "↻ Sincronizar"}
-            </button>
+            <span className="muted">Biblioteca actualizada automáticamente</span>
           </div>
         </div>
         <div className="filter-row" aria-label="Filtrar biblioteca">
@@ -404,7 +404,7 @@ export default function ViewTVApp() {
             <div className="empty-icon">▧</div>
             <h3>{search ? "No encontramos ese título" : "Tu biblioteca está esperando"}</h3>
             <p>{search ? "Prueba con otro nombre o género." : "Cuando añadas contenido a Jellyfin, aparecerá aquí con sus carátulas y detalles."}</p>
-            {!search && <button className="primary-button compact" data-spatial onClick={handleSync} type="button">Actualizar biblioteca</button>}
+            {!search && <p className="muted">La biblioteca se sincroniza sola periódicamente.</p>}
           </div>
         )}
 

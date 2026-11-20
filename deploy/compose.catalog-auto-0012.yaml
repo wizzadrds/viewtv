@@ -1,0 +1,7 @@
+# Usar como último -f sobre los Compose existentes.
+# Solo worker y frontend; no toca API, Jellyfin ni volúmenes.
+services:
+  worker:
+    image: viewtv:catalog-auto-0012
+  frontend:
+    image: viewtv-frontend:catalog-auto-0012

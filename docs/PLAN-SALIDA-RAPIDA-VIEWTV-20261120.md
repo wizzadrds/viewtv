@@ -33,10 +33,17 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [x] Recrear exclusivamente la API con la imagen 0012 ya definida
   en Compose; comprobar health y esquema Alembic.
 - [x] Verificar interfaz, proxy API, perfiles y seguridad 401, Jellyfin.
-- [ ] Confirmación manual de login/logout en el navegador del usuario,
-  **sin compartir su PIN**.
-- [ ] Prueba visual real del catálogo y una reproducción existente
-  con autorización normal del usuario.
+- [x] **Sincronización automática del catálogo desplegada y verificada**:
+  worker cada 30 minutos (primer intento tras 60 s,
+  reintento a 5 minutos ante fallo), UI relee cada 5 minutos visible
+  y al regresar a la pestaña. Eliminados ambos botones manuales.
+  Primera consulta periódica real de Jellyfin: HTTP 200, **1 medio**
+  procesado. Frontend y worker actualizados con imágenes nuevas;
+  API y Jellyfin sin cambios, SQLite respaldada previamente.
+- [x] El usuario confirmó que ya puede entrar en VIEWTV, consultar
+  la biblioteca y **reproducir vídeos correctamente** en su navegador
+  (20-11-2026), sin compartir contraseñas ni PIN.
+- [ ] La operación de cierre de sesión no se ha ensayado por separado.
 - [x] Diagnóstico de la única solicitud `fallida`, sin acceder a su
   título, URLs o perfiles: fallo histórico de comunicación con
   Jackett y reintentos agotados. No se ha borrado ni reintentado.
@@ -100,13 +107,24 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   1 disponible en Jellyfin, 1 solicitud fallida por comunicación
   con Jackett y 0 descargas. La solicitud agotó sus reintentos.
 - Consultas de conectividad Jackett y qBittorrent: **OK**;
-  no se han lanzado torrents, búsquedas ni actualizaciones.
+  no se han lanzado torrents ni búsquedas.
+- Sincronización automática de Jellyfin **activa en producción**,
+  metadata refrescada en la primera ejecución sin mover archivos.
+  Primer paso seguro del catálogo automatizado; conserva rollback
+  transaccional ante un fallo de consulta.
 - Diagnóstico registrado en
   [AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md](AVANCE-SALIDA-VIEWTV-CONEXIONES-Y-COLA-20261120.md).
+- Entrega de catálogo automático en
+  [AVANCE-CATALOGO-AUTOMATICO-VIEWTV-20261120.md](AVANCE-CATALOGO-AUTOMATICO-VIEWTV-20261120.md),
+  con respaldo de SQLite, imágenes de rollback y pruebas.
 - PR #2 sigue en borrador; no significa que 0013 esté desplegado.
-- **NO verificados aún:** login con PIN, proveedor de búsqueda
-  real, una descarga real, organización automática y reproducción
-  completa. Nada de esto debe declararse terminado todavía.
+- El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
+  de vídeos satisfactoria. No se ha verificado por separado
+  la operación de cierre de sesión.
+- **NO verificados aún:** una búsqueda nueva en el proveedor desde
+  la interfaz, selección, una descarga real, seguimiento completo
+  y organización automática; ninguna prueba de conectividad
+  sustituye esas verificaciones.
 
 ## Regla obligatoria de documentación y publicación de avances
 

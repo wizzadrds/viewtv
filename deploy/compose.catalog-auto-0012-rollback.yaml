@@ -1,0 +1,7 @@
+# Si se aplicó compose.catalog-auto-0012.yaml, usar este como último -f
+# para regresar las dos imágenes anteriores SIN cambiar la SQLite.
+services:
+  worker:
+    image: viewtv:predeploy-0012-release
+  frontend:
+    image: viewtv-frontend:predeploy-0012
