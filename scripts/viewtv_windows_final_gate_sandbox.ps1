@@ -151,7 +151,7 @@ function Assert-ViewtvSandboxFinalGate(
             [int]$item.attempt) ([string]$item.worker) (
             [string]$item.sandbox) ([string]$StageName) (
             [string]$FinalName) ([string]$item.torrent_hash) (
-            [string]$item.approval_sha256) ([string]$signedPlan.nonce)
+            [string]$item.approval_sha256) ([string]$signedPlan.nonce) $KeyPath
         if(-not (Test-ViewtvBrokerSandboxLease (
             [string]$item.lease_database) ([long]$item.download_id) (
             [string]$item.worker) ([int]$item.attempt) (

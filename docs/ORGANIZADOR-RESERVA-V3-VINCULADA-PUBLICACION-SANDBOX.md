@@ -154,5 +154,17 @@ Este nuevo lector y este informe no tenían versión anterior.
 - Mantener PR #2 en borrador; ninguna fusión, despliegue o
   reparación de producción sin autorización.
 
+## Actualización: auditoría de diario e integridad MAC v3
+
+La admisión de sandbox v3 añadió posteriormente un `claim_hmac`
+sobre el JSON canónico del registro de descarga, separado por dominio
+del HMAC del pipe. Se verifica al inspeccionar el journal completo
+al recibir otra solicitud y antes de la publicación estricta. Un
+registro huérfano, extraño o manipulado bloquea nuevas admisiones
+con `requiere_revision`, **sin auto-reparación**. Las reservas
+completas antiguas siguen bloqueando replays sin habilitar publicaciones
+tardías. Esto funciona dentro de un único diario GUID, no globalmente.
+Ver [ORGANIZADOR-AUDITORIA-DIARIO-V3-RECUPERACION-SANDBOX.md](ORGANIZADOR-AUDITORIA-DIARIO-V3-RECUPERACION-SANDBOX.md).
+
 **Decisión:** asociación de admisión v3 y publicación sintética
 comprobada; **fase 1 sigue abierta**.

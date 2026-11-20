@@ -22,6 +22,7 @@ $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_first_instance_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_lease_auth_sandbox.ps1')
 . (Join-Path $PSScriptRoot 'viewtv_windows_pipe_torrent_auth_sandbox.ps1')
+. (Join-Path $PSScriptRoot 'viewtv_windows_v3_journal_audit_sandbox.ps1')
 
 function Assert-ViewtvBrokerTestJournal([string]$path) {
     $temp = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
@@ -150,6 +151,16 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
             $expiry -le $now -or $expiry -gt $now.AddMinutes(5)) {
             return 'no_autorizada'
         }
+        # In strict v3 mode a single corrupt/orphaned journal entry stops
+        # ALL new admissions in this journal across process restarts.
+        # The audit only reads: it NEVER removes, truncates or fixes claims.
+        if($TorrentFixtureUrl){
+            try {
+                $null=Assert-ViewtvSandboxV3JournalHealthy $Root $TestKeyPath
+            } catch {
+                return 'requiere_revision'
+            }
+        }
         # Lease gate is mandatory for v2/v3 admission before reservation;
         # the v3 fake-torrent gate follows it. Any failure reserves nothing.
         if($LeaseDatabase -and (
@@ -192,6 +203,12 @@ function Test-ViewtvBrokerTestMessage([string]$Raw,[string]$TestKeyPath,[string]
         }
         if($LeaseDatabase){
             $downloadClaim['torrent_hash']=[string]$intent.torrent_hash
+        }
+        if($TorrentFixtureUrl){
+            # Sign the exact canonical admission record with domain
+            # separation; only the test broker's key may issue it.
+            $body=$downloadClaim|ConvertTo-Json -Compress
+            $downloadClaim['claim_hmac']=Get-ViewtvV3ClaimHmac $body $TestKeyPath
         }
         $downloadRecord=$downloadClaim | ConvertTo-Json -Compress
         $downloadState=Reserve-ViewtvBrokerTestClaim $downloadFile (

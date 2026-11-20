@@ -2,6 +2,17 @@
 # Marked GUID test journals ONLY. Read-only, no publication or prod database.
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'viewtv_windows_approval_sandbox.ps1')
+
+function Get-ViewtvV3ClaimHmac([string]$CanonicalBody,[string]$KeyPath){
+    $key=Assert-TestKeyPath $KeyPath
+    $mac=[Security.Cryptography.HMACSHA256]::new($key)
+    try {
+        $domain='VIEWTV_V3_JOURNAL_CLAIM_V1'+[char]10
+        return [Convert]::ToBase64String($mac.ComputeHash(
+            [Text.Encoding]::UTF8.GetBytes($domain+$CanonicalBody)))
+    } finally {$mac.Dispose()}
+}
 
 function Assert-ViewtvV3ClaimAcl([string]$Path,[bool]$Directory) {
     $current=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -61,7 +72,8 @@ function Assert-ViewtvV3ClaimFile([string]$Root,[string]$Name,
 function Assert-ViewtvSandboxPinnedV3Admission(
     [string]$JournalRoot,[long]$DownloadId,[int]$Attempt,[string]$Worker,
     [string]$Sandbox,[string]$Stage,[string]$Final,[string]$TorrentHash,
-    [string]$ApprovalSha256,[string]$ApprovalNonce
+    [string]$ApprovalSha256,[string]$ApprovalNonce,
+    [string]$TestKeyPath,[bool]$AuditHistorical=$false
 ) {
     $temp=[IO.Path]::GetFullPath($env:TEMP).TrimEnd('\')
     $root=[IO.Path]::GetFullPath($JournalRoot).TrimEnd('\')
@@ -90,7 +102,8 @@ function Assert-ViewtvSandboxPinnedV3Admission(
         $claim=$rawClaim|ConvertFrom-Json
         $nonce=$rawNonce|ConvertFrom-Json
         $claimFields=@('version','download_id','attempt','worker','sandbox',
-          'stage','final','manifest_sha256','nonce','reserved_utc','torrent_hash')
+          'stage','final','manifest_sha256','nonce','reserved_utc','torrent_hash',
+          'claim_hmac')
         $nonceFields=@('version','nonce','manifest_sha256','download_id',
           'attempt','reserved_utc')
         if(@($claim.PSObject.Properties.Name).Count -ne $claimFields.Count -or
@@ -131,10 +144,11 @@ function Assert-ViewtvSandboxPinnedV3Admission(
             [Globalization.CultureInfo]::InvariantCulture,
             [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
         $now=[DateTime]::UtcNow
-        if($timestamp -gt $now.AddSeconds(5) -or $timestamp -lt $now.AddMinutes(-5)){
+        if($timestamp -gt $now.AddSeconds(5) -or
+           (-not $AuditHistorical -and $timestamp -lt $now.AddMinutes(-5))){
             throw 'Reserva v3 demasiado antigua o con fecha futura.'
         }
-        $canonicalClaim=([ordered]@{
+        $canonicalBody=([ordered]@{
             version=3
             download_id=[long]$claim.download_id
             attempt=[int]$claim.attempt
@@ -147,6 +161,20 @@ function Assert-ViewtvSandboxPinnedV3Admission(
             reserved_utc=[string]$claim.reserved_utc
             torrent_hash=[string]$claim.torrent_hash
         } | ConvertTo-Json -Compress)
+        $expectedMac=Get-ViewtvV3ClaimHmac $canonicalBody $TestKeyPath
+        $fromClaim=[Convert]::FromBase64String([string]$claim.claim_hmac)
+        $expectedBytes=[Convert]::FromBase64String($expectedMac)
+        if($fromClaim.Length -ne $expectedBytes.Length){
+            throw 'Longitud del MAC v3 incorrecta.'
+        }
+        $difference=0
+        for($j=0;$j -lt $expectedBytes.Length;$j++){
+            $difference=$difference -bor ($fromClaim[$j] -bxor $expectedBytes[$j])
+        }
+        if($difference -ne 0){throw 'Firma HMAC de reserva v3 incorrecta.'}
+        # The saved format extends the exact signed body by ONE field.
+        $canonicalClaim=$canonicalBody.Substring(0,$canonicalBody.Length-1)+
+            ',"claim_hmac":"'+$expectedMac+'"}'
         $canonicalNonce=([ordered]@{
             version=1
             nonce=[string]$nonce.nonce

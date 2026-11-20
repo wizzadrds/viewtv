@@ -235,6 +235,23 @@ try {
     Expect (Signed $foreignSandbox) $db 'no_autorizada' 0
     $results['torrent_guid_ajeno']='rechazado'
 
+    # A new broker process must refuse if an old download is orphaned.
+    $orphan=Join-Path $journal '.viewtv-download-999.json'
+    [IO.File]::WriteAllBytes($orphan,[byte[]]@(123))
+    $state=Invoke-Server (Signed $payload) $db
+    Check ($state.estado -ceq 'requiere_revision' -and @(Get-ChildItem -LiteralPath $journal -File -Filter '.viewtv-nonce-*.json').Count -eq 0 -and -not [IO.File]::Exists((Join-Path $journal ('.viewtv-download-'+$fixture.download_id+'.json')))) 'Una admisión válida ignoró un registro huérfano.'
+    Check ([IO.File]::ReadAllBytes($orphan).Length -eq 1) 'El broker borró un huérfano.'
+    $results['reinicio_broker_con_reserva_huerfana']='requiere_revision'
+    # Only the test harness may remove its own injected corruption.
+    [IO.File]::Delete($orphan)
+
+    $unknown=Join-Path $journal 'archivo-no-esperado.tmp'
+    [IO.File]::WriteAllText($unknown,'PRUEBA_CORRUPCION')
+    Expect (Signed $payload) $db 'requiere_revision' 0
+    Check ([IO.File]::Exists($unknown)) 'El broker limpió un fichero desconocido.'
+    $results['diario_con_fichero_desconocido']='requiere_revision'
+    [IO.File]::Delete($unknown)
+
     Expect (Signed $payload) $db 'intencion_registrada_sin_publicar' 1
     $results['lease_y_torrent_vigentes']='admitido_sin_publicar'
     $claim=[IO.File]::ReadAllText((Join-Path $journal ('.viewtv-download-'+$fixture.download_id+'.json')))|ConvertFrom-Json
@@ -244,6 +261,44 @@ try {
            $claim.attempt -eq $fixture.attempt -and
            $claim.torrent_hash -ceq $fixture.torrent_hash -and
            $claim.manifest_sha256 -ceq ('b'*64)) 'Reserva no ligada a identidad, torrent y manifiesto.'
+
+    $claimPath=Join-Path $journal ('.viewtv-download-'+$fixture.download_id+'.json')
+    $noncePath=Join-Path $journal ('.viewtv-nonce-'+$payload.nonce+'.json')
+    $rawClaim=[IO.File]::ReadAllText($claimPath)
+    $rawNonce=[IO.File]::ReadAllText($noncePath)
+    $tampered=$rawClaim|ConvertFrom-Json
+    $tampered.worker='invasor'
+    [IO.File]::WriteAllText($claimPath,($tampered|ConvertTo-Json -Compress),
+        [Text.UTF8Encoding]::new($false))
+    Expect (Signed (New-Payload $fixture)) $db 'requiere_revision' 1
+    Check ([IO.File]::ReadAllText($claimPath) -cne $rawClaim) 'Auditoría reparó reserva manipulada.'
+    $results['reinicio_con_reserva_contradictoria']='requiere_revision'
+    [IO.File]::WriteAllText($claimPath,$rawClaim,[Text.UTF8Encoding]::new($false))
+
+    # Historical COMPLETE pairs remain valid ledger history, but cannot
+    # authorize a new admission or a publication without fresh checks.
+    $past=[DateTime]::UtcNow.AddHours(-3).ToString('o')
+    $historicalClaim=$rawClaim|ConvertFrom-Json
+    $historicalNonce=$rawNonce|ConvertFrom-Json
+    $historicalClaim.reserved_utc=$past
+    $historicalNonce.reserved_utc=$past
+    [IO.File]::WriteAllText($claimPath,($historicalClaim|ConvertTo-Json -Compress),
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($noncePath,($historicalNonce|ConvertTo-Json -Compress),
+        [Text.UTF8Encoding]::new($false))
+    $body=[ordered]@{}
+    foreach($property in $historicalClaim.PSObject.Properties){
+        if($property.Name -cne 'claim_hmac'){$body[$property.Name]=$property.Value}
+    }
+    $historicalClaim.claim_hmac=Get-ViewtvV3ClaimHmac (
+        $body|ConvertTo-Json -Compress) $key
+    [IO.File]::WriteAllText($claimPath,($historicalClaim|ConvertTo-Json -Compress),
+        [Text.UTF8Encoding]::new($false))
+    $null=Assert-ViewtvSandboxV3JournalHealthy $journal $key
+    Expect (Signed (New-Payload $fixture)) $db 'replay_bloqueado' 1
+    $results['historia_completa_antigua_bloquea_replay']='verificado'
+    [IO.File]::WriteAllText($claimPath,$rawClaim,[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($noncePath,$rawNonce,[Text.UTF8Encoding]::new($false))
 
     $replay=New-Payload $fixture
     Expect (Signed $replay) $db 'replay_bloqueado' 1
