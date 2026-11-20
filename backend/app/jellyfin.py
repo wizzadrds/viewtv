@@ -62,6 +62,24 @@ class JellyfinClient:
     def system_info(self) -> dict:
         return self._get("/System/Info")
 
+    def request_library_scan(self) -> None:
+        """Solicita un escaneo; la aceptación HTTP NO confirma su finalización.
+
+        Exclusivo para el coordinador de publicación autorizado. El worker
+        productivo 0012 no invoca esta operación automáticamente.
+        """
+        try:
+            with httpx.Client(
+                base_url=self.base_url,
+                headers=self._headers,
+                timeout=self.timeout,
+                transport=self.transport,
+            ) as client:
+                response = client.post("/Library/Refresh")
+                response.raise_for_status()
+        except httpx.HTTPError:
+            raise JellyfinError("No se pudo solicitar el escaneo de la biblioteca.") from None
+
     def get_items(self, start_index: int, limit: int) -> dict:
         return self._get(
             "/Items",

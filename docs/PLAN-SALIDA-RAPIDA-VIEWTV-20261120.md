@@ -143,14 +143,27 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - [ ] Establecer procedimiento reversible; no habilitar
   ejecuciones masivas ni cambios de biblioteca por defecto.
 
-### Hito C — Organizador mínimo seguro 0013 (PENDIENTE)
+### Hito C — Organizador mínimo seguro 0013 (EN CURSO, SOLO LABORATORIO)
 
+- [x] **Puente organización → Jellyfin probado con un vídeo ficticio**:
+  la cola y el copiador bajo `/tmp` publican el medio y confirman
+  `organizada` en SQLite; solo entonces se solicita mediante
+  `POST /Library/Refresh` un escaneo a un Jellyfin simulado.
+  El catálogo de VIEWTV no muestra el medio hasta que el
+  escaneo **ha terminado** y se sincroniza el catálogo. Si falla
+  la solicitud, queda `publicada_escaneo_pendiente` y puede
+  repetirse el escaneo **sin copiar de nuevo**. No hay integración
+  en el worker productivo ni POST al Jellyfin real.
+  Ver [AVANCE-PUENTE-ORGANIZADOR-JELLYFIN-VIEWTV-20261120.md](AVANCE-PUENTE-ORGANIZADOR-JELLYFIN-VIEWTV-20261120.md).
 - [ ] Reutilizar la validación de lease, torrent y permisos
   ya probada en sandbox; no añadir nuevas mejoras ajenas a salida.
 - [ ] Integrar una autoridad durable única y separada del worker,
   sin rutas de publicación que eludan la autorización.
-- [ ] Probar un único medio sintético de extremo a extremo,
-  con un solo destino y recuperación manual si hay ambigüedad.
+- [x] Probar un único medio sintético hasta catálogo visible
+  en SQLite de laboratorio, con un destino, copia sin sobrescribir,
+  escaneo simulado y recuperación sin repetir publicación.
+- [ ] Repetir el circuito con publicación confinada **en Windows NTFS**
+  y una biblioteca de demostración, todavía NO con medios del usuario.
 - [ ] Demostrar movimiento seguro y detección en Jellyfin
   con datos autorizados antes de habilitar automatización productiva.
 
@@ -210,6 +223,10 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 - Entrega de catálogo automático en
   [AVANCE-CATALOGO-AUTOMATICO-VIEWTV-20261120.md](AVANCE-CATALOGO-AUTOMATICO-VIEWTV-20261120.md),
   con respaldo de SQLite, imágenes de rollback y pruebas.
+- Puente de laboratorio **organización confirmada → escaneo
+  Jellyfin simulado → actualización de catálogo** implementado
+  en el branch de desarrollo; en producción el worker **no ejecuta
+  organización ni solicita escaneos por esta ruta**.
 - PR #2 sigue en borrador; no significa que 0013 esté desplegado.
 - El usuario **sí ha confirmado** acceso a VIEWTV y reproducción
   de vídeos satisfactoria. No se ha verificado por separado
