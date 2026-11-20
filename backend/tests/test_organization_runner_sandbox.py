@@ -524,3 +524,175 @@ def test_existing_season_preexisting_episode_blocked_without_cleanup(setup):
     assert target.read_bytes() == b"ya existe, no sobrescribir"
     assert previous.read_bytes() == b"episodio previo, no alterar"
     assert source.exists()
+
+
+
+def test_independent_heartbeat_renews_during_slow_provider(setup):
+    """El reloj del lease avanza aunque el proveedor no llame callbacks."""
+    from time import sleep
+
+    engine, root, source, download_id, _ = setup
+    observed = []
+
+    def slow_provider(_download):
+        with Session(engine) as session:
+            before = session.get(Descarga, download_id).organizacion_locked_until
+        sleep(0.20)
+        with Session(engine) as session:
+            after = session.get(Descarga, download_id).organizacion_locked_until
+        observed.append((before, after))
+        return [source]
+
+    assert run_one_sandbox_organization(
+        engine, root, "worker-ficticio", slow_provider,
+        independent_heartbeat=True, heartbeat_interval_seconds=0.02,
+    ) == "organizada"
+    assert observed and observed[0][1] > observed[0][0]
+    assert source.is_file() and _destination(root).is_dir()
+    assert _record(engine, download_id).organizacion_intentos == 1
+
+
+def test_independent_heartbeat_renews_during_blocked_copy(setup, monkeypatch):
+    """El hilo sigue renovando mientras una escritura del copiador duerme."""
+    from time import sleep
+
+    import worker.organization_copy_sandbox as copier
+
+    engine, root, source, download_id, provider = setup
+    original_write = copier._write_chunk
+    observed = []
+
+    def delayed_write(fd, data):
+        if not observed:
+            with Session(engine) as session:
+                before = session.get(Descarga, download_id).organizacion_locked_until
+            sleep(0.20)
+            with Session(engine) as session:
+                after = session.get(Descarga, download_id).organizacion_locked_until
+            observed.append((before, after))
+        return original_write(fd, data)
+
+    monkeypatch.setattr(copier, "_write_chunk", delayed_write)
+    assert run_one_sandbox_organization(
+        engine, root, "worker-ficticio", provider,
+        independent_heartbeat=True, heartbeat_interval_seconds=0.02,
+    ) == "organizada"
+    assert observed and observed[0][1] > observed[0][0]
+    assert source.is_file() and _destination(root).is_dir()
+
+
+def test_independent_lease_lost_during_write_never_publishes(setup, monkeypatch):
+    """Si el propietario cambia durante I/O, staging queda para revisión."""
+    from time import sleep
+
+    import worker.organization_copy_sandbox as copier
+
+    engine, root, source, download_id, provider = setup
+    original_write = copier._write_chunk
+    injected = False
+
+    def revoke_during_write(fd, data):
+        nonlocal injected
+        if not injected:
+            injected = True
+            with Session(engine) as session:
+                row = session.get(Descarga, download_id)
+                row.organizacion_locked_by = "otro-worker"
+                session.add(row)
+                session.commit()
+            sleep(0.10)
+        return original_write(fd, data)
+
+    monkeypatch.setattr(copier, "_write_chunk", revoke_during_write)
+    assert run_one_sandbox_organization(
+        engine, root, "worker-ficticio", provider,
+        independent_heartbeat=True, heartbeat_interval_seconds=0.02,
+    ) == "lease_perdido"
+    assert injected and source.is_file()
+    assert not _destination(root).exists()
+    stage = root / "media" / "Peliculas" / f".viewtv-test-stage-{download_id}"
+    assert stage.is_dir()
+    assert _record(engine, download_id).organizacion_estado == "pendiente"
+
+
+def test_independent_same_worker_new_attempt_never_publishes(setup, monkeypatch):
+    """Otra reclamación del mismo nombre deja sin permiso al intento viejo."""
+    from time import sleep
+
+    import worker.organization_copy_sandbox as copier
+
+    engine, root, source, download_id, provider = setup
+    original_write = copier._write_chunk
+    injected = False
+
+    def supersede_attempt(fd, data):
+        nonlocal injected
+        if not injected:
+            injected = True
+            with Session(engine) as session:
+                row = session.get(Descarga, download_id)
+                assert row.organizacion_intentos == 1
+                row.organizacion_intentos = 2
+                session.add(row)
+                session.commit()
+            sleep(0.10)
+        return original_write(fd, data)
+
+    monkeypatch.setattr(copier, "_write_chunk", supersede_attempt)
+    assert run_one_sandbox_organization(
+        engine, root, "worker-ficticio", provider,
+        independent_heartbeat=True, heartbeat_interval_seconds=0.02,
+    ) == "lease_perdido"
+    assert injected and source.is_file()
+    assert not _destination(root).exists()
+    row = _record(engine, download_id)
+    assert row.organizacion_intentos == 2
+    assert row.organizacion_estado == "pendiente"
+
+
+def test_independent_provider_crash_terminates_heartbeat(setup):
+    from threading import enumerate as active_threads
+
+    engine, root, source, download_id, _ = setup
+
+    def fail(_download):
+        raise RuntimeError("proveedor ficticio interrumpido")
+
+    with pytest.raises(RuntimeError, match="interrumpido"):
+        run_one_sandbox_organization(
+            engine, root, "worker-ficticio", fail,
+            independent_heartbeat=True, heartbeat_interval_seconds=0.02,
+        )
+    assert not any(thread.name == "viewtv-lease-sandbox" for thread in active_threads())
+    assert source.is_file()
+    assert not _destination(root).exists()
+    assert _record(engine, download_id).organizacion_estado == "pendiente"
+
+
+def test_independent_rejects_foreign_database_before_claim(setup):
+    engine, root, source, download_id, provider = setup
+    alien = create_engine(f"sqlite:///{root / 'otro.db'}")
+    try:
+        with pytest.raises(UnsafeOrganizationPlan):
+            run_one_sandbox_organization(
+                alien, root, "worker-ficticio", provider,
+                independent_heartbeat=True,
+            )
+    finally:
+        alien.dispose()
+    assert _record(engine, download_id).organizacion_intentos == 0
+    assert source.is_file() and not _destination(root).exists()
+
+
+
+@pytest.mark.parametrize("interval", [0, 31, True, "0.02"])
+def test_independent_invalid_interval_refused_before_claim(setup, interval):
+    engine, root, source, download_id, provider = setup
+    with pytest.raises(ValueError):
+        run_one_sandbox_organization(
+            engine, root, "worker-ficticio", provider,
+            independent_heartbeat=True,
+            heartbeat_interval_seconds=interval,
+        )
+    assert _record(engine, download_id).organizacion_intentos == 0
+    assert source.is_file() and not _destination(root).exists()

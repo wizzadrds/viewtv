@@ -2,6 +2,13 @@
 
 **Estado: sandbox de desarrollo, no desplegado. Fecha: 20-11-2026.**
 
+**Actualización posterior del 20-11-2026:** el hilo independiente ya se ha
+integrado **como modo opcional del ejecutor de sandbox**, con pruebas de
+bloqueo y pérdida de lease. Los párrafos siguientes conservan la evidencia
+del hito inicial; para la integración más reciente consultar
+[RUNNER CON HEARTBEAT CONCURRENTE](ORGANIZADOR-RUNNER-HEARTBEAT-CONCURRENTE-SANDBOX.md).
+El flujo productivo sigue sin conexión al heartbeat ni al broker Windows.
+
 ## Objetivo
 
 El ejecutor experimental de organización 0013 renovaba su lease en callbacks

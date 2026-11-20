@@ -14,6 +14,19 @@ from app.organization_publication_gate_sandbox import _sandbox_db
 from app.organization_queue import MAX_ATTEMPTS, renew_organization_lease
 from sqlalchemy.engine import Engine
 from sqlmodel import Session
+from worker.organization_copy_sandbox import _check_sandbox
+
+
+def _check_heartbeat_database(path: Path) -> None:
+    if path.name == "organization.sqlite3":
+        _sandbox_db(path)
+        return
+    # Additional fixture used exclusively by organization_runner_sandbox tests.
+    if path.name != "test-organization.db":
+        raise ValueError("Nombre SQLite de prueba no autorizado.")
+    _check_sandbox(path.parent)
+    if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
+        raise ValueError("Base SQLite de sandbox no segura.")
 
 
 class SandboxLeaseLost(RuntimeError):
@@ -43,7 +56,7 @@ class IndependentOrganizationHeartbeat:
         path = engine.url.database
         if not path or not Path(path).is_absolute():
             raise ValueError("Solo rutas absolutas de SQLite sandbox.")
-        _sandbox_db(Path(path))
+        _check_heartbeat_database(Path(path))
         if (
             isinstance(download_id, bool)
             or not isinstance(download_id, int)
@@ -89,7 +102,7 @@ class IndependentOrganizationHeartbeat:
     def _pulse(self) -> None:
         # Serialize explicit checks and heartbeat; no concurrent transactions.
         with self._pulse_lock:
-            _sandbox_db(self._path)
+            _check_heartbeat_database(self._path)
             with Session(self._engine) as session:
                 kwargs = {"expected_attempt": self._attempt,
                           "lease_seconds": self._lease_seconds}

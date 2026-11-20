@@ -27,6 +27,10 @@ from worker.organization_copy_sandbox import (
     publish_test_plan,
 )
 from worker.organization_existing_season_sandbox import publish_test_existing_episode
+from worker.organization_lease_heartbeat_sandbox import (
+    IndependentOrganizationHeartbeat,
+    SandboxLeaseLost,
+)
 from worker.organization_planner import (
     UnsafeOrganizationPlan,
     plan_verified_media,
@@ -46,6 +50,9 @@ def run_one_sandbox_organization(
     sandbox_root: Path,
     worker_id: str,
     source_provider: Callable[[Descarga], list[Path]],
+    *,
+    independent_heartbeat: bool = False,
+    heartbeat_interval_seconds: float = 0.05,
 ) -> SandboxOutcome:
     """Procesa una única reclamación con ficheros ficticios bajo /tmp.
 
@@ -55,6 +62,19 @@ def run_one_sandbox_organization(
     root = _check_sandbox(sandbox_root)  # Antes de realizar cualquier claim.
     if not callable(source_provider):
         raise TypeError("Se requiere proveedor de fuentes de prueba.")
+    if not isinstance(independent_heartbeat, bool):
+        raise TypeError("Modo heartbeat inválido.")
+    if independent_heartbeat and (
+        isinstance(heartbeat_interval_seconds, bool)
+        or not isinstance(heartbeat_interval_seconds, (int, float))
+        or not 0.01 <= heartbeat_interval_seconds <= 30
+    ):
+        raise ValueError("Frecuencia del heartbeat inválida.")
+    if independent_heartbeat and (
+        engine.url.get_backend_name() != "sqlite"
+        or engine.url.database != str(root / "test-organization.db")
+    ):
+        raise UnsafeOrganizationPlan("La SQLite no corresponde al sandbox del ejecutor.")
 
     with Session(engine) as session:
         claimed = claim_next_organization(session, worker_id)
@@ -65,7 +85,20 @@ def run_one_sandbox_organization(
             raise AssertionError("Una descarga reclamada debe tener ID.")
         attempt = claimed.organizacion_intentos
 
+    independent = (
+        IndependentOrganizationHeartbeat(
+            engine, download_id, worker_id, attempt,
+            interval_seconds=heartbeat_interval_seconds,
+        ) if independent_heartbeat else None
+    )
+
     def heartbeat() -> None:
+        if independent is not None:
+            try:
+                independent.require_active()
+            except SandboxLeaseLost as exc:
+                raise LostOrganizationLease("Heartbeat independiente perdido.") from exc
+            return
         with Session(engine) as session:
             renewed = renew_organization_lease(
                 session, download_id, worker_id, expected_attempt=attempt,
@@ -74,6 +107,8 @@ def run_one_sandbox_organization(
             raise LostOrganizationLease("Reserva perdida; operación no confirmada.")
 
     try:
+        if independent is not None:
+            independent.start()
         heartbeat()
         with Session(engine) as session:
             download = session.get(Descarga, download_id)
@@ -82,14 +117,16 @@ def run_one_sandbox_organization(
             request = session.get(Solicitud, download.solicitud_id)
             if request is None:
                 raise UnsafeOrganizationPlan("La solicitud ya no existe.")
-            sources = source_provider(download)
-            plan = plan_verified_media(
-                download,
-                request,
-                sources,
-                root / "media" / "descargas_temporales",
-                root / "media",
-            )
+        # Cerrar la sesión de lectura antes de la consulta al proveedor o
+        # un bloqueo de I/O: el heartbeat escribe con otra conexión SQLite.
+        sources = source_provider(download)
+        plan = plan_verified_media(
+            download,
+            request,
+            sources,
+            root / "media" / "descargas_temporales",
+            root / "media",
+        )
 
         heartbeat()
         # En una temporada ya existente solo se permite publicar un
@@ -110,6 +147,8 @@ def run_one_sandbox_organization(
         # Verificar de nuevo el lease DESPUÉS de publicar. Si falla,
         # otro intento detectará el destino y lo enviará a revisión.
         heartbeat()
+        if independent is not None:
+            independent.stop()  # No renovar un trabajo ya confirmado.
         with Session(engine) as session:
             confirmed = confirm_organization(
                 session, download_id, worker_id, expected_attempt=attempt,
@@ -117,7 +156,7 @@ def run_one_sandbox_organization(
         if not confirmed:
             return "lease_perdido"
         return "organizada"
-    except LostOrganizationLease:
+    except (LostOrganizationLease, SandboxLeaseLost):
         return "lease_perdido"
     except QBittorrentError:
         # La consulta al gestor ocurre antes de crear staging: el error
@@ -140,3 +179,6 @@ def run_one_sandbox_organization(
                 expected_attempt=attempt,
             )
         return "requiere_revision" if marked else "lease_perdido"
+    finally:
+        if independent is not None:
+            independent.stop()
