@@ -36,8 +36,9 @@ PowerShell desde el propio conector Remote Desktop Commander devolvió
 **Consecuencia:** ya hay elevación administrativa de Windows en la sesión
 del conector; no hace falta pedir más elevación general. La lista de
 comandos prohibidos del conector sigue siendo un límite separado. Esto
-NO demuestra que existan cuentas de broker y copia con SID distinto, ni
-permite omitir pruebas de ACL o autoriza cambios en producción.
+NO autoriza cambios en producción ni permite omitir pruebas de ACL.
+Posteriormente se probaron dos cuentas temporales con SID realmente distinto;
+no hay todavía servicio broker o copiador persistente.
 
 ### Respaldo de esta actualización
 
@@ -66,14 +67,21 @@ que respaldar.
 | Edición de texto | edit_block aplicó dos cambios localizados a scripts/viewtv_windows_publish_sandbox.ps1 | Funciona |
 | Recuperar texto del equipo | read_file y read_multiple_files recuperaron archivos íntegros en la conversación | Funciona |
 | Subir/bajar ficheros binarios completos | No se identificó acción dedicada de transferencia binaria en el conector | NO verificado; no afirmar funcionamiento |
-| Gestión de cuentas/servicios Windows | Configuración del conector bloquea net, sc, runas y otros comandos de administración | No intentada; la creación segura de SIDs/servicios no está demostrada |
+| Comandos de administración | El usuario quitó net, sc y runas de blockedCommands; el resto continúa protegido | Cambio comprobado el 20-11-2026 |
+| Cuentas Windows separadas | New-LocalUser, LogonUserW, WindowsIdentity.Impersonate y Remove-LocalUser en prueba GUID | Dos SIDs reales y siete comprobaciones correctas; cero cuentas residuales |
+| Servicio Windows del broker | No se ha creado ni ejecutado un servicio persistente | Pendiente; tener administrador no demuestra identidad aislada de servicio |
 | Escritura sobre archivos de producción | No ensayada | Prohibida en esta fase |
 
 La lectura WSL desde la ruta UNC se probó sin copiar archivos. La escritura de
 texto y la edición se ensayaron solamente en el árbol de desarrollo autorizado,
 después de un respaldo de los archivos existentes que podrían modificarse.
 Que se pueda leer un archivo no demuestra transferencia de bytes arbitrarios
-ni elevación de privilegios. No se ha pedido al conector desactivar bloqueos.
+ni elevación de privilegios. El usuario retiró solo net, sc y runas de la lista
+blockedCommands. No se han retirado otras protecciones desde el conector.
+El ensayo real con dos SID se detalla en
+[ORGANIZADOR-SID-SEPARADOS-WINDOWS-SANDBOX.md](ORGANIZADOR-SID-SEPARADOS-WINDOWS-SANDBOX.md).
+Hubo un primer ensayo fallido por conservar ACE de lectura de la copia
+tras mover una carpeta; se corrigió retirando esa ACE antes del movimiento.
 
 ## Situación de los árboles locales
 

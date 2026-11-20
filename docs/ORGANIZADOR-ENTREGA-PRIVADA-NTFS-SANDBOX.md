@@ -57,11 +57,15 @@ En un sandbox GUID recién creado en C:\Users\Public y con marcador obligatorio:
 
 **Propiedad esencial y límite:** en el ensayo, un descriptor de escritura
 abierto antes de sellar evita el primer Directory.Move; tras cerrarlo,
-la entrega se completa. Una identidad realmente separada que no pueda
-leer ni atravesar el padre privado tampoco podrá abrir nuevos handles
-después del primer movimiento. Sin esa identidad separada la cuenta
-Windows original conserva autoridad de modificar ambos lados: por ello,
-**el problema de TOCTOU sigue abierto frente a esa cuenta**.
+la entrega se completa. **Aviso posterior esencial:** el aislamiento del
+padre privado NO basta si la DACL explícita del staging o sus archivos
+conserva acceso al SID copiador. Windows puede superar la comprobación
+de recorrido del padre y Directory.Move preserva la ACL del objeto.
+El nuevo ensayo con dos SID reales detectó exactamente ese fallo, lo
+corrigió revocando TODAS las ACE del SID copiador antes del primer Move y
+verificó denegación de acceso al escrow y la publicación posterior.
+Sin segregación de procesos y claves, TOCTOU sigue sin cerrarse frente
+a una cuenta privilegiada; nunca usar este prototipo en producción.
 
 Tampoco hay transacción NTFS/SQLite. Un fallo entre primer y segundo Move
 dejaría escrow para conciliación, pero no se ha probado aquí una caída
@@ -110,10 +114,13 @@ No se respaldó la base de producción porque no se escribió en ella.
 
 ## Próximos bloqueos antes de cerrar fase 1
 
-- Crear/usar dos cuentas Windows con SID verdaderamente distinto y
-  privilegios mínimos, con pruebas ejecutadas bajo la identidad de copia.
-  El conector actual bloquea comandos administrativos net/sc/runas; no
-  sortear esa restricción ni simular cuentas.
+- **Realizado posteriormente en sandbox:** dos cuentas Windows efímeras
+  de SID realmente distinto y sin privilegios administrativos, con siete
+  pruebas ACL de acceso bajo impersonación real. El usuario retiró net/sc/
+  runas de los comandos bloqueados. Quedan pendientes la identidad del
+  servicio broker permanente y la retirada completa de las ACE del
+  copiador impuesta por el publicador. Véase
+  ORGANIZADOR-SID-SEPARADOS-WINDOWS-SANDBOX.md.
 - Decidir la custodia del secreto y quién valida desde una autoridad ajena
   al worker, ligando lease 0013, attempt, hash real de torrent, manifiesto
   y replay por download_id.
