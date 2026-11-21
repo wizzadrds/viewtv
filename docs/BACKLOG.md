@@ -2,6 +2,8 @@
 
 **Regla:** no reabrir estas tareas sin una instrucción expresa del usuario; primero completar búsqueda → selección → descarga real → seguimiento → organización → Jellyfin.
 
+- Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
+- Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
 - Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.
 - Pulido cosmético de estilos, textos, iconografía y animaciones no bloqueantes.
 - Mejoras de rendimiento y optimizaciones sin efecto en la reproducción de una película.

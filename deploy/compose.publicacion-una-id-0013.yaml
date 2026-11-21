@@ -1,0 +1,12 @@
+# SOLO CON AUTORIZACIÓN: aplicar DESPUÉS de migración 0013 y backup.
+# ID nueva >2, nunca activar 2 (Nadie 2 ya publicada puntualmente).
+services:
+  api:
+    environment:
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "single"
+      VIEWTV_WINDOWS_PUBLICATION_AFTER_ID: "2"
+      VIEWTV_WINDOWS_PUBLICATION_DOWNLOAD_ID: "${VIEWTV_WINDOWS_PUBLICATION_DOWNLOAD_ID:?Indicar ID nueva autorizada}"
+  worker:
+    environment:
+      VIEWTV_ENABLE_ORGANIZATION: "false"
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "disabled"

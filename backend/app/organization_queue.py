@@ -60,19 +60,27 @@ def claim_next_organization(
     *,
     now: datetime | None = None,
     allowed_download_id: int | None = None,
+    min_download_id: int | None = None,
 ) -> Descarga | None:
-    """Reclamación exclusiva, opcionalmente restringida a una sola descarga."""
+    """Reclamación exclusiva, limitada por ID concreta y/o corte histórico."""
     _worker(worker_id)
     if allowed_download_id is not None:
         _id(allowed_download_id)
         if allowed_download_id > 2**63 - 1:
             raise ValueError("ID de descarga fuera de rango SQLite.")
+    if min_download_id is not None and (
+        isinstance(min_download_id, bool)
+        or not isinstance(min_download_id, int)
+        or not 0 <= min_download_id < 2**63 - 1
+    ):
+        raise ValueError("Corte histórico de organización inválido.")
     current = _now(now)
 
     _begin_write(session)
     try:
         conditions = (
             *((Descarga.id == allowed_download_id,) if allowed_download_id is not None else ()),
+            *((Descarga.id > min_download_id,) if min_download_id is not None else ()),
             Descarga.estado == "completada",
             Descarga.progreso == 1,
             Descarga.estado_verificacion == "verificada",

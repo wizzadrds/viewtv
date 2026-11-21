@@ -1,12 +1,20 @@
-# SOLO CANDIDATA: NO aplicar sobre 0012 sin backup, migración,
-# verificación de API+worker y autorización de despliegue 0013.
+# CANDIDATA, NO APLICAR en producción sin backup, prueba y autorización.
+# API y worker comparten exactamente el código y esquema 0013.
 services:
   api:
     image: viewtv:release-0013-api-candidate
+    volumes:
+      - /mnt/c/VIEWTV/media:/media:ro
+    environment:
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "disabled"
   worker:
     image: viewtv:release-0013-worker-candidate
     environment:
       VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
       VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""
       VIEWTV_ENABLE_DOWNLOAD_START: "false"
+      VIEWTV_ENABLE_AUTO_DOWNLOAD: "true"
+      VIEWTV_AUTO_DOWNLOAD_AFTER_ID: "1"
+      VIEWTV_ENABLE_DOWNLOAD_VERIFICATION: "true"
       VIEWTV_ENABLE_ORGANIZATION: "false"
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "disabled"

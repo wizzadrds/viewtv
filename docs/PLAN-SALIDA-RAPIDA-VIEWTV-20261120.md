@@ -470,6 +470,12 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   source/dest exactamente iguales en tamaño.
   Script reproducible para este caso:
   `scripts/viewtv_publicar_nadie2_puntual_20261121.ps1`.
+- [x] **Preparación en rama de la primera autoridad Windows 0013**:
+  cola restringida por ID y corte histórico, preparación con identidad
+  del torrent, lease, diario de reconciliación NTFS y adaptador de servicio
+  Windows escritos como candidato; sin instalación ni migración real.
+  Pruebas sobre código ficticio, nunca prueba de publicación real.
+  Ver [AVANCE-PUBLICADOR-WINDOWS-CANDIDATO-0013-20261121.md](AVANCE-PUBLICADOR-WINDOWS-CANDIDATO-0013-20261121.md).
 - [ ] **Automatización GENERAL de publicación y carátulas**:
   este éxito es una acción de publicación individual,
   **no una cola automática para futuras películas**.
