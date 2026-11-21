@@ -540,17 +540,30 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   y de sonido del usuario para la película #3**. Publicación
   general permanece desactivada. Informe:
   [AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md](AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md).
-- [ ] **Automatización GENERAL de publicación y carátulas**:
-  este éxito es una acción de publicación individual,
-  **no una cola automática para futuras películas**.
-  Falta instalar un publicador Windows confinado e
-  independiente del worker, con aprobación, leases e
-  identidad de torrent y reconciliación robusta;
-  conectar la cola 0013 a él, sin habilitar copias
-  arbitrarias desde Docker. No afirmar que este
-  proceso puntual se repetirá automáticamente.
+- [x] **Tarea Windows de publicación futura configurada y activa**:
+  Task Scheduler ejecuta el publicador en la sesión del usuario
+  **sin elevar permisos** (no servicio LocalSystem), al iniciar
+  sesión y cada 5 minutos. Política host/API coherentes en
+  `general`, `after_id=3`, excluyendo #1/#2/#3; worker sin
+  permiso de organización y volúmenes API/worker `/media:ro`.
+  Cada pasada controla la cola y sincroniza el catálogo Jellyfin
+  transaccionalmente. Se arreglaron dos fallos detectados en pruebas:
+  parámetro `$Mode` sobrescrito y `File.Replace` no permitido
+  bajo token limitado. **Dos pasadas consecutivas PASS** tras
+  corregir, ambas `sin_trabajos` + `catalogo_sincronizado`.
+  Backend **896/896 PASS**, smoke **10/10 PASS**, API healthy,
+  respaldo SQLite y políticas verificadas. **Se requiere sesión
+  Windows iniciada y Docker Desktop disponible**: no es servicio
+  previo al login ni cuenta Docker independiente.
   Informe:
-  [AVANCE-VERIFICACION-Y-PLAN-PUBLICACION-20261121.md](AVANCE-VERIFICACION-Y-PLAN-PUBLICACION-20261121.md).
+  [AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md](AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md).
+- [ ] **Prueba E2E real de la siguiente película (ID futura >3)**:
+  el publicador está funcionando en vacío, no se ha creado una
+  nueva descarga para probar la publicación sin intervención.
+  El usuario debe seleccionar otra película válida en ViewTV.
+  Verificar con nueva ID: descarga, verificación, publicación NTFS,
+  escaneo Jellyfin completado, carátula ViewTV y reproducción.
+  Hasta entonces, no afirmar validación E2E de auto-publicación.
 - [x] **Cola 0013 limitada a una sola ID de descarga**:
   `claim_next_organization(..., allowed_download_id=...)` selecciona
   y reserva solo esa ID **dentro de BEGIN IMMEDIATE**; el runner y

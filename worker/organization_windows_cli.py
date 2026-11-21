@@ -20,7 +20,7 @@ from worker.organization_windows_authority import (
 )
 
 from app.database import engine
-from app.jellyfin import JellyfinClient
+from app.jellyfin import JellyfinClient, synchronize_catalog
 from app.models import Descarga, Solicitud
 from app.organization_queue import (
     confirm_organization,
@@ -67,6 +67,19 @@ def run(command: str, download_id: int | None = None, attempt: int | None = None
     if command == "status":
         return {"estado": "listo", "modo": policy.mode, "after_id": policy.after_id,
                 "allowed_download_id": policy.allowed_id}
+    if command == "sync":
+        # Solo en modo futuro aprobado: la sincronización completa es
+        # transaccional, reutiliza la misma función que la API autenticada.
+        if policy.mode != "general":
+            raise ValueError("Sincronización periódica no autorizada.")
+        jellyfin = JellyfinClient()
+        first_page = jellyfin.get_items(0, 100)
+        items = first_page.get("Items")
+        if not isinstance(items, list) or len(items) < 2:
+            raise ValueError("Jellyfin no confirmó la biblioteca mínima.")
+        with Session(engine) as session:
+            processed = synchronize_catalog(session, jellyfin)
+        return {"estado": "catalogo_sincronizado", "elementos_procesados": processed}
     if command == "claim":
         with Session(engine) as session:
             claimed = claim_for_windows(session, policy)
@@ -132,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "command",
         choices=("status", "claim", "prepare", "verify-source", "renew", "confirm",
-                 "review", "scan"),
+                 "review", "scan", "sync"),
     )
     parser.add_argument("--download-id", type=int)
     parser.add_argument("--attempt", type=int)

@@ -32,6 +32,20 @@ confirmarse por el usuario. Publicador permanente y sincronización
 sin intervención siguen pendientes prioritarios, no cosmética.
 Ver [AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md](AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md).
 
+**Estado actual 22/11/2026 (supersede anteriores):**
+tarea de publicación Windows **ACTIVA** bajo usuario
+interactivo limitado, al logon y cada cinco minutos;
+solo ID **>3**, API/host `general` aprobado y worker
+sin organización. Dos pasadas seguidas `sin_trabajos` con
+sincronización de catálogo y código 0; **896/896 tests**.
+La próxima prioridad **no es backlog**: validación de una
+tercera película real hasta carátula y reproducción automática.
+No se ha probado todavía la publicación de una ID #4.
+Dependencia: sesión Windows abierta y Docker Desktop.
+El aislamiento de identidad Docker y ejecución anterior al login
+siguen como posibles mejoras futuras no validadas.
+Ver [AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md](AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md).
+
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
 - Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.

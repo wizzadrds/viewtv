@@ -1,0 +1,14 @@
+# Automatización de SOLO películas nuevas; ID 1, 2 y 3 excluidas.
+# Requiere tarea Windows de usuario limitado con política after_id=3.
+# El worker NO puede escribir en NTFS ni reclamar organización.
+services:
+  api:
+    image: viewtv:auto-publicador-api-0013
+    environment:
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "general"
+      VIEWTV_WINDOWS_PUBLICATION_AFTER_ID: "3"
+      VIEWTV_WINDOWS_PUBLICATION_GENERAL_APPROVED: "true"
+  worker:
+    environment:
+      VIEWTV_ENABLE_ORGANIZATION: "false"
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "disabled"
