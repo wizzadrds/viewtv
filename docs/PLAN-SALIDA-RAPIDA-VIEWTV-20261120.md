@@ -356,13 +356,16 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   PREVIAS y quedan sustituidos por esta decisión.
   Informe:
   [AVANCE-SIN-BLOQUEO-POR-DESCARTADO-20261121.md](AVANCE-SIN-BLOQUEO-POR-DESCARTADO-20261121.md).
-- [ ] **Prueba de primera transferencia real**:
-  el usuario debe seleccionar un candidato correcto y
-  autorizado desde solicitud #6; confirmar que qBittorrent
-  lo registra, inicia y reporta progreso sin afectar al
-  torrent ajeno. La automatización no se ha probado con
-  un archivo real completo. La validación y publicación
-  en Jellyfin siguen siendo un hito distinto.
+- [x] **Primera transferencia real completada y verificada**:
+  el usuario seleccionó «Nadie 2» desde solicitud #7,
+  nueva descarga ID 2, qBittorrent registrada/arrancada
+  en staging propio y progreso **100 %**. La validación
+  de archivos finalizó como `verificada` tras corregir
+  el bug de columnas 0013 sobre esquema 0012.
+  La película aún no se ha publicado en Películas ni
+  se ha verificado su carátula en Jellyfin; esos pasos
+  permanecen pendientes y son distintos de la transferencia.
+  El torrent histórico #1 sigue fallido, sin reactivación.
 - [x] **Despliegue reversible**:
   `scripts/viewtv_compose_automatico_0012.sh` permite
   rollback independiente de frontend y worker sin
@@ -371,6 +374,67 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
 
 ### Hito C — Organizador mínimo seguro 0013 (EN CURSO, NO DESPLEGADO)
 
+- [x] **Descarga real #2 terminada y verificación 0012 reparada**:
+  el usuario pidió que apareciese automáticamente en Películas con
+  carátula y metadatos. qBittorrent tiene un MKV completo de
+  **16,47 GiB** más un `.url` promocional. La verificación de
+  archivos ya pasaba, pero `finish_claimed_verification()`
+  escribía campos 0013 ausentes de la DB 0012. Se corrigió
+  esa incompatibilidad, se desplegó **solo el worker** y la
+  ID 2 pasó realmente a **`verificada`**. Backend completo
+  **865/865**, focales **98/98**, smoke **10/10**.
+  Se preservaron los torrents ajenos, Jellyfin y la biblioteca.
+- [x] **Plan para publicar solo MKV con año apto para Jellyfin**:
+  planificador 0013 ya omite `.url` sin copiarlo ni ejecutarlo,
+  mantiene rechazo de ejecutables, y en solicitud manual sin año
+  detecta el único `(2025)` del nombre del vídeo para proponer
+  `Peliculas/Nadie 2 (2025)/Nadie 2 (2025).mkv`. Solo
+  laboratorio/planificación; no despliegue de publicación.
+  Los proveedores de imágenes TheMovieDb y OMDb están
+  habilitados en Jellyfin para Películas.
+- [x] **Ensayo de migración con descargas reales, reversible en copia**:
+  `0012 → 0013 → 0012` sobre SQLite completa y verificada
+  actual (2 descargas, 7 solicitudes, 69 resultados),
+  sin activar organización histórica ni alterar prod,
+  FK/integridad y recuentos preservados.
+  Informe:
+  [AVANCE-VERIFICACION-Y-PLAN-PUBLICACION-20261121.md](AVANCE-VERIFICACION-Y-PLAN-PUBLICACION-20261121.md).
+- [x] **Publicación PUNTUAL de la descarga #2 y carátula reales**:
+  después de verificar que qBittorrent conservaba el MKV de
+  16.472 GiB, se hizo preflight sobre Windows NTFS con origen,
+  destino y ancestros sin reparse, tamaño exacto
+  17.686.540.799 bytes, carpeta destino ausente.
+  El primer intento `New-Item -ItemType HardLink` falló
+  por los corchetes en el origen; solo dejó una carpeta
+  temporal vacía que se verificó y retiró. Se sustituyó
+  por Win32 `CreateHardLinkW` de rutas literales, se
+  ensayó con un vídeo ficticio `[Esp]` bajo Temp
+  (PASS) y se publicó únicamente el MKV mediante
+  enlace duro NTFS, seguido de `Directory.Move`
+  para exponer una carpeta nueva **sin sobrescribir**:
+  `C:\VIEWTV\media\Peliculas\Nadie 2 (2025)\Nadie 2 (2025).mkv`.
+  **qBittorrent conserva el origen y puede seguir sembrando;
+  el acceso directo `.url` NO se publicó**.
+  Se solicitó escaneo real Jellyfin `POST /Library/Refresh`
+  HTTP 204. Jellyfin reconoció `Nadie 2`, año 2025,
+  carátula y sinopsis; la sincronización inmediata de
+  VIEWTV registró `Medio` película disponible con
+  portada, fondo y sinopsis. Smoke **10/10 PASS**,
+  carpeta con exactamente un MKV, 0 temporales huérfanos,
+  source/dest exactamente iguales en tamaño.
+  Script reproducible para este caso:
+  `scripts/viewtv_publicar_nadie2_puntual_20261121.ps1`.
+- [ ] **Automatización GENERAL de publicación y carátulas**:
+  este éxito es una acción de publicación individual,
+  **no una cola automática para futuras películas**.
+  Falta instalar un publicador Windows confinado e
+  independiente del worker, con aprobación, leases e
+  identidad de torrent y reconciliación robusta;
+  conectar la cola 0013 a él, sin habilitar copias
+  arbitrarias desde Docker. No afirmar que este
+  proceso puntual se repetirá automáticamente.
+  Informe:
+  [AVANCE-VERIFICACION-Y-PLAN-PUBLICACION-20261121.md](AVANCE-VERIFICACION-Y-PLAN-PUBLICACION-20261121.md).
 - [x] **Cola 0013 limitada a una sola ID de descarga**:
   `claim_next_organization(..., allowed_download_id=...)` selecciona
   y reserva solo esa ID **dentro de BEGIN IMMEDIATE**; el runner y

@@ -335,3 +335,67 @@ def test_does_not_accept_download_folder_as_library_root(tmp_path):
 
     with pytest.raises(UnsafeOrganizationPlan):
         plan_verified_media(download, request, [video], downloads, downloads)
+
+
+
+def test_movie_plan_ignores_url_shortcut_without_copying_it(tmp_path):
+    """Un .url promocional no impide planificar el vídeo, pero no se publica."""
+    media, downloads, request, download = context(
+        tmp_path, title="Nadie 2", year=2025
+    )
+    video = source(downloads, "Nadie 2/Nadie 2.mkv", b"video-ficticio")
+    shortcut = source(
+        downloads, "Nadie 2/Canal Telegram Oficial.url",
+        b"[InternetShortcut]\nURL=https://example.invalid\n",
+    )
+    plan = plan_verified_media(
+        download, request, [video, shortcut], downloads, media
+    )
+    assert plan.library == "Peliculas"
+    assert len(plan.entries) == 1
+    assert plan.entries[0].source == video.resolve()
+    assert plan.entries[0].destination == (
+        media / "Peliculas" / "Nadie 2 (2025)" / "Nadie 2 (2025).mkv"
+    )
+    assert shortcut.is_file()  # Nunca borrar ni cambiar fuentes.
+    assert not plan.entries[0].destination.parent.exists()
+    assert all(entry.source != shortcut for entry in plan.entries)
+
+
+
+def test_movie_plan_uses_single_year_from_filename_if_request_year_missing(tmp_path):
+    media, downloads, request, download = context(
+        tmp_path, title="Nadie 2", year=None
+    )
+    video = source(
+        downloads,
+        "Nadie 2 (Nobody 2) (2025) [4k 2160p][Esp].mkv",
+        b"video-ficticio",
+    )
+    plan = plan_verified_media(download, request, [video], downloads, media)
+    assert plan.entries[0].destination == (
+        media / "Peliculas" / "Nadie 2 (2025)" / "Nadie 2 (2025).mkv"
+    )
+    assert not plan.entries[0].destination.parent.exists()
+
+
+def test_movie_plan_does_not_guess_conflicting_years(tmp_path):
+    media, downloads, request, download = context(
+        tmp_path, title="Película", year=None
+    )
+    video = source(downloads, "Película 2024 remaster 2025.mkv")
+    plan = plan_verified_media(download, request, [video], downloads, media)
+    assert plan.entries[0].destination == (
+        media / "Peliculas" / "Película" / "Película.mkv"
+    )
+
+
+def test_movie_plan_prefers_request_year_over_filename(tmp_path):
+    media, downloads, request, download = context(
+        tmp_path, title="Película", year=2023
+    )
+    video = source(downloads, "Película 2025.mkv")
+    plan = plan_verified_media(download, request, [video], downloads, media)
+    assert plan.entries[0].destination == (
+        media / "Peliculas" / "Película (2023)" / "Película (2023).mkv"
+    )

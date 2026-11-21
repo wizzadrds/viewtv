@@ -903,6 +903,26 @@ def finish_claimed_verification(
         nuevo_error = error.strip()[:ERROR_MAX_LENGTH]
 
     current_time = _now(now)
+    # La release 0012 todavía no tiene las columnas de organización de
+    # 0013. No intentar escribir campos de una migración no instalada:
+    # la validación de archivos sí debe terminar y quedar registrada.
+    values: dict[str, object] = {
+        "estado_verificacion": nuevo_estado,
+        "verificada_en": current_time if verified else None,
+        "error_verificacion": nuevo_error,
+        "verificacion_locked_by": None,
+        "verificacion_locked_until": None,
+        "verificacion_heartbeat": None,
+        "verificacion_disponible_desde": None,
+        "actualizado_en": current_time,
+    }
+    if hasattr(Descarga, "organizacion_estado"):
+        values["organizacion_estado"] = (
+            "pendiente" if verified else Descarga.organizacion_estado
+        )
+        values["organizacion_disponible_desde"] = (
+            current_time if verified else Descarga.organizacion_disponible_desde
+        )
     _begin_write(session)
 
     try:
@@ -917,22 +937,7 @@ def finish_claimed_verification(
                 Descarga.verificacion_locked_by == worker_id,
                 Descarga.verificacion_locked_until > current_time,
             )
-            .values(
-                estado_verificacion=nuevo_estado,
-                verificada_en=current_time if verified else None,
-                error_verificacion=nuevo_error,
-                verificacion_locked_by=None,
-                verificacion_locked_until=None,
-                verificacion_heartbeat=None,
-                verificacion_disponible_desde=None,
-                organizacion_estado=(
-                    "pendiente" if verified else Descarga.organizacion_estado
-                ),
-                organizacion_disponible_desde=(
-                    current_time if verified else Descarga.organizacion_disponible_desde
-                ),
-                actualizado_en=current_time,
-            )
+            .values(**values)
         )
         session.commit()
         return result.rowcount == 1

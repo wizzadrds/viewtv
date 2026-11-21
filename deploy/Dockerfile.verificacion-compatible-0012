@@ -1,0 +1,4 @@
+# Corrección puntual: finalizar verificaciones en esquema 0012 (sin columnas 0013).
+# No incluye organizador ni modifica la política de altas/inicios.
+FROM viewtv:descartados-opcionales-worker-0012
+COPY backend/app/queue.py /opt/viewtv/backend/app/queue.py

@@ -19,6 +19,7 @@ class UnsafeOrganizationPlan(ValueError):
 VIDEO_EXTENSIONS = frozenset({".mkv", ".mp4", ".m4v", ".avi"})
 SUBTITLE_EXTENSIONS = frozenset({".srt", ".ass", ".vtt"})
 EPISODE_RE = re.compile(r"(?i)(?<![A-Za-z0-9])S(\d{1,2})E(\d{1,3})(?!\d)")
+FILENAME_YEAR_RE = re.compile(r"(?<!\d)(18\d{2}|19\d{2}|20\d{2})(?!\d)")
 LANGUAGE_SUFFIX_RE = re.compile(r"(?:\.[A-Za-z0-9_-]{2,12}){1,3}")
 WINDOWS_RESERVED = {
     "CON", "PRN", "AUX", "NUL",
@@ -153,15 +154,35 @@ def plan_verified_media(
         raise UnsafeOrganizationPlan("Se requiere exactamente un archivo de vídeo.")
 
     video = videos[0]
-    subtitle_files = [path for path in verified if path != video]
-    if any(path.suffix.lower() not in SUBTITLE_EXTENSIONS for path in subtitle_files):
+    # Los torrents pueden incluir accesos directos promocionales .url.
+    # Se han validado como ficheros regulares dentro del staging,
+    # pero JAMÁS se publican ni se ejecutan en la biblioteca.
+    # El resto de extensiones no reconocidas sigue requiriendo revisión.
+    other_files = [path for path in verified if path != video]
+    if any(
+        path.suffix.lower() not in (SUBTITLE_EXTENSIONS | {".url"})
+        for path in other_files
+    ):
         raise UnsafeOrganizationPlan("La descarga contiene archivos no reconocidos.")
+    subtitle_files = [
+        path for path in other_files if path.suffix.lower() in SUBTITLE_EXTENSIONS
+    ]
 
     title = _safe_title(request.titulo)
     if request.tipo_medio == "pelicula":
         if request.anio is not None and not 1870 <= request.anio <= 2200:
             raise UnsafeOrganizationPlan("Año de película inválido.")
-        media_name = f"{title} ({request.anio})" if request.anio else title
+        # Para solicitudes manuales sin año, un único año inequívoco
+        # del nombre del vídeo ayuda a Jellyfin a identificar la carátula.
+        # No se infiere si aparecen años distintos en el mismo nombre.
+        year = request.anio
+        if year is None:
+            candidates = {int(item) for item in FILENAME_YEAR_RE.findall(video.stem)}
+            if len(candidates) == 1:
+                inferred_year = candidates.pop()
+                if 1870 <= inferred_year <= 2200:
+                    year = inferred_year
+        media_name = f"{title} ({year})" if year else title
         destination_folder = category / media_name
         base_name = media_name
     else:

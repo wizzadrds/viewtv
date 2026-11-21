@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Verificación automática 0012 sin campos de organización todavía.
+# No reinicia otros servicios ni modifica flags de altas de torrents.
+set -euo pipefail
+cd /home/viewtv/projects/viewtv
+d=/home/viewtv/projects/viewtv-broker-0013-20261119/deploy
+floor_file=/home/viewtv/viewtv-backups/viewtv-auto-floor-0012.txt
+[[ -f "$floor_file" ]] || { echo "Falta corte automático" >&2; exit 1; }
+export VIEWTV_AUTO_DOWNLOAD_AFTER_ID="$(cat "$floor_file")"
+[[ "$VIEWTV_AUTO_DOWNLOAD_AFTER_ID" =~ ^(0|[1-9][0-9]{0,17})$ ]] || { echo "Corte inválido" >&2; exit 1; }
+base=(
+  -f compose.yaml
+  -f compose.production.yaml
+  -f /home/viewtv/viewtv-backups/compose-verification-enabled.yaml
+  -f compose.release-0012.yaml
+  -f "$d/compose.catalog-auto-0012.yaml"
+  -f "$d/compose.descargas-auto-0012.yaml"
+  -f "$d/compose.solicitudes-0012.yaml"
+  -f "$d/compose.seleccion-sin-envio-0012.yaml"
+  -f "$d/compose.ensayo-torrent-unico-0012.yaml"
+  -f "$d/compose.inicio-torrent-unico-0012.yaml"
+  -f "$d/compose.resultados-fecha-0012.yaml"
+  -f "$d/compose.relevancia-limpieza-0012.yaml"
+  -f "$d/compose.qbit-windows-url-0012.yaml"
+  -f "$d/compose.qbit-async-0012.yaml"
+  -f "$d/compose.descartar-incorrecta-0012.yaml"
+  -f "$d/compose.validacion-tamano-0012.yaml"
+  -f "$d/compose.preseleccion-real-0012.yaml"
+  -f "$d/compose.tamano-canonico-0012.yaml"
+  -f "$d/compose.automatico-0012.yaml"
+  -f "$d/compose.descartados-claros-0012.yaml"
+  -f "$d/compose.actualizar-resultados-0012.yaml"
+  -f "$d/compose.descartados-opcionales-0012.yaml"
+)
+current=("${base[@]}" -f "$d/compose.verificacion-compatible-0012.yaml")
+case "${1:-}" in
+  preflight|deploy|rollback) ;;
+  *) echo "Uso: preflight | deploy | rollback" >&2; exit 2 ;;
+esac
+if [[ "${1}" == "rollback" ]]; then
+  docker compose "${base[@]}" up -d --no-deps --no-build --force-recreate worker
+  exit
+fi
+docker compose "${current[@]}" config --format json | python3 -c '
+import json,sys
+s=json.load(sys.stdin)["services"]
+w=s["worker"]
+e=w["environment"]
+assert s["api"]["image"]=="viewtv:descartados-opcionales-api-0012"
+assert s["frontend"]["image"]=="viewtv-frontend:descartados-con-opcion-0012"
+assert w["image"]=="viewtv:verificacion-compatible-worker-0012"
+assert e["VIEWTV_ENABLE_DOWNLOAD_VERIFICATION"]=="true"
+assert e["VIEWTV_ENABLE_AUTO_DOWNLOAD"]=="true"
+assert str(e["VIEWTV_AUTO_DOWNLOAD_AFTER_ID"])==sys.argv[1]
+assert e["VIEWTV_ENABLE_TORRENT_SUBMIT"]=="false"
+assert e["VIEWTV_ENABLE_DOWNLOAD_START"]=="false"
+assert e["VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID"]==""
+print("PREFLIGHT_VERIFICACION_COMPATIBLE_OK=1")
+' "$VIEWTV_AUTO_DOWNLOAD_AFTER_ID"
+if [[ "${1}" == "deploy" ]]; then
+  docker compose "${current[@]}" up -d --no-deps --no-build --force-recreate worker
+fi

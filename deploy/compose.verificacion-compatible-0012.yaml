@@ -1,0 +1,6 @@
+# Reparación de verificación 0012: solo worker, sin esquema 0013.
+services:
+  worker:
+    image: viewtv:verificacion-compatible-worker-0012
+    environment:
+      VIEWTV_ENABLE_DOWNLOAD_VERIFICATION: "true"
