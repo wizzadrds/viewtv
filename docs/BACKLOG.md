@@ -2,6 +2,14 @@
 
 **Regla:** no reabrir estas tareas sin una instrucción expresa del usuario; primero completar búsqueda → selección → descarga real → seguimiento → organización → Jellyfin.
 
+**Estado tras release 0013 (21/11/2026):** API, worker y SQLite
+ya están en 0013 con publicación desactivada y smoke 10/10.
+Poner en marcha el broker Windows **limitado a una nueva ID real**
+y verificar una segunda película hasta Jellyfin/reproducción
+**no es backlog**, sino el bloqueo prioritario del plan de salida.
+La validación de LocalSystem no demuestra permisos confinados ni
+autoriza instalar automáticamente el servicio.
+
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
 - Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.

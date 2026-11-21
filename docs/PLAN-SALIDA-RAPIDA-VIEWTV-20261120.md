@@ -486,12 +486,25 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   El usuario confirmó que «Nadie 2» se reproduce.
   Informe:
   [AVANCE-REPRODUCCION-Y-PUBLICADOR-BLOQUEO-POLITICA-20261121.md](AVANCE-REPRODUCCION-Y-PUBLICADOR-BLOQUEO-POLITICA-20261121.md).
-- [ ] **Bloqueo de arranque de Windows Service por Control de
-  aplicaciones (error 4551)**: ejecutable de servicio ficticio
-  registrado en SCM pero bloqueado al iniciarse. No instalar
-  publicador real, cambiar política ni buscar vías de evasión;
-  se requiere autorización administrativa conforme a política.
-  API/worker 0013 continúan sin desplegar.
+- [x] **Error 4551 de Smart App Control resuelto por el usuario**:
+  el usuario desactivó la protección desde Windows;
+  `VerifiedAndReputablePolicyState=0`. El servicio temporal
+  ficticio ahora arranca y devuelve `DOCKER_ACCESS_OK`
+  desde LocalSystem; se verificó su retirada sin residuos.
+  Esta prueba no justifica instalar el broker como LocalSystem.
+- [x] **Release 0013 desplegada coordinadamente en API y worker**:
+  se verificó la copia SQLite 0012 online y en frío, SHA-256
+  y `tar -tzf`; ensayo `0012→0013→0012` en clon íntegro.
+  Se detuvieron solo API/worker y se recrearon por separado
+  con sus imágenes 0013 (sin rebuild ni arrastrar dependencias).
+  SQLite productiva en `0013_cola_organizacion`, API healthy,
+  worker activo, smoke read-only **10/10 PASS**; HLS frontend
+  y Jellyfin quedaron intactos. Publicación `disabled`,
+  organización worker `false`, auto-descargas true después de
+  ID 1, verificación true y arranque/envío manual deshabilitados.
+  No hay servicio Windows publicador instalado ni segunda película
+  publicada automáticamente. Ver
+  [AVANCE-RELEASE-0013-SIN-PUBLICACION-20261121.md](AVANCE-RELEASE-0013-SIN-PUBLICACION-20261121.md).
 - [ ] **Automatización GENERAL de publicación y carátulas**:
   este éxito es una acción de publicación individual,
   **no una cola automática para futuras películas**.
