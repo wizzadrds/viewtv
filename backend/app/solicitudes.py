@@ -25,6 +25,7 @@ from app.models import (
 )
 from worker.torrent_metadata import (
     TorrentMetadataError,
+    TorrentMetadataNotFoundError,
     es_url_jackett_dl,
     obtener_metadatos_jackett,
     tamano_incoherente,
@@ -74,6 +75,17 @@ def _verificar_metadatos_para_perfil(
 
     try:
         metainfo = obtener_metadatos_jackett(resultado.download_url, base)
+    except TorrentMetadataNotFoundError:
+        return ({
+            "estado": "no_verificable",
+            "motivo": "enlace_no_encontrado",
+            "puede_seleccionar": False,
+            "tamano_anunciado_bytes": anunciado,
+            "tamano_real_bytes": None,
+            "advertencias": [
+                "Jackett ya no encuentra este resultado. Actualiza la búsqueda."
+            ],
+        }, None)
     except TorrentMetadataError:
         return ({
             "estado": "no_verificable",
@@ -513,6 +525,59 @@ def deshacer_seleccion(
         session.add(solicitud)
         session.commit()
         return {"solicitud_id": solicitud.id, "estado": "esperando_seleccion"}
+    except HTTPException:
+        session.rollback()
+        raise
+
+
+@router.post("/{solicitud_id}/actualizar-resultados", status_code=status.HTTP_202_ACCEPTED)
+def actualizar_resultados(
+    solicitud_id: int,
+    perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int | str]:
+    """Vuelve a buscar enlaces vigentes sin elegir ni iniciar torrent alguno."""
+    if perfil.id is None:
+        raise HTTPException(status_code=401, detail="Perfil no autenticado.")
+
+    _begin_write(session)
+    try:
+        solicitud = session.exec(
+            select(Solicitud).where(
+                Solicitud.id == solicitud_id,
+                Solicitud.perfil_id == perfil.id,
+            )
+        ).first()
+        if solicitud is None:
+            raise HTTPException(status_code=404, detail="Solicitud no encontrada.")
+        if solicitud.estado not in {"esperando_seleccion", "sin_resultados"}:
+            raise HTTPException(
+                status_code=409, detail="La solicitud no admite actualizar resultados."
+            )
+        descarga = session.exec(
+            select(Descarga.id)
+            .where(Descarga.solicitud_id == solicitud_id)
+            .limit(1)
+        ).first()
+        if descarga is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="No se pueden renovar resultados de una solicitud con descarga.",
+            )
+
+        # Los resultados antiguos no se borran hasta que la nueva búsqueda
+        # termine con éxito; evitar perder datos ante un error de Jackett.
+        solicitud.estado = "pendiente"
+        solicitud.intentos = 0
+        solicitud.disponible_desde = utc_now()
+        solicitud.ultimo_error = None
+        solicitud.locked_by = None
+        solicitud.locked_until = None
+        solicitud.heartbeat = None
+        solicitud.actualizado_en = utc_now()
+        session.add(solicitud)
+        session.commit()
+        return {"solicitud_id": solicitud_id, "estado": "pendiente"}
     except HTTPException:
         session.rollback()
         raise

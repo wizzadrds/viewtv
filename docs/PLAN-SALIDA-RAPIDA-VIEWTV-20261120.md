@@ -312,6 +312,29 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   qBittorrent, SQLite y Jellyfin permanecen intactos.
   Compilación Next.js PASS; smoke producción readonly 10/10.
   [AVANCE-RESULTADOS-DESCARTADOS-CLAROS-20261121.md](AVANCE-RESULTADOS-DESCARTADOS-CLAROS-20261121.md).
+- [x] **Enlaces de Jackett 404: diferenciación y rebúsqueda**:
+  nueva prueba solo de metadatos demuestra que los dos
+  enlaces guardados de #4, y también los dos de una
+  búsqueda nueva directa, devuelven **HTTP 404**.
+  El Jackett responde en la raíz; el enlace ofrecido
+  por la fuente no es utilizable, aunque un examen
+  anterior había demostrado que ambos infohash eran
+  el torrent descartado. PWA distingue «Enlace no
+  disponible» (no comprobable ahora) de «Ya descartado»
+  (identidad confirmada), y ofrece «Actualizar
+  resultados» sin iniciar ninguna descarga.
+  API añade endpoint autenticado 202 que reencola
+  solo solicitudes propias y sin descargas bajo
+  `BEGIN IMMEDIATE`; preserva los resultados
+  antiguos hasta terminar la búsqueda. El worker
+  automático no fue recreado y retiene corte ID 1.
+  Tests **864/864**, focales **73/73**,
+  compilación Next.js/TypeScript PASS y smoke
+  producción **10/10**; API y frontend healthy.
+  **Rebuscar no soluciona necesariamente los 404:
+  puede requerir corregir la fuente/indexador Jackett.**
+  Informe:
+  [AVANCE-ENLACES-JACKETT-404-REBUSQUEDA-20261121.md](AVANCE-ENLACES-JACKETT-404-REBUSQUEDA-20261121.md).
 - [ ] **Prueba de primera transferencia real**:
   el usuario debe seleccionar un candidato correcto y
   autorizado desde solicitud #6; confirmar que qBittorrent

@@ -1093,3 +1093,113 @@ def test_preselection_is_private_and_only_for_waiting_selection(
         session.add(req)
         session.commit()
     assert client.get(preview_url).status_code == 409
+
+
+def test_refresh_results_requeues_without_selecting_or_erasing_previous_results(
+    solicitudes_context,
+):
+    client, engine = solicitudes_context
+    sid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    rid = _prepare_search_results(engine, sid)
+    with Session(engine) as session:
+        q = session.get(Solicitud, sid)
+        q.intentos = q.max_intentos
+        q.ultimo_error = "Error anterior de búsqueda"
+        session.add(q)
+        session.commit()
+
+    response = client.post(f"/solicitudes/{sid}/actualizar-resultados")
+    assert response.status_code == 202
+    assert response.json() == {"solicitud_id": sid, "estado": "pendiente"}
+    assert client.post(f"/solicitudes/{sid}/actualizar-resultados").status_code == 409
+    with Session(engine) as session:
+        q = session.get(Solicitud, sid)
+        assert q.estado == "pendiente"
+        assert q.intentos == 0
+        assert q.ultimo_error is None
+        assert q.locked_by is None
+        assert q.locked_until is None
+        assert session.get(ResultadoBusqueda, rid) is not None
+        assert session.exec(select(Descarga)).all() == []
+
+
+def test_refresh_results_rejects_existing_download(
+    solicitudes_context,
+):
+    client, engine = solicitudes_context
+    sid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    rid = _prepare_search_results(engine, sid)
+    with Session(engine) as session:
+        session.add(Descarga(
+            solicitud_id=sid,
+            resultado_busqueda_id=rid,
+            titulo="Archivo de prueba",
+            estado="fallida",
+        ))
+        session.commit()
+    assert client.post(f"/solicitudes/{sid}/actualizar-resultados").status_code == 409
+    with Session(engine) as session:
+        assert session.get(Solicitud, sid).estado == "esperando_seleccion"
+
+
+def test_refresh_results_rejects_other_profile(
+    solicitudes_context,
+):
+    client, engine = solicitudes_context
+    sid = client.post("/solicitudes", json={"medio_id": 1}).json()["id"]
+    _prepare_search_results(engine, sid)
+    with Session(engine) as session:
+        other = Perfil(nombre="Ajeno", pin_hash="unrelated")
+        session.add(other)
+        session.commit()
+        session.refresh(other)
+        oid=other.id
+    original=app.dependency_overrides[get_current_profile]
+    def other_profile():
+        with Session(engine) as session:
+            return session.get(Perfil, oid)
+    app.dependency_overrides[get_current_profile]=other_profile
+    try:
+        assert client.post(f"/solicitudes/{sid}/actualizar-resultados").status_code == 404
+    finally:
+        app.dependency_overrides[get_current_profile]=original
+    with Session(engine) as session:
+        assert session.get(Solicitud,sid).estado=="esperando_seleccion"
+
+
+def test_preview_reports_stale_jackett_link_without_exposing_url(
+    solicitudes_context, monkeypatch,
+):
+    from types import SimpleNamespace
+    from worker.torrent_metadata import TorrentMetadataNotFoundError
+    import app.solicitudes as routes
+
+    client, engine = solicitudes_context
+    sid = client.post("/solicitudes", json={"medio_id":1}).json()["id"]
+    rid = _prepare_search_results(engine,sid)
+    with Session(engine) as session:
+        r=session.get(ResultadoBusqueda,rid)
+        r.download_url="http://host.docker.internal:9117/dl/fictional"
+        r.magnet_url=None
+        session.add(r)
+        session.commit()
+
+    monkeypatch.setattr(routes,"get_settings",lambda:SimpleNamespace(jackett_base_url="http://host.docker.internal:9117"))
+    def unavailable(url,base):
+        raise TorrentMetadataNotFoundError("No encontrado en Jackett")
+    monkeypatch.setattr(routes,"obtener_metadatos_jackett",unavailable)
+    response=client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
+    assert response.status_code == 200
+    data=response.json()
+    assert data["estado"]=="no_verificable"
+    assert data["motivo"]=="enlace_no_encontrado"
+    assert data["tamano_real_bytes"] is None
+    assert data["puede_seleccionar"] is False
+    assert "Actualiza la búsqueda" in data["advertencias"][0]
+    for key in ("download_url","info_hash","magnet_url","apikey"):
+        assert key not in str(data)
+    # La acción directa debe seguir impidiendo cualquier envío.
+    assert client.post(f"/solicitudes/{sid}/seleccion",json={"resultado_id":rid}).status_code == 409
+    with Session(engine) as session:
+        assert session.get(Solicitud,sid).estado=="esperando_seleccion"
+        assert session.exec(select(Descarga)).all()==[]

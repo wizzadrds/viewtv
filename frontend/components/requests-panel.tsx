@@ -25,6 +25,7 @@ type SearchResult = {
 
 type ResultVerification = {
   estado: "apto" | "bloqueado" | "no_verificable";
+  motivo?: "enlace_no_encontrado";
   puede_seleccionar: boolean;
   tamano_anunciado_bytes: number | null;
   tamano_real_bytes: number | null;
@@ -251,6 +252,32 @@ export default function RequestsPanel({
     }
   }
 
+  async function refreshResults(requestId: number) {
+    if (busy) return;
+    setBusy(true);
+    setResultsError("");
+    try {
+      await apiRequest("/solicitudes/" + requestId + "/actualizar-resultados", {
+        method: "POST",
+      });
+      setSelectedId(null);
+      setResults([]);
+      setVerifications({});
+      setNotice("Nueva búsqueda solicitada. VIEWTV actualizará los enlaces de Jackett sin iniciar ninguna descarga.");
+      await loadRequests();
+    } catch (cause) {
+      if ((cause as Error & { status?: number }).status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setResultsError(
+        (cause as Error).message || "No se han podido actualizar los resultados.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function chooseResult(resultId: number) {
     if (!verifications[resultId]?.puede_seleccionar) return;
     if (!selectedId || busy || !canSelect) return;
@@ -446,7 +473,8 @@ export default function RequestsPanel({
                           <p className="error-message" role="status">
                             {verifications[result.id].estado === "bloqueado"
                               ? "Es el mismo archivo .torrent que descartaste, aunque el nombre del resultado sea distinto."
-                              : "No se pudo obtener un torrent válido."}
+                              : verifications[result.id].advertencias[0] ||
+                                "No se pudo obtener un torrent válido."}
                           </p>
                         )}
                     </div>
@@ -460,8 +488,10 @@ export default function RequestsPanel({
                       >
                         {verifications[result.id]?.estado === "bloqueado"
                           ? "Ya descartado"
-                          : verifications[result.id]?.estado === "no_verificable"
-                            ? "No disponible"
+                          : verifications[result.id]?.motivo === "enlace_no_encontrado"
+                            ? "Enlace no disponible"
+                            : verifications[result.id]?.estado === "no_verificable"
+                              ? "No disponible"
                             : verifications[result.id]?.puede_seleccionar
                               ? "Descargar"
                               : "Consultando…"}
@@ -469,6 +499,15 @@ export default function RequestsPanel({
                     </div>
                   </div>
                 ))}
+                <button
+                  className="quiet-button"
+                  data-spatial
+                  disabled={busy}
+                  onClick={() => void refreshResults(request.id)}
+                  type="button"
+                >
+                  {busy ? "Actualizando…" : "Actualizar resultados"}
+                </button>
               </div>
             )}
           </article>

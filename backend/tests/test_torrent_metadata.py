@@ -118,3 +118,19 @@ def test_tamano_incoherente_limits():
     assert not tamano_incoherente(0, 9999)
     assert tamano_incoherente(100_000_000, 200_000_000)
     assert not tamano_incoherente(1_000_000_000, 1_040_000_000)
+
+
+
+@pytest.mark.parametrize("status_code", [404, 410])
+def test_expired_jackett_torrent_url_reports_specific_error(status_code):
+    from worker.torrent_metadata import TorrentMetadataNotFoundError
+
+    requests_seen = []
+    def handler(request):
+        requests_seen.append(request.url.path)
+        return httpx.Response(status_code)
+    with pytest.raises(TorrentMetadataNotFoundError, match="Actualiza"):
+        obtener_metadatos_jackett(
+            URL, BASE, transport=httpx.MockTransport(handler),
+        )
+    assert requests_seen == ["/dl/release-ficticia"]

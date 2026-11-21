@@ -1,0 +1,6 @@
+# Solo API + PWA; worker automático y su umbral permanecen intactos.
+services:
+  api:
+    image: viewtv:actualizar-resultados-api-0012
+  frontend:
+    image: viewtv-frontend:actualizar-resultados-0012

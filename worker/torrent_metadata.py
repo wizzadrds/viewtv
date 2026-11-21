@@ -21,6 +21,10 @@ class TorrentMetadataError(Exception):
     """No se pueden garantizar los metadatos del candidato."""
 
 
+class TorrentMetadataNotFoundError(TorrentMetadataError):
+    """Jackett devuelve 404/410: enlace ya no disponible."""
+
+
 @dataclass(frozen=True)
 class TorrentMetadata:
     size_bytes: int
@@ -149,6 +153,10 @@ def obtener_metadatos_jackett(
     try:
         with httpx.Client(timeout=15, follow_redirects=False, trust_env=False, transport=transport) as client:
             with client.stream("GET", url, headers={"Accept": "application/x-bittorrent"}) as response:
+                if response.status_code in (404, 410):
+                    raise TorrentMetadataNotFoundError(
+                        "Jackett ya no encuentra este resultado. Actualiza la búsqueda."
+                    )
                 if response.status_code != 200:
                     raise TorrentMetadataError("Jackett no devolvió un .torrent válido.")
                 data = bytearray()
