@@ -9,6 +9,10 @@ y verificar una segunda película hasta Jellyfin/reproducción
 **no es backlog**, sino el bloqueo prioritario del plan de salida.
 La validación de LocalSystem no demuestra permisos confinados ni
 autoriza instalar automáticamente el servicio.
+El preflight Windows 0013 ya permite una **nueva selección en ViewTV**
+con publicación deshabilitada; solo falta el ID nueva real y verificada
+para la prueba `single`. Ver
+[AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md](AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md).
 
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.

@@ -505,6 +505,16 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   No hay servicio Windows publicador instalado ni segunda película
   publicada automáticamente. Ver
   [AVANCE-RELEASE-0013-SIN-PUBLICACION-20261121.md](AVANCE-RELEASE-0013-SIN-PUBLICACION-20261121.md).
+- [x] **Preflight de la próxima película, antes de solicitar nueva
+  descarga:** NTFS sin redirecciones, API/worker 0013, CLI bloqueada,
+  auto-descarga/verificación conservadas y publicador no iniciado.
+  PowerShell `LISTO_PARA_NUEVA_SELECCION_VIEWTV_0013=SI`;
+  SQLite solo lectura `DESCARGAS_NUEVAS=0` en ID > 2.
+  **El usuario ya puede buscar/seleccionar otra película autorizada
+  desde ViewTV; la publicación sigue desactivada** hasta conocer
+  la ID real y verificar la descarga. No añadir torrent manual.
+  Informe:
+  [AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md](AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md).
 - [ ] **Automatización GENERAL de publicación y carátulas**:
   este éxito es una acción de publicación individual,
   **no una cola automática para futuras películas**.

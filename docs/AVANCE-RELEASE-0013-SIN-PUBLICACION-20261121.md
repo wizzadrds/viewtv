@@ -134,5 +134,15 @@ película apropiada en la aplicación para la prueba de
 búsqueda→selección→descarga→verificación→publicación→Jellyfin
 completado→catálogo VIEWTV→reproducción.
 
+**Comprobación posterior de preparación (21/11/2026):**
+el preflight real de solo lectura Windows ha dado
+`LISTO_PARA_NUEVA_SELECCION_VIEWTV_0013=SI`.
+La consulta SQLite en `/data:ro` ha dado
+`DESCARGAS_NUEVAS=0` para ID > 2.
+Ya es seguro que el usuario seleccione una nueva película mediante
+ViewTV, pero **todavía no que la publique un servicio real**
+hasta obtener ID verificada y desplegar la autorización `single`.
+Ver [AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md](AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md).
+
 PR #2 debe permanecer **OPEN y draft**, sin merge ni cierre.
 Ninguna tarea del backlog de cosmética o indexadores se reabre.
