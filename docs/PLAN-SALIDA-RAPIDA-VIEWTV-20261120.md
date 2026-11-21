@@ -335,6 +335,27 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   puede requerir corregir la fuente/indexador Jackett.**
   Informe:
   [AVANCE-ENLACES-JACKETT-404-REBUSQUEDA-20261121.md](AVANCE-ENLACES-JACKETT-404-REBUSQUEDA-20261121.md).
+- [x] **POLÍTICA ACTUAL — permitir repetir torrents previamente descartados**:
+  el usuario pidió retirar el veto, los avisos y las
+  confirmaciones adicionales por descargas antiguas y
+  entradas repetidas. API, PWA y worker desplegados:
+  un `.torrent` legible se puede elegir con «Descargar»
+  aun si su infohash coincide con un descarte antiguo.
+  NO se recuperan ni arrancan selecciones históricas;
+  solo nuevas selecciones por el usuario (umbral ID 1).
+  Se mantiene la comprobación de metainfo e identidad,
+  la protección de torrents ajenos en qBittorrent y
+  los errores de enlaces HTTP 404/410.
+  **864/864** tests completos, **90/90** focales,
+  prueba en copia SQLite real sin efectos,
+  Next.js/TypeScript PASS y smoke **10/10**;
+  API/PWA healthy y worker running. No se añadió
+  ni inició torrent alguno al desplegar.
+  Los apartados anteriores sobre «Ya descartado» y
+  «deben seguir bloqueados» describen versiones
+  PREVIAS y quedan sustituidos por esta decisión.
+  Informe:
+  [AVANCE-SIN-BLOQUEO-POR-DESCARTADO-20261121.md](AVANCE-SIN-BLOQUEO-POR-DESCARTADO-20261121.md).
 - [ ] **Prueba de primera transferencia real**:
   el usuario debe seleccionar un candidato correcto y
   autorizado desde solicitud #6; confirmar que qBittorrent

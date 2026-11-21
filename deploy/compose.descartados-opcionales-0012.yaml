@@ -1,0 +1,8 @@
+# Solo reintentos confirmados por el usuario. Sin alterar flags de descarga.
+services:
+  api:
+    image: viewtv:descartados-opcionales-api-0012
+  frontend:
+    image: viewtv-frontend:descartados-con-opcion-0012
+  worker:
+    image: viewtv:descartados-opcionales-worker-0012

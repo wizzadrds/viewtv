@@ -1,0 +1,3 @@
+# Nuevas selecciones confirmadas; conserva los límites de automatización.
+FROM viewtv:auto-worker-0012
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py

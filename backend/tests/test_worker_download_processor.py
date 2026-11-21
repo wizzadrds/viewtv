@@ -414,7 +414,7 @@ def test_worker_usa_tamano_real_sin_bloquear_por_error_del_indexador(monkeypatch
     assert qbit.add_calls[0]["url"].startswith("http://127.0.0.1:9117/dl/")
 
 
-def test_torrent_ya_rechazado_no_se_reenvia_aunque_tamano_coincida(monkeypatch):
+def test_worker_permite_nueva_seleccion_confirmada_de_torrent_descartado(monkeypatch):
     from worker.torrent_metadata import TorrentMetadata
 
     test_engine = make_engine()
@@ -447,17 +447,22 @@ def test_torrent_ya_rechazado_no_se_reenvia_aunque_tamano_coincida(monkeypatch):
         lambda url, base: TorrentMetadata(1_503_238_554, "d" * 40),
     )
 
-    qbit = FakeQBittorrent(responses=[[]])
+    qbit = FakeQBittorrent(responses=[
+        [],
+        [{"hash": "d" * 40, "tags": f"viewtv-descarga-{did}",
+          "save_path": processor.STAGING_PATH, "state": "stoppedDL"}],
+    ])
     assert processor.process_one_download(
         "worker-test", qbit, allowed_download_id=did,
         save_path=processor.STAGING_PATH,
     )
     with Session(test_engine) as session:
         d = session.get(Descarga, did)
-        assert d.estado == "fallida"
-        assert d.intentos_envio == 0
-        assert "descartado" in d.ultimo_error
-    assert qbit.add_calls == []
+        assert d.estado == "enviada"
+        assert d.intentos_envio == 1
+        assert d.qbittorrent_hash == "d" * 40
+    assert len(qbit.add_calls) == 1
+    assert qbit.add_calls[0]["stopped"] is True
 
 
 def test_jackett_sin_metadatos_no_inicia_envio(monkeypatch):

@@ -328,34 +328,11 @@ def process_one_download(
                 )
                 return True
 
-            # Un torrent previamente retirado por el usuario no debe
-            # volver a incorporarse si otro resultado apunta al mismo infohash.
-            with Session(engine) as session:
-                profile = session.get(Solicitud, request_id)
-                repetido = (
-                    session.exec(
-                        select(Descarga.id)
-                        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
-                        .where(
-                            Descarga.id != download_id,
-                            Descarga.estado == "fallida",
-                            Solicitud.estado == "cancelada",
-                            Solicitud.perfil_id == profile.perfil_id,
-                            Descarga.qbittorrent_hash == metadatos.info_hash,
-                        )
-                        .limit(1)
-                    ).first()
-                    if profile is not None else None
-                )
-            if repetido is not None:
-                _record_failure(
-                    download_id,
-                    worker_id,
-                    "El torrent ya fue descartado en una selección anterior.",
-                    permanent=True,
-                )
-                return True
-
+            # El usuario pudo volver a confirmar expresamente un torrent
+            # descartado en la API. Una selección persistida y nueva
+            # constituye esa autorización, no el histórico: el worker
+            # mantiene ID individual, hash, metainfo y protección de
+            # torrents ajenos, pero no aplica otro veto por duplicado.
             # Persistir el tamaño y hash extraídos del propio torrent.
             # Sólo la descarga reclamada; nunca los valores publicados.
             with Session(engine) as session:

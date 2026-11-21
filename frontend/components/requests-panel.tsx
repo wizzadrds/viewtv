@@ -279,7 +279,8 @@ export default function RequestsPanel({
   }
 
   async function chooseResult(resultId: number) {
-    if (!verifications[resultId]?.puede_seleccionar) return;
+    const check = verifications[resultId];
+    if (!check?.puede_seleccionar) return;
     if (!selectedId || busy || !canSelect) return;
     setBusy(true);
     setNotice("");
@@ -445,14 +446,6 @@ export default function RequestsPanel({
                 {!resultsBusy && !resultsError && results.length === 0 && (
                   <p className="muted">Ningún resultado coincide claramente con el título y tipo solicitados. Prueba otra búsqueda; no se pueden seleccionar coincidencias ajenas.</p>
                 )}
-                {results.length > 0 && results.every(
-                  (result) => verifications[result.id]?.estado === "bloqueado",
-                ) && (
-                  <p className="error-message" role="status">
-                    No hay opciones nuevas entre estos resultados: todos corresponden
-                    a torrents que ya descartaste. Prueba otra búsqueda.
-                  </p>
-                )}
                 {results.map((result) => (
                   <div className="request-result" key={result.id}>
                     <div>
@@ -471,10 +464,8 @@ export default function RequestsPanel({
                       {verifications[result.id] &&
                         !verifications[result.id].puede_seleccionar && (
                           <p className="error-message" role="status">
-                            {verifications[result.id].estado === "bloqueado"
-                              ? "Es el mismo archivo .torrent que descartaste, aunque el nombre del resultado sea distinto."
-                              : verifications[result.id].advertencias[0] ||
-                                "No se pudo obtener un torrent válido."}
+                            {verifications[result.id].advertencias[0] ||
+                              "No se pudo obtener un torrent válido."}
                           </p>
                         )}
                     </div>
@@ -486,12 +477,10 @@ export default function RequestsPanel({
                         onClick={() => void chooseResult(result.id)}
                         type="button"
                       >
-                        {verifications[result.id]?.estado === "bloqueado"
-                          ? "Ya descartado"
-                          : verifications[result.id]?.motivo === "enlace_no_encontrado"
-                            ? "Enlace no disponible"
-                            : verifications[result.id]?.estado === "no_verificable"
-                              ? "No disponible"
+                        {verifications[result.id]?.motivo === "enlace_no_encontrado"
+                          ? "Enlace no disponible"
+                          : verifications[result.id]?.estado === "no_verificable"
+                            ? "No disponible"
                             : verifications[result.id]?.puede_seleccionar
                               ? "Descargar"
                               : "Consultando…"}

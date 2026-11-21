@@ -104,28 +104,11 @@ def _verificar_metadatos_para_perfil(
             "el tamaño real del archivo .torrent. Revisa el espacio necesario."
         )
 
-    # Aislamiento estricto por perfil: no exponemos hashes ni información
-    # sobre descartes de otras cuentas.
-    descartado = session.exec(
-        select(Descarga.id)
-        .join(Solicitud, Descarga.solicitud_id == Solicitud.id)
-        .where(
-            Descarga.estado == "fallida",
-            Solicitud.estado == "cancelada",
-            Solicitud.perfil_id == perfil_id,
-            Descarga.qbittorrent_hash == metainfo.info_hash,
-        )
-        .limit(1)
-    ).first()
-    bloqueado = descartado is not None
-    if bloqueado:
-        advertencias.append(
-            "Este torrent coincide con uno que ya descartaste. Resultado bloqueado."
-        )
-
+    # Solo comprobamos metainfo real. No vetar por hash duplicado
+    # ni por acciones históricas: la nueva selección es voluntaria.
     return ({
-        "estado": "bloqueado" if bloqueado else "apto",
-        "puede_seleccionar": not bloqueado,
+        "estado": "apto",
+        "puede_seleccionar": True,
         "tamano_anunciado_bytes": anunciado,
         "tamano_real_bytes": metainfo.size_bytes,
         "advertencias": advertencias,
@@ -745,7 +728,7 @@ def seleccionar_resultado(
             if not verificacion["puede_seleccionar"]:
                 raise HTTPException(
                     status_code=409,
-                    detail="No se pudo validar el torrent o coincide con uno descartado.",
+                    detail="No se pudieron validar los metadatos del torrent.",
                 )
 
     _begin_write(session)

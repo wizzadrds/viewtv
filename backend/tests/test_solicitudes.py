@@ -956,7 +956,7 @@ def test_preselection_uses_real_size_even_when_jackett_is_wrong(
         assert d.intentos_envio == 0
 
 
-def test_preselection_blocks_previous_discard_by_same_profile(
+def test_previous_discard_does_not_block_new_selection(
     solicitudes_context, monkeypatch
 ):
     import app.solicitudes as routes
@@ -986,10 +986,31 @@ def test_preselection_blocks_previous_discard_by_same_profile(
 
     response = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
     assert response.status_code == 200
-    assert response.json()["estado"] == "bloqueado"
-    assert response.json()["tamano_real_bytes"] == 20 * 1024**3
-    assert any("descartaste" in m for m in response.json()["advertencias"])
-    assert client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid}).status_code == 409
+    data = response.json()
+    assert data["estado"] == "apto"
+    assert data["puede_seleccionar"] is True
+    assert "descartado_anteriormente" not in data
+    assert data["tamano_real_bytes"] == 20 * 1024**3
+    assert not any("descart" in m.lower() for m in data["advertencias"])
+    assert "info_hash" not in data and "download_url" not in data
+
+    # El hecho histórico de haber descartado la misma huella no
+    # requiere un token ni confirmación para una elección nueva.
+    chosen = client.post(
+        f"/solicitudes/{sid}/seleccion",
+        json={"resultado_id": rid},
+    )
+    assert chosen.status_code == 201
+    with Session(engine) as session:
+        d = session.exec(
+            select(Descarga).where(Descarga.solicitud_id == sid)
+        ).one()
+        assert d.estado == "seleccionada"
+        assert d.info_hash == "c" * 40
+        assert d.tamano_bytes == 20 * 1024**3
+        assert d.qbittorrent_hash is None
+        assert d.intentos_envio == 0
+        assert session.get(Solicitud, sid).estado == "completada"
 
 
 def test_preselection_allows_matching_size_only_after_own_verification(
