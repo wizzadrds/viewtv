@@ -24,7 +24,6 @@ from worker.torrent_metadata import (
     TorrentMetadataError,
     es_url_jackett_dl,
     obtener_metadatos_jackett,
-    tamano_incoherente,
 )
 
 logger = logging.getLogger("viewtv.worker.download_processor")
@@ -273,11 +272,18 @@ def process_one_download(
                 )
                 return True
 
-            if tamano_incoherente(result.tamano_bytes, metadatos.size_bytes):
+            # No confiar en el tamaño anunciado por el indexador.
+            # Para las nuevas selecciones la API ha guardado el hash
+            # canónico. Si Jackett cambia de contenido al iniciar, fallar.
+            if (
+                download.info_hash
+                and re.fullmatch(r"[0-9a-fA-F]{40}", download.info_hash)
+                and download.info_hash.casefold() != metadatos.info_hash
+            ):
                 _record_failure(
                     download_id,
                     worker_id,
-                    "El tamaño publicado no coincide con el tamaño real del torrent.",
+                    "Los metadatos del torrent cambiaron desde la selección.",
                     permanent=True,
                 )
                 return True
@@ -309,6 +315,30 @@ def process_one_download(
                     permanent=True,
                 )
                 return True
+
+            # Persistir el tamaño y hash extraídos del propio torrent.
+            # Sólo la descarga reclamada; nunca los valores publicados.
+            with Session(engine) as session:
+                current = session.get(Descarga, download_id)
+                if (
+                    current is None
+                    or current.locked_by != worker_id
+                    or current.estado != "seleccionada"
+                ):
+                    logger.warning("Lease perdido antes de persistir metadatos")
+                    return True
+                current.tamano_bytes = metadatos.size_bytes
+                current.info_hash = metadatos.info_hash
+                session.add(current)
+                session.commit()
+
+            # En la prueba acotada Windows, entregar a qBittorrent
+            # el mismo recurso .torrent cuya identidad verificamos;
+            # no un magnet que podría apuntar a otro metainfo.
+            if allowed_download_id is not None:
+                torrent_url = _qbit_url_for_windows_jackett(
+                    download_url, get_settings().jackett_base_url
+                )
 
         # Consumimos el intento justo antes de llamar a qBittorrent.
         with Session(engine) as session:

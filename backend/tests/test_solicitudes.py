@@ -915,7 +915,7 @@ def _preparar_resultado_jackett_verificable(client, engine):
     return solicitud_id, resultado_id
 
 
-def test_preselection_shows_real_size_and_blocks_mismatch(
+def test_preselection_uses_real_size_even_when_jackett_is_wrong(
     solicitudes_context, monkeypatch
 ):
     import app.solicitudes as routes
@@ -936,19 +936,24 @@ def test_preselection_shows_real_size_and_blocks_mismatch(
     preview = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
     assert preview.status_code == 200
     data = preview.json()
-    assert data["estado"] == "bloqueado"
-    assert data["puede_seleccionar"] is False
+    assert data["estado"] == "apto"
+    assert data["puede_seleccionar"] is True
     assert data["tamano_anunciado_bytes"] == 20 * 1024**3
     assert data["tamano_real_bytes"] == 33_260_748_236
-    assert any("tamaño" in message for message in data["advertencias"])
+    assert any("Jackett" in message for message in data["advertencias"])
     assert all(x not in data for x in ("info_hash", "download_url", "magnet_url", "clave"))
     assert "http" not in str(data)
     response = client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid})
-    assert response.status_code == 409
+    assert response.status_code == 201
     assert len(lookups) == 2
     with Session(engine) as session:
-        assert session.get(Solicitud, sid).estado == "esperando_seleccion"
-        assert session.exec(select(Descarga)).all() == []
+        assert session.get(Solicitud, sid).estado == "completada"
+        d = session.exec(select(Descarga).where(Descarga.solicitud_id == sid)).one()
+        assert d.estado == "seleccionada"
+        assert d.tamano_bytes == 33_260_748_236
+        assert d.info_hash == "b" * 40
+        assert d.qbittorrent_hash is None
+        assert d.intentos_envio == 0
 
 
 def test_preselection_blocks_previous_discard_by_same_profile(
@@ -1015,6 +1020,8 @@ def test_preselection_allows_matching_size_only_after_own_verification(
     with Session(engine) as session:
         d = session.exec(select(Descarga).where(Descarga.solicitud_id == sid)).one()
         assert d.estado == "seleccionada"
+        assert d.tamano_bytes == 20 * 1024**3
+        assert d.info_hash == "d" * 40
         assert d.qbittorrent_hash is None
         assert d.intentos_envio == 0
 

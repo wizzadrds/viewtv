@@ -333,8 +333,9 @@ export default function RequestsPanel({
         </button>
       </form>
       <p className="requests-note">
-        Comprueba el tamaño real antes de seleccionar. La búsqueda no inicia descargas.
-        Solo selecciona contenido que tengas derecho a obtener.
+        El tamaño anunciado por Jackett puede ser incorrecto.
+        Comprueba el tamaño real del archivo .torrent antes de seleccionar.
+        La búsqueda no inicia descargas. Solo selecciona contenido que tengas derecho a obtener.
       </p>
 
       {notice && (
@@ -416,26 +417,38 @@ export default function RequestsPanel({
                       <p className="request-result-title">{result.titulo}</p>
                       <p className="download-item-meta">
                         {result.resolucion || "Resolución desconocida"}
-                        {" · Publicado: " + describeSize(result.tamano_bytes)}
+                        {" · Tamaño del torrent: " +
+                          (verifications[result.id]?.tamano_real_bytes !== null &&
+                          verifications[result.id]?.tamano_real_bytes !== undefined
+                            ? describeSize(verifications[result.id].tamano_real_bytes)
+                            : "por comprobar")}
                         {" · " + (result.seeders ?? 0) + " fuentes"}
                       </p>
                       {verifications[result.id] && (
                         <div role="status">
                           {verifications[result.id].tamano_real_bytes !== null && (
                             <p className="download-item-meta">
-                              Tamaño real del torrent: <strong>
+                              Tamaño real verificado: <strong>
                                 {describeSize(verifications[result.id].tamano_real_bytes)}
                               </strong>
+                              {" · Jackett anunciaba: " +
+                                describeSize(verifications[result.id].tamano_anunciado_bytes)}
                             </p>
                           )}
                           {verifications[result.id].estado === "apto" && (
                             <p className="muted">
-                              Tamaño coherente y sin coincidencias con tus torrents descartados.
-                              Esto no garantiza la identidad del contenido.
+                              Tamaño obtenido del archivo .torrent y sin coincidencias con tus descartes.
+                              Comprueba que el contenido es el correcto antes de seleccionar.
                             </p>
                           )}
                           {verifications[result.id].advertencias.map((warning, i) => (
-                            <p className="error-message" key={i}>{warning}</p>
+                            <p
+                              className={verifications[result.id].puede_seleccionar
+                                ? "muted" : "error-message"}
+                              key={i}
+                            >
+                              {warning}
+                            </p>
                           ))}
                         </div>
                       )}

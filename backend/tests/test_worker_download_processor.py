@@ -375,7 +375,7 @@ def _setup_jackett_verification(monkeypatch, engine, download_id):
     )
 
 
-def test_tamano_real_incoherente_bloquea_antes_de_abrir_qbit(monkeypatch):
+def test_worker_usa_tamano_real_sin_bloquear_por_error_del_indexador(monkeypatch):
     from worker.torrent_metadata import TorrentMetadata
 
     test_engine = make_engine()
@@ -385,10 +385,18 @@ def test_tamano_real_incoherente_bloquea_antes_de_abrir_qbit(monkeypatch):
     _setup_jackett_verification(monkeypatch, test_engine, did)
     monkeypatch.setattr(
         processor, "obtener_metadatos_jackett",
-        lambda url, base: TorrentMetadata(17_686_540_911, "c" * 40),
+        lambda url, base: TorrentMetadata(17_686_540_911, "b" * 40),
     )
 
-    qbit = FakeQBittorrent(responses=[[]])
+    qbit = FakeQBittorrent(responses=[
+        [],
+        [{
+            "hash": "b" * 40,
+            "tags": f"viewtv-descarga-{did}",
+            "save_path": processor.STAGING_PATH,
+            "state": "stoppedDL",
+        }],
+    ])
     assert processor.process_one_download(
         "worker-test", qbit, allowed_download_id=did,
         save_path=processor.STAGING_PATH,
@@ -396,12 +404,14 @@ def test_tamano_real_incoherente_bloquea_antes_de_abrir_qbit(monkeypatch):
 
     with Session(test_engine) as session:
         d = session.get(Descarga, did)
-        assert d.estado == "fallida"
-        assert d.intentos_envio == 0
-        assert d.qbittorrent_hash is None
-        assert "tamaño" in d.ultimo_error
-        assert session.get(Solicitud, request_id).estado == "esperando_seleccion"
-    assert qbit.add_calls == []
+        assert d.estado == "enviada"
+        assert d.intentos_envio == 1
+        assert d.tamano_bytes == 17_686_540_911
+        assert d.info_hash == "b" * 40
+        assert session.get(Solicitud, request_id).estado == "completada"
+    assert len(qbit.add_calls) == 1
+    assert qbit.add_calls[0]["stopped"] is True
+    assert qbit.add_calls[0]["url"].startswith("http://127.0.0.1:9117/dl/")
 
 
 def test_torrent_ya_rechazado_no_se_reenvia_aunque_tamano_coincida(monkeypatch):
@@ -411,6 +421,9 @@ def test_torrent_ya_rechazado_no_se_reenvia_aunque_tamano_coincida(monkeypatch):
     monkeypatch.setattr(processor, "engine", test_engine)
     with Session(test_engine) as session:
         request_id, did = add_selected_download(session)
+        current = session.get(Descarga, did)
+        current.info_hash = "d" * 40
+        session.add(current)
         original = session.get(Solicitud, request_id)
         old = Solicitud(
             perfil_id=original.perfil_id,
@@ -481,13 +494,13 @@ def test_torrent_con_tamano_coherente_admite_solo_alta_detenida(monkeypatch):
     _setup_jackett_verification(monkeypatch, test_engine, did)
     monkeypatch.setattr(
         processor, "obtener_metadatos_jackett",
-        lambda url, base: TorrentMetadata(1_503_238_554, "e" * 40),
+        lambda url, base: TorrentMetadata(1_503_238_554, "b" * 40),
     )
 
     qbit = FakeQBittorrent(responses=[
         [],
         [{
-            "hash": "e" * 40,
+            "hash": "b" * 40,
             "tags": f"viewtv-descarga-{did}",
             "save_path": processor.STAGING_PATH,
             "state": "stoppedDL",
@@ -503,3 +516,29 @@ def test_torrent_con_tamano_coherente_admite_solo_alta_detenida(monkeypatch):
         assert d.intentos_envio == 1
     assert len(qbit.add_calls) == 1
     assert qbit.add_calls[0]["stopped"] is True
+
+
+def test_worker_rechaza_torrent_cambiado_tras_la_seleccion(monkeypatch):
+    """Si URL /dl/ apunta a otro infohash, no lo enviamos."""
+    from worker.torrent_metadata import TorrentMetadata
+
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    with Session(test_engine) as session:
+        _, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, test_engine, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda url, base: TorrentMetadata(2_000_000_000, "c" * 40),
+    )
+    qb = FakeQBittorrent(responses=[[]])
+    assert processor.process_one_download(
+        "worker-test", qb, allowed_download_id=did,
+        save_path=processor.STAGING_PATH,
+    )
+    with Session(test_engine) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "fallida"
+        assert d.intentos_envio == 0
+        assert "cambiaron" in d.ultimo_error
+    assert qb.add_calls == []

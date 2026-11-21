@@ -255,10 +255,32 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   **5/5 pruebas sobre copia SQLite real** y smoke
   **10/10**. Informe:
   [AVANCE-PRESELECCION-TAMANO-REAL-20261121.md](AVANCE-PRESELECCION-TAMANO-REAL-20261121.md).
-- [ ] **El usuario debe «Deshacer selección» en la ID 2** de
-  solicitud #6. Después puede abrir los resultados y
-  comprobar el tamaño real de cada candidato ANTES de
-  seleccionar. El resultado actual debe aparecer bloqueado.
+- [x] **La solicitud #6 volvió a «esperando_seleccion»**:
+  tras deshacer la selección previa, la SQLite real no contiene
+  ninguna descarga activa de #6; los cinco resultados permanecen.
+  No se envió el resultado a qBittorrent.
+- [x] **La fuente canónica de tamaño es el .torrent, NO Jackett**:
+  el usuario pidió dejar de confiar en los tamaños publicados.
+  Ahora la API muestra tamaño real y guarda tamaño/hash del
+  metainfo al seleccionar; la PWA muestra «por comprobar»
+  antes del GET y la diferencia de Jackett como advertencia
+  secundaria. **La disparidad no bloquea por sí sola.**
+  El worker vuelve a comprobar el metainfo y guarda sus
+  valores reales bajo lease antes de un futuro envío,
+  manteniendo bloqueos por infohash descartado, metadatos
+  inválidos o identidad distinta y sin iniciar torrents.
+  Se desplegaron por separado API/frontend/worker con
+  envío e inicio `false` e ID permitida vacía.
+  **836/836** pruebas backend, **116/116** focales,
+  **6/6** en copia SQLite real y **10/10** smoke.
+  Informe:
+  [AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md](AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md).
+- [ ] **Comprobar nuevo candidato desde solicitud #6**:
+  «Ver resultados» → «Comprobar tamaño real».
+  La opción que Jackett anuncia como 20 GiB debe mostrar
+  **33.260.748.236 bytes** reales con advertencia no
+  bloqueante; elegir solo si el contenido es correcto y
+  existe espacio/permiso, antes de probar el envío.
 - [ ] **Automatización de descargas correctas**: el usuario desea
   buscar, seleccionar y descargar automáticamente, pero
   un título coincidente no garantiza identidad. Validar primero

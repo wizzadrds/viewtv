@@ -1,0 +1,3 @@
+# El worker respeta metainfo confirmado y persiste el tamaño real.
+FROM viewtv:validacion-tamano-0012
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py

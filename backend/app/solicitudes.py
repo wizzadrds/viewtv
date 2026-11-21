@@ -28,6 +28,7 @@ from worker.torrent_metadata import (
     es_url_jackett_dl,
     obtener_metadatos_jackett,
     tamano_incoherente,
+    TorrentMetadata,
 )
 
 router = APIRouter(prefix="/solicitudes", tags=["solicitudes"])
@@ -52,8 +53,8 @@ def _verificar_metadatos_para_perfil(
     resultado: ResultadoBusqueda,
     perfil_id: int,
     session: Session,
-) -> dict[str, object]:
-    """Lectura solo de metainfo Jackett, sin enviar ni iniciar torrents.
+) -> tuple[dict[str, object], TorrentMetadata | None]:
+    """Datos públicos para la PWA y metainfo privado para persistencia.
 
     Solo se consulta a Jackett por URL del resultado guardado; el usuario
     nunca puede suministrar una URL arbitraria al verificador.
@@ -61,7 +62,7 @@ def _verificar_metadatos_para_perfil(
     anunciado = resultado.tamano_bytes
     base = get_settings().jackett_base_url
     if not resultado.download_url or not es_url_jackett_dl(resultado.download_url, base):
-        return {
+        return ({
             "estado": "no_verificable",
             "puede_seleccionar": False,
             "tamano_anunciado_bytes": anunciado,
@@ -69,12 +70,12 @@ def _verificar_metadatos_para_perfil(
             "advertencias": [
                 "Este resultado no ofrece metadatos .torrent verificables desde Jackett."
             ],
-        }
+        }, None)
 
     try:
         metainfo = obtener_metadatos_jackett(resultado.download_url, base)
     except TorrentMetadataError:
-        return {
+        return ({
             "estado": "no_verificable",
             "puede_seleccionar": False,
             "tamano_anunciado_bytes": anunciado,
@@ -82,12 +83,13 @@ def _verificar_metadatos_para_perfil(
             "advertencias": [
                 "No se han podido leer los metadatos del torrent. No lo selecciones todavía."
             ],
-        }
+        }, None)
 
     advertencias: list[str] = []
     if tamano_incoherente(anunciado, metainfo.size_bytes):
         advertencias.append(
-            "El tamaño real no coincide con el tamaño anunciado. Resultado bloqueado."
+            "El tamaño anunciado por Jackett es distinto; se utilizará "
+            "el tamaño real del archivo .torrent. Revisa el espacio necesario."
         )
 
     # Aislamiento estricto por perfil: no exponemos hashes ni información
@@ -103,18 +105,19 @@ def _verificar_metadatos_para_perfil(
         )
         .limit(1)
     ).first()
-    if descartado is not None:
+    bloqueado = descartado is not None
+    if bloqueado:
         advertencias.append(
             "Este torrent coincide con uno que ya descartaste. Resultado bloqueado."
         )
 
-    return {
-        "estado": "bloqueado" if advertencias else "apto",
-        "puede_seleccionar": not advertencias,
+    return ({
+        "estado": "bloqueado" if bloqueado else "apto",
+        "puede_seleccionar": not bloqueado,
         "tamano_anunciado_bytes": anunciado,
         "tamano_real_bytes": metainfo.size_bytes,
         "advertencias": advertencias,
-    }
+    }, metainfo)
 
 
 class CrearSolicitudInput(BaseModel):
@@ -627,7 +630,10 @@ def verificar_resultado(
         solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
     ):
         raise HTTPException(status_code=409, detail="El título no corresponde a la solicitud.")
-    return _verificar_metadatos_para_perfil(resultado, perfil.id, session)
+    respuesta, _metainfo_privado = _verificar_metadatos_para_perfil(
+        resultado, perfil.id, session
+    )
+    return respuesta
 
 
 @router.post("/{solicitud_id}/seleccion", status_code=status.HTTP_201_CREATED)
@@ -656,6 +662,7 @@ def seleccionar_resultado(
         )
     ).first()
     snapshot = None
+    metainfo_validado: TorrentMetadata | None = None
     if resultado_pre is not None:
         snapshot = (
             resultado_pre.download_url,
@@ -667,13 +674,13 @@ def seleccionar_resultado(
         if resultado_pre.download_url and es_url_jackett_dl(
             resultado_pre.download_url, base
         ):
-            verificacion = _verificar_metadatos_para_perfil(
+            verificacion, metainfo_validado = _verificar_metadatos_para_perfil(
                 resultado_pre, perfil.id, session
             )
             if not verificacion["puede_seleccionar"]:
                 raise HTTPException(
                     status_code=409,
-                    detail="El torrent no supera la verificación previa. Revisa su tamaño real.",
+                    detail="No se pudo validar el torrent o coincide con uno descartado.",
                 )
 
     _begin_write(session)
@@ -746,10 +753,18 @@ def seleccionar_resultado(
         descarga = Descarga(
             solicitud_id=solicitud_id,
             resultado_busqueda_id=resultado.id,
-            info_hash=resultado.info_hash,
+            # Jackett puede publicar tamaños y hashes erróneos:
+            # para un .torrent comprobado usamos SIEMPRE el metainfo.
+            info_hash=(
+                metainfo_validado.info_hash
+                if metainfo_validado else resultado.info_hash
+            ),
             titulo=resultado.titulo,
             indexador=resultado.indexador,
-            tamano_bytes=resultado.tamano_bytes,
+            tamano_bytes=(
+                metainfo_validado.size_bytes
+                if metainfo_validado else resultado.tamano_bytes
+            ),
             estado="seleccionada",
         )
 

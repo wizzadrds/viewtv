@@ -3,6 +3,14 @@
 **Fecha:** 21/11/2026. **Rama:** `viewtv-seguimiento-descargas-0012`.
 **Plan:** [PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md](PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md).
 
+> **Actualización 21/11/2026, posterior a este hito:** se confirmó
+> que Jackett puede anunciar tamaños erróneos. VIEWTV **ya no bloquea
+> únicamente por esa diferencia**: el tamaño canónico se obtiene y
+> guarda desde el `.torrent`, manteniendo bloqueos por identidad
+> descartada o metainfo inválido. Véase
+> [AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md](AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md).
+> Lo descrito debajo refleja el comportamiento de la versión anterior.
+
 ## Objetivo
 
 El usuario quiere usar VIEWTV para llegar a un flujo automático

@@ -1,0 +1,3 @@
+# La seleccion guarda el tamaño y hash del propio metainfo, nunca el indexador.
+FROM viewtv:preseleccion-real-api-0012
+COPY backend/app/solicitudes.py /opt/viewtv/backend/app/solicitudes.py

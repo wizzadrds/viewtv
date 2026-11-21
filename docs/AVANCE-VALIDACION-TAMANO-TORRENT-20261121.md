@@ -3,6 +3,14 @@
 **Fecha:** 21/11/2026. **Rama autorizada:** `viewtv-seguimiento-descargas-0012`.
 **Plan maestro:** [PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md](PLAN-SALIDA-RAPIDA-VIEWTV-20261120.md).
 
+> **Actualización posterior:** el tamaño de Jackett ha demostrado ser
+> inexacto en varios resultados. El worker ahora emplea el tamaño
+> del metainfo del torrent y **no bloquea por discrepancia
+> con el valor anunciado**, aunque sigue bloqueando torrents
+> descartados y cambios de identidad. Ver
+> [AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md](AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md).
+> Este informe refleja el estado del ensayo inicial.
+
 ## Hecho confirmado con una nueva selección real
 
 El usuario explicó que el nombre «Nadie.2.2025.DVDRip.SPANISH»
