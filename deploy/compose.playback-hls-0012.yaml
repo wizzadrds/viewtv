@@ -1,0 +1,6 @@
+# Solo API y PWA. Worker de descarga y base de datos se conservan.
+services:
+  api:
+    image: viewtv:playback-hls-api-0012
+  frontend:
+    image: viewtv-frontend:playback-hls-0012

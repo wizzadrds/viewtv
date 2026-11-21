@@ -53,9 +53,18 @@ test("la navegación respeta la biblioteca, la reproducción y descargas", () =>
   assert.match(app, /handlePlay/);
 });
 
-test("indica que no hay inicio automático ni reintento silencioso", () => {
-  assert.match(panel, /no inicia una descarga automáticamente/);
+test("la selección explícita activa el flujo automático, sin reintentos de búsquedas fallidas", () => {
+  assert.match(panel, /Al pulsar «Descargar», iniciará el proceso automáticamente/);
   assert.match(panel, /No se reintentará automáticamente/);
   assert.match(panel, /Solicitar búsqueda/);
   assert.match(panel, /Resultado seleccionado/);
+});
+
+test("reproducción usa HLS firmado cuando el MKV no admite Direct Play", () => {
+  assert.match(app, /import Hls from "hls.js"/);
+  assert.match(app, /item.modo === "hls"/);
+  assert.match(app, /Hls.isSupported\(\)/);
+  assert.match(app, /player.destroy\(\)/);
+  assert.match(app, /src=\{playbackMode === "direct" \? playbackUrl : undefined\}/);
+  assert.match(app, /\/hls\?token=/);
 });

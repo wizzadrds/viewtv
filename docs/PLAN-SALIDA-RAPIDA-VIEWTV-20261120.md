@@ -362,15 +362,47 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   en staging propio y progreso **100 %**. La validación
   de archivos finalizó como `verificada` tras corregir
   el bug de columnas 0013 sobre esquema 0012.
-  La película aún no se ha publicado en Películas ni
-  se ha verificado su carátula en Jellyfin; esos pasos
-  permanecen pendientes y son distintos de la transferencia.
-  El torrent histórico #1 sigue fallido, sin reactivación.
+  Posteriormente se publicó puntualmente en Películas,
+  se comprobó portada/sinopsis en Jellyfin y se sincronizó
+  VIEWTV; véase Hito C. La organización automática
+  GENERAL sigue pendiente. El torrent histórico #1
+  sigue fallido, sin reactivación.
 - [x] **Despliegue reversible**:
   `scripts/viewtv_compose_automatico_0012.sh` permite
   rollback independiente de frontend y worker sin
   migraciones ni tocar la biblioteca. Mantener solo
   una descarga VIEWTV activa por seguridad.
+
+- [x] **Reproducción HLS real de MKV HEVC/E-AC3 en VIEWTV**:
+  después de catalogar «Nadie 2», el navegador mostraba
+  «No hay una fuente Direct Play disponible» porque
+  el perfil de dispositivo no anunciaba transcodificación.
+  Se añadió HLS H.264/AAC (bitrate inicial 8 Mb/s),
+  proxy privado con HMAC y rutas con 4 horas de validez,
+  y reproductor `hls.js 1.7.4`, manteniendo Direct
+  Play preferido para archivos compatibles.
+  Jellyfin real negocia `listo, hls`, master y variante
+  HTTP 200 con **1340 fragmentos** reescritos a URL
+  protegidas sin clave API, primer fragmento real
+  HTTP 200, `video/mp2t`, 32 KiB recibidos.
+  Backend **879/879** tests, Next.js/TypeScript PASS,
+  smoke **10/10**. API/PWA nuevas healthy, worker sin
+  recrear; no cambios de película ni de SQLite.
+  Prueba de reproducción visual continuada por el usuario
+  pendiente; Jellyfin sin aceleración de hardware puede
+  tener límites de rendimiento con HEVC 4K.
+- [x] **Backup diario deja de recrear la API antigua**:
+  la tarea Windows de las 03:00 ejecutaba el script WSL
+  que invocaba `docker compose up -d api` sin los
+  overrides de producción. Eso volvía a `viewtv:local`
+  y provocaba reinicios por revisión SQLite 0012.
+  Con respaldo archivado se eliminó únicamente ese
+  `up -d`; ahora verifica que la API actual está
+  levantada y usa `docker compose exec -T api`
+  para la copia sin reconstruirla. Tras restaurar la
+  imagen HLS, la API volvió a `healthy`; smoke PASS.
+  Informe:
+  [AVANCE-HLS-REPRODUCCION-NADIE2-20261121.md](AVANCE-HLS-REPRODUCCION-NADIE2-20261121.md).
 
 ### Hito C — Organizador mínimo seguro 0013 (EN CURSO, NO DESPLEGADO)
 

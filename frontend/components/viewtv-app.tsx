@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import Hls from "hls.js";
 import DownloadsPanel from "@/components/downloads-panel";
 import RequestsPanel from "@/components/requests-panel";
 import { apiPath, apiRequest } from "@/lib/api";
@@ -69,6 +70,8 @@ export default function ViewTVApp() {
   const [catalogError, setCatalogError] = useState("");
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [playbackMode, setPlaybackMode] = useState<"direct" | "hls" | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [playbackBusy, setPlaybackBusy] = useState(false);
   const [playbackError, setPlaybackError] = useState("");
   const playbackRequest = useRef(0);
@@ -92,6 +95,7 @@ export default function ViewTVApp() {
     setSelectedProfile(null);
     setSelectedItem(null);
     setPlaybackUrl(null);
+    setPlaybackMode(null);
     setPin("");
     void loadProfiles();
   }, [loadProfiles]);
@@ -203,6 +207,7 @@ export default function ViewTVApp() {
   function closeDetails() {
     playbackRequest.current += 1;
     setPlaybackUrl(null);
+    setPlaybackMode(null);
     setPlaybackBusy(false);
     setPlaybackError("");
     setSelectedItem(null);
@@ -221,12 +226,14 @@ export default function ViewTVApp() {
     setPlaybackBusy(true);
     setPlaybackError("");
     setPlaybackUrl(null);
+    setPlaybackMode(null);
 
     try {
       const result = await apiRequest<{
         estado: string;
         fuentes: Array<{
           reproduccion_directa: boolean;
+          modo: "direct" | "hls" | null;
           url: string | null;
         }>;
       }>(`/jellyfin/media/${id}/playback-info`, {
@@ -235,18 +242,27 @@ export default function ViewTVApp() {
 
       if (playbackRequest.current !== requestId) return;
 
-      const source = result.fuentes.find(
+      const direct = result.fuentes.find(
         (item) =>
           item.reproduccion_directa === true
+          && item.modo === "direct"
           && typeof item.url === "string"
           && item.url.startsWith(`/jellyfin/media/${id}/stream?`)
       );
+      const hls = result.fuentes.find(
+        (item) =>
+          item.modo === "hls"
+          && typeof item.url === "string"
+          && item.url.startsWith(`/jellyfin/media/${id}/hls?token=`)
+      );
+      const source = direct ?? hls;
 
-      if (!source?.url) {
-        setPlaybackError("No hay una fuente Direct Play disponible.");
+      if (!source?.url || !source.modo) {
+        setPlaybackError("Jellyfin no ofrece una fuente de reproducción compatible.");
         return;
       }
 
+      setPlaybackMode(source.modo);
       setPlaybackUrl(apiPath(source.url));
     } catch (error) {
       if (playbackRequest.current !== requestId) return;
@@ -275,11 +291,44 @@ export default function ViewTVApp() {
   }, [selectedItem]);
 
   useEffect(() => {
+    if (!playbackUrl || playbackMode !== "hls" || !videoRef.current) return;
+    const video = videoRef.current;
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = playbackUrl;
+      void video.play().catch(() => { /* La interacción del usuario puede ser necesaria. */ });
+      return () => {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      };
+    }
+    if (!Hls.isSupported()) {
+      setPlaybackError("Este navegador no permite reproducir vídeo HLS.");
+      return;
+    }
+    const player = new Hls({ maxBufferLength: 20, backBufferLength: 30 });
+    player.attachMedia(video);
+    player.on(Hls.Events.MEDIA_ATTACHED, () => player.loadSource(playbackUrl));
+    player.on(Hls.Events.ERROR, (_event, data) => {
+      if (data.fatal) {
+        setPlaybackError(
+          "Jellyfin no pudo preparar el vídeo para este navegador. Comprueba la transcodificación."
+        );
+      }
+    });
+    return () => {
+      player.destroy();
+      video.removeAttribute("src");
+    };
+  }, [playbackUrl, playbackMode]);
+
+  useEffect(() => {
     if (!playbackUrl) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
         setPlaybackUrl(null);
+        setPlaybackMode(null);
         setPlaybackError("");
       }
     };
@@ -518,7 +567,7 @@ export default function ViewTVApp() {
               controls
               playsInline
               preload="metadata"
-              src={playbackUrl}
+              src={playbackMode === "direct" ? playbackUrl : undefined}
               onError={() => setPlaybackError("No se pudo reproducir este vídeo en el navegador.")}
             />
           </div>
@@ -529,7 +578,7 @@ export default function ViewTVApp() {
               <h2 id="theater-title">{selectedItem.titulo}</h2>
               <p>{selectedItem.anio ?? ""} {selectedItem.tipo === "pelicula" ? "· Película" : "· Serie"}</p>
             </div>
-            <span className="theater-direct"><span aria-hidden="true" /> DIRECT PLAY</span>
+            <span className="theater-direct"><span aria-hidden="true" /> {playbackMode === "hls" ? "HLS · JELLYFIN" : "DIRECT PLAY"}</span>
           </footer>
 
           {playbackError && (

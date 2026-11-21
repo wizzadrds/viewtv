@@ -1,0 +1,4 @@
+# Reproducción HLS autenticada con rutas firmadas. Sin cambios de SQLite.
+FROM viewtv:descartados-opcionales-api-0012
+COPY backend/app/jellyfin_playback.py /opt/viewtv/backend/app/jellyfin_playback.py
+COPY backend/app/jellyfin_hls.py /opt/viewtv/backend/app/jellyfin_hls.py
