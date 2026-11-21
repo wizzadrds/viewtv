@@ -62,17 +62,16 @@ Tras editarlo:
   SHA256 `80238b98ceedd3f93db709ce6f45e260d197ee8a49227eb57c8f22be6928bcea`.
   Ambas copias tar fueron listadas y comprobadas.
 
-## Verificación de usuario pendiente
+## Confirmación visual del usuario — 21/11/2026
 
-Recargar `http://127.0.0.1:3000` con **Ctrl+F5**,
-abrir **Películas → Nadie 2 → Reproducir** y comprobar
-si pasa de 00:00 a duración válida, inicia imagen y
-audio. No se ha probado el navegador autenticado real:
-no afirmar que una película completa reproduzca sin cortes.
-Si sigue negro, inspeccionar eventos `hls.js` en navegador
-y respuestas de fragmentos vía proxy; Jellyfin sin
-aceleración de hardware podría provocar buffering CPU
-con vídeo 4K.
+Después de solicitar la comprobación con **Ctrl+F5**,
+**Películas → Nadie 2 → Reproducir**, el usuario confirmó
+expresamente que la película **se ve bien** y reiteró
+que la reproducción funciona. Se considera **cerrado
+el bloqueo de vídeo negro** y registrada la prueba de uso.
+Es evidencia del usuario, no una inspección instrumental
+del navegador ni garantía de dos horas sin cortes.
+No corresponde modificar HLS mientras reproduzca bien.
 
 ## Seguridad
 

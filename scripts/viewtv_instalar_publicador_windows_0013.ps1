@@ -6,7 +6,8 @@ param(
     [int]$AllowedDownloadId=0,
     [int]$AfterId=2,
     [string]$VerifiedBackup='',
-    [string]$ExpectedSha256=''
+    [string]$ExpectedSha256='',
+    [switch]$AppControlServiceAuthorized
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -82,6 +83,13 @@ if($Mode -eq 'Unregister') {
 if($Mode -ne 'InstallSingle' -or $AllowedDownloadId -le $AfterId -or
     $AfterId -lt 1) {
     throw 'Se requiere una única ID nueva aprobada.'
+}
+if (-not $AppControlServiceAuthorized) {
+    # El ensayo SCM sobre un ejecutable sintético devolvió 4551:
+    # una directiva de Control de aplicaciones impidió arrancarlo.
+    # No probar otras rutas para sortear la directiva ni instalar
+    # un servicio real sin aprobación de la política de Windows.
+    throw 'Se requiere habilitación administrativa en Control de aplicaciones.'
 }
 Assert-Backup
 if([IO.Directory]::Exists($Root) -or

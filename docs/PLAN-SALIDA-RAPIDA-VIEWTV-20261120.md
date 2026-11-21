@@ -388,9 +388,10 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Backend **879/879** tests, Next.js/TypeScript PASS,
   smoke **10/10**. API/PWA nuevas healthy, worker sin
   recrear; no cambios de película ni de SQLite.
-  Prueba de reproducción visual continuada por el usuario
-  pendiente; Jellyfin sin aceleración de hardware puede
-  tener límites de rendimiento con HEVC 4K.
+  **Confirmación posterior del usuario (21/11/2026): la
+  película sí se ve bien.** No equivale a ensayo de
+  reproducción completa de dos horas. Jellyfin sin
+  aceleración de hardware puede tener límites con HEVC 4K.
 - [x] **Pantalla negra 00:00: conectado el vídeo real a hls.js**:
   la PWA montaba el elemento `<video>` SIN `ref={videoRef}`,
   por lo que el efecto de HLS retornaba sin ejecutar
@@ -401,8 +402,9 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Se recreó **solo frontend** con imagen
   `viewtv-frontend:hls-video-ref-0012`, healthy, sin
   tocar API, worker, descargas ni Jellyfin.
-  Smoke read-only **10/10**. Falta confirmar reproducción
-  visual real del usuario tras Ctrl+F5.
+  Smoke read-only **10/10**. El usuario confirmó después
+  de la recarga que «Nadie 2» se ve bien: prueba visual
+  del navegador **superada**. No se han observado dos horas sin cortes.
   Informe:
   [AVANCE-VIDEO-NEGRO-HLS-REF-20261121.md](AVANCE-VIDEO-NEGRO-HLS-REF-20261121.md).
 - [x] **Backup diario deja de recrear la API antigua**:
@@ -476,6 +478,20 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Windows escritos como candidato; sin instalación ni migración real.
   Pruebas sobre código ficticio, nunca prueba de publicación real.
   Ver [AVANCE-PUBLICADOR-WINDOWS-CANDIDATO-0013-20261121.md](AVANCE-PUBLICADOR-WINDOWS-CANDIDATO-0013-20261121.md).
+- [x] **Ensayo del publicador candidato en NTFS de sandbox**:
+  creación de enlace duro, Directory.Move, diario, rechazo de
+  colisión y recuperación tras perder confirmación sin recopia.
+  Se corrigió el desempaquetado de rutas relativas; Windows
+  no recibió ninguna orden de publicación sobre medios reales.
+  El usuario confirmó que «Nadie 2» se reproduce.
+  Informe:
+  [AVANCE-REPRODUCCION-Y-PUBLICADOR-BLOQUEO-POLITICA-20261121.md](AVANCE-REPRODUCCION-Y-PUBLICADOR-BLOQUEO-POLITICA-20261121.md).
+- [ ] **Bloqueo de arranque de Windows Service por Control de
+  aplicaciones (error 4551)**: ejecutable de servicio ficticio
+  registrado en SCM pero bloqueado al iniciarse. No instalar
+  publicador real, cambiar política ni buscar vías de evasión;
+  se requiere autorización administrativa conforme a política.
+  API/worker 0013 continúan sin desplegar.
 - [ ] **Automatización GENERAL de publicación y carátulas**:
   este éxito es una acción de publicación individual,
   **no una cola automática para futuras películas**.

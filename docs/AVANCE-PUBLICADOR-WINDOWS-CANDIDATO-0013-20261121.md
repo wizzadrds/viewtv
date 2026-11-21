@@ -12,9 +12,10 @@ Este avance prepara la conexión de la cola 0013 a una autoridad Windows
 independiente del proceso del worker, sin montar las bibliotecas con
 permisos de escritura en Docker. No declara ese objetivo completado.
 
-La reproducción visual de «Nadie 2» tampoco está confirmada todavía
-por el usuario después del arreglo de `ref={videoRef}`. La indicación
-«vale, continua» autoriza proseguir preparativos, no acredita imagen/audio.
+**Actualización 21/11/2026:** el usuario confirmó explícitamente
+la reproducción visual correcta de «Nadie 2» tras el arreglo HLS.
+La tarea 1 está cerrada; la reproducción completa sin cortes
+no se ha ensayado instrumentalmente.
 
 ## Implementado en la rama, deshabilitado
 
@@ -86,7 +87,8 @@ por el usuario después del arreglo de `ref={videoRef}`. La indicación
 
 ### Sin comprobar todavía
 
-La prueba visual de «Nadie 2» (imagen, audio y duración), el arranque
+La prueba visual de «Nadie 2» ya está confirmada por el usuario.
+Siguen pendientes el arranque
 efectivo del servicio Windows, permisos/ACL y acceso a Docker Desktop
 bajo su identidad de servicio, el despliegue simultáneo de API y worker
 0013, la migración SQLite de producción, el escenario de caída real,
@@ -113,7 +115,7 @@ No se han movido medios ni tocado torrents ajenos.
 
 ## Camino de despliegue, prueba y reversión (PENDIENTE, no ejecutar aún)
 
-1. Confirmar visualmente HLS tras Ctrl+F5. Seleccionar una segunda
+1. HLS confirmado visualmente por el usuario. Seleccionar una segunda
    película apropiada y autorizada, sin recuperar la descarga #2.
 2. Antes de cambiar imágenes, esquema o servicio: respaldo online
    consistente de SQLite y configuración; `sha256sum`, `tar -tzf`,

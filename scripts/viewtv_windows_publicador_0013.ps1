@@ -1,7 +1,7 @@
 # Publicador Windows 0013: la autoridad NTFS vive fuera del worker/Docker.
 # NO instalar mientras SQLite y API/worker sigan en 0012.
 [CmdletBinding()]
-param([ValidateSet('Preflight','Once','Loop')][string]$Mode='Preflight')
+param([ValidateSet('Preflight','Once','Loop','Library')][string]$Mode='Preflight')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -58,7 +58,7 @@ function Split-SafeRelative([string]$Relative) {
         throw 'Profundidad de ruta no autorizada.'
     }
     foreach ($part in $parts) { Assert-Leaf $part }
-    return ,$parts
+    return $parts
 }
 function Resolve-Source([string]$Relative, [long]$ExpectedSize) {
     $parts = @(Split-SafeRelative $Relative)
@@ -146,7 +146,7 @@ function Assert-ApprovedId($Policy, [long]$DownloadId) {
     }
 }
 function Invoke-ViewtvAuthority([string]$Operation, [long]$DownloadId=0, [int]$Attempt=0) {
-    if ($Operation -cnotin @('claim','prepare','verify-source','renew','confirm','review','scan')) {
+    if ($Operation -cnotin @('status','claim','prepare','verify-source','renew','confirm','review','scan')) {
         throw 'Operación de autoridad desconocida.'
     }
     # Windows inicia el control mediante Docker Desktop; no necesita
@@ -416,8 +416,24 @@ function Process-One {
     return 'publicada'
 }
 
-if ($Mode -ceq 'Preflight') {
-    $null=Get-ViewtvPolicy
+function Assert-AuthorityReady($Policy) {
+    # Read-only: no reclamar un trabajo ni modificar SQLite en el preflight.
+    $status=Invoke-ViewtvAuthority 'status'
+    if ($status.estado -cne 'listo' -or
+        [string]$status.modo -cne [string]$Policy.mode -or
+        [long]$status.after_id -ne [long]$Policy.after_id -or
+        ($Policy.mode -ceq 'single' -and
+         [long]$status.allowed_download_id -ne [long]$Policy.allowed_download_id)) {
+        throw 'La autoridad 0013 no coincide con la aprobación Windows.'
+    }
+}
+if ($Mode -ceq 'Library') {
+    # Solo carga funciones; el ensayo reemplaza todas las raíces con una
+    # carpeta ficticia marcada bajo Public antes de ejecutar acciones.
+    return
+} elseif ($Mode -ceq 'Preflight') {
+    $policy=Get-ViewtvPolicy
+    Assert-AuthorityReady $policy
     Write-Output 'PREFLIGHT_PUBLICADOR_WINDOWS_0013_OK'
 } elseif ($Mode -ceq 'Once') {
     try {
@@ -428,10 +444,17 @@ if ($Mode -ceq 'Preflight') {
         exit 2
     }
 } else {
-    while ($true) {
-        try { $null=Process-One } catch {
-            # Fallar cerrado para este ciclo, sin repetir operación ambigua.
+    # No se permite un servicio 'saludable' que oculte un error de
+    # autorización, SQLite, Docker o NTFS y siga trabajando a ciegas.
+    try {
+        $policy=Get-ViewtvPolicy
+        Assert-AuthorityReady $policy
+        while ($true) {
+            $null=Process-One
+            Start-Sleep -Seconds 30
         }
-        Start-Sleep -Seconds 30
+    } catch {
+        [Console]::Error.WriteLine('PUBLICADOR_0013_DETENIDO_REQUIERE_REVISION')
+        exit 2
     }
 }

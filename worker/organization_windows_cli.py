@@ -64,6 +64,9 @@ def run(command: str, download_id: int | None = None, attempt: int | None = None
     if policy.mode == "disabled":
         return {"estado": "deshabilitado"}
     _schema_0013()
+    if command == "status":
+        return {"estado": "listo", "modo": policy.mode, "after_id": policy.after_id,
+                "allowed_download_id": policy.allowed_id}
     if command == "claim":
         with Session(engine) as session:
             claimed = claim_for_windows(session, policy)
@@ -128,7 +131,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Control de publicación Windows 0013.")
     parser.add_argument(
         "command",
-        choices=("claim", "prepare", "verify-source", "renew", "confirm", "review", "scan"),
+        choices=("status", "claim", "prepare", "verify-source", "renew", "confirm",
+                 "review", "scan"),
     )
     parser.add_argument("--download-id", type=int)
     parser.add_argument("--attempt", type=int)
