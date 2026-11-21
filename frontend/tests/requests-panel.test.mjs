@@ -68,3 +68,10 @@ test("reproducción usa HLS firmado cuando el MKV no admite Direct Play", () => 
   assert.match(app, /src=\{playbackMode === "direct" \? playbackUrl : undefined\}/);
   assert.match(app, /\/hls\?token=/);
 });
+
+test("el reproductor HLS está conectado al video visible, no a una referencia nula", () => {
+  assert.match(app, /const videoRef = useRef<HTMLVideoElement>\(null\)/);
+  assert.match(app, /if \(!playbackUrl \|\| playbackMode !== "hls" \|\| !videoRef\.current\) return/);
+  assert.match(app, /<video\s+ref=\{videoRef\}/);
+  assert.match(app, /player\.attachMedia\(video\)/);
+});

@@ -391,6 +391,20 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   Prueba de reproducción visual continuada por el usuario
   pendiente; Jellyfin sin aceleración de hardware puede
   tener límites de rendimiento con HEVC 4K.
+- [x] **Pantalla negra 00:00: conectado el vídeo real a hls.js**:
+  la PWA montaba el elemento `<video>` SIN `ref={videoRef}`,
+  por lo que el efecto de HLS retornaba sin ejecutar
+  `player.attachMedia(video)` y la pantalla quedaba
+  negra sin duración ni fuente. Ref conectada al JSX,
+  test de regresión, frontend **11/11 PASS**, compilación
+  Next.js/TypeScript PASS, preflight Compose PASS.
+  Se recreó **solo frontend** con imagen
+  `viewtv-frontend:hls-video-ref-0012`, healthy, sin
+  tocar API, worker, descargas ni Jellyfin.
+  Smoke read-only **10/10**. Falta confirmar reproducción
+  visual real del usuario tras Ctrl+F5.
+  Informe:
+  [AVANCE-VIDEO-NEGRO-HLS-REF-20261121.md](AVANCE-VIDEO-NEGRO-HLS-REF-20261121.md).
 - [x] **Backup diario deja de recrear la API antigua**:
   la tarea Windows de las 03:00 ejecutaba el script WSL
   que invocaba `docker compose up -d api` sin los

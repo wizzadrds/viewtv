@@ -1,0 +1,5 @@
+# Repara la referencia del <video> utilizada por hls.js.
+# Solo frontend; API, worker y medios no cambian.
+services:
+  frontend:
+    image: viewtv-frontend:hls-video-ref-0012

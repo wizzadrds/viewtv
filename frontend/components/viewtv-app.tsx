@@ -561,6 +561,7 @@ export default function ViewTVApp() {
 
           <div className="theater-stage">
             <video
+              ref={videoRef}
               aria-label={`Reproducción de ${selectedItem.titulo}`}
               autoPlay
               className="theater-video"
