@@ -528,6 +528,18 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   películas futuras** ni reproducción visual probada de #3.
   Informe:
   [AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md](AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md).
+- [x] **Reproducción HLS de segunda película #3: corrección técnica desplegada**:
+  se detectó que Jellyfin incrustaba subtítulos ASS durante la
+  transcodificación. La nueva API 0013 renegocia una fuente HLS
+  única con `MediaSourceId` y `SubtitleStreamIndex=-1`, solo cuando
+  detecta incrustación. Backend **892/892 PASS**, ruff PASS,
+  negociación de ambos filmes sin subtítulos incrustados;
+  proxy HLS devuelve HTTP 200 para master, variante y primer
+  segmento real. Smoke **10/10 PASS**, sin modificar frontend,
+  worker, Jellyfin, archivos ni SQLite. **Falta la prueba visual
+  y de sonido del usuario para la película #3**. Publicación
+  general permanece desactivada. Informe:
+  [AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md](AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md).
 - [ ] **Automatización GENERAL de publicación y carátulas**:
   este éxito es una acción de publicación individual,
   **no una cola automática para futuras películas**.

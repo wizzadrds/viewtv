@@ -1,0 +1,3 @@
+# Imagen efímera para pruebas aisladas; nunca desplegar como API/worker.
+FROM viewtv:release-0013-api-candidate
+RUN python -m pip install --no-cache-dir "pytest>=8.3,<9.0" "ruff>=0.8,<1.0"

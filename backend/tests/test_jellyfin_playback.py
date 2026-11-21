@@ -123,3 +123,89 @@ def test_stream_maps_missing_video_to_lookup_error():
         JellyfinPlaybackClient(make_settings(), httpx.MockTransport(handler)).open_stream(
             "jf-item-1", None, None, None
         )
+
+
+def test_playback_info_disables_automatically_burned_subtitles_with_pinned_source():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        calls.append(body)
+        if len(calls) == 1:
+            assert "MediaSourceId" not in body
+            assert "SubtitleStreamIndex" not in body
+            return httpx.Response(200, json={
+                "MediaSources": [{
+                    "Id": "source-1", "SupportsDirectPlay": False,
+                    "SupportsTranscoding": True,
+                    "TranscodingUrl": (
+                        "/Videos/abc/master.m3u8?"
+                        "SubtitleStreamIndex=2&SubtitleMethod=Encode&ApiKey=SECRET"
+                    ),
+                }]
+            })
+        assert body["MediaSourceId"] == "source-1"
+        assert body["SubtitleStreamIndex"] == -1
+        assert body["AlwaysBurnInSubtitleWhenTranscoding"] is False
+        assert request.url.params["MediaSourceId"] == "source-1"
+        assert request.url.params["SubtitleStreamIndex"] == "-1"
+        return httpx.Response(200, json={
+            "MediaSources": [{
+                "Id": "source-1", "SupportsDirectPlay": False,
+                "SupportsTranscoding": True,
+                "TranscodingUrl": "/Videos/abc/master.m3u8?SubtitleMethod=Encode&ApiKey=SECRET",
+            }]
+        })
+
+    result = JellyfinPlaybackClient(make_settings(), httpx.MockTransport(handler)).playback_info(
+        "jf-item-1"
+    )
+    assert len(calls) == 2
+    assert result["MediaSources"][0]["Id"] == "source-1"
+    assert "SubtitleStreamIndex" not in result["MediaSources"][0]["TranscodingUrl"]
+
+
+def test_playback_info_fails_closed_when_subtitle_burn_in_persists():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json={
+            "MediaSources": [{
+                "Id": "source-1", "SupportsDirectPlay": False,
+                "SupportsTranscoding": True,
+                "TranscodingUrl": (
+                    "/Videos/abc/master.m3u8?SubtitleStreamIndex=2&SubtitleMethod=Encode"
+                ),
+            }]
+        })
+
+    with pytest.raises(JellyfinError, match="subtítulos incrustados"):
+        JellyfinPlaybackClient(make_settings(), httpx.MockTransport(handler)).playback_info(
+            "jf-item-1"
+        )
+    assert len(calls) == 2
+
+
+def test_playback_info_keeps_multiple_sources_unchanged():
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json={
+            "MediaSources": [
+                {
+                    "Id": sid, "SupportsDirectPlay": False,
+                    "SupportsTranscoding": True,
+                    "TranscodingUrl": (
+                        "/Videos/abc/master.m3u8?SubtitleStreamIndex=2&SubtitleMethod=Encode"
+                    ),
+                } for sid in ("source-1", "source-2")
+            ]
+        })
+
+    data = JellyfinPlaybackClient(make_settings(), httpx.MockTransport(handler)).playback_info(
+        "jf-item-1"
+    )
+    assert len(data["MediaSources"]) == 2
+    assert len(calls) == 1

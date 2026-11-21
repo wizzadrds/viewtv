@@ -1,7 +1,7 @@
 import re
 from collections.abc import Iterator
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import parse_qs, quote, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
@@ -64,6 +64,45 @@ STREAM_RESPONSE_HEADERS = (
 )
 
 
+def _source_with_burned_subtitles(data: dict[str, Any]) -> str | None:
+    """Solo una fuente HLS que fuerza incrustar subtítulos en vídeo.
+
+    En la PWA actual no hay selector de subtítulos. Evitar que una pista
+    ASS elegida automáticamente ralentice la transcodificación de inicio.
+    """
+    sources = data.get("MediaSources")
+    if not isinstance(sources, list) or len(sources) != 1:
+        return None
+    source = sources[0]
+    if not isinstance(source, dict) or source.get("SupportsDirectPlay") is True:
+        return None
+    source_id = source.get("Id")
+    url = source.get("TranscodingUrl")
+    if (
+        not isinstance(source_id, str)
+        or re.fullmatch(r"[A-Za-z0-9-]{1,128}", source_id) is None
+        or not isinstance(url, str)
+        or not urlsplit(url).path.lower().endswith(".m3u8")
+    ):
+        return None
+    try:
+        query = {key.casefold(): values for key, values in
+                 parse_qs(urlsplit(url).query, max_num_fields=100).items()}
+    except ValueError:
+        return None
+    indexes = query.get("subtitlestreamindex", [])
+    methods = query.get("subtitlemethod", [])
+    if (
+        len(indexes) == 1
+        and indexes[0].isascii()
+        and indexes[0].isdecimal()
+        and len(methods) == 1
+        and methods[0].casefold() == "encode"
+    ):
+        return source_id
+    return None
+
+
 class JellyfinPlaybackClient:
     """Cliente de negociación y streaming; la clave nunca sale del backend."""
 
@@ -88,9 +127,16 @@ class JellyfinPlaybackClient:
             "Accept": "application/json",
         }
 
-    def playback_info(self, item_id: str, start_time_ticks: int = 0) -> dict[str, Any]:
+    def playback_info(
+        self,
+        item_id: str,
+        start_time_ticks: int = 0,
+        *,
+        media_source_id: str | None = None,
+        subtitle_stream_index: int | None = None,
+    ) -> dict[str, Any]:
         encoded_id = quote(item_id, safe="")
-        payload = {
+        payload: dict[str, Any] = {
             "DeviceProfile": VIDEO_DEVICE_PROFILE,
             "StartTimeTicks": start_time_ticks,
             "EnableDirectPlay": True,
@@ -99,6 +145,18 @@ class JellyfinPlaybackClient:
             "AllowVideoStreamCopy": True,
             "AllowAudioStreamCopy": True,
         }
+        params = {
+            "UserId": self.user_id,
+            "IsPlayback": "true",
+            "AutoOpenLiveStream": "true",
+        }
+        if media_source_id is not None:
+            payload["MediaSourceId"] = media_source_id
+            params["MediaSourceId"] = media_source_id
+        if subtitle_stream_index is not None:
+            payload["SubtitleStreamIndex"] = subtitle_stream_index
+            params["SubtitleStreamIndex"] = str(subtitle_stream_index)
+            payload["AlwaysBurnInSubtitleWhenTranscoding"] = False
         try:
             with httpx.Client(
                 base_url=self.base_url,
@@ -108,11 +166,7 @@ class JellyfinPlaybackClient:
             ) as client:
                 response = client.post(
                     f"/Items/{encoded_id}/PlaybackInfo",
-                    params={
-                        "UserId": self.user_id,
-                        "IsPlayback": "true",
-                        "AutoOpenLiveStream": "true",
-                    },
+                    params=params,
                     json=payload,
                 )
                 response.raise_for_status()
@@ -121,6 +175,21 @@ class JellyfinPlaybackClient:
             raise JellyfinError("No se pudo negociar la reproducción con Jellyfin.") from exc
         if not isinstance(data, dict):
             raise JellyfinError("Jellyfin devolvió datos de reproducción no válidos.")
+        if media_source_id is None:
+            selected = _source_with_burned_subtitles(data)
+            if selected is not None:
+                # Jellyfin solo respeta SubtitleStreamIndex=-1 cuando
+                # MediaSourceId también está fijado (revalidado en host).
+                return self.playback_info(
+                    item_id,
+                    start_time_ticks,
+                    media_source_id=selected,
+                    subtitle_stream_index=-1,
+                )
+        elif subtitle_stream_index == -1 and (
+            _source_with_burned_subtitles(data) is not None
+        ):
+            raise JellyfinError("Jellyfin no pudo desactivar los subtítulos incrustados.")
         return data
 
     def open_stream(

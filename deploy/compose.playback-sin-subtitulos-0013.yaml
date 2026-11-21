@@ -1,0 +1,7 @@
+# Override limitado: API HLS sin subtítulos ASS incrustados por defecto.
+# El publicador de Windows y la organización siguen desactivados.
+services:
+  api:
+    image: viewtv:playback-sin-subtitulos-api-0013
+    environment:
+      VIEWTV_WINDOWS_PUBLICATION_MODE: "disabled"

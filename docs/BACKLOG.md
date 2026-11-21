@@ -24,6 +24,14 @@ sigue siendo objetivo prioritario, **no backlog**; no confundir
 éxito individual con automatización general. Informe:
 [AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md](AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md).
 
+**Reproducción 22/11/2026:** corrección de arranque HLS de #3
+por subtítulos ASS incrustados, desplegada únicamente en API 0013;
+892/892 pruebas backend, master/variante/primer fragmento 200,
+y smoke 10/10. La reproducción visual y sonido deben
+confirmarse por el usuario. Publicador permanente y sincronización
+sin intervención siguen pendientes prioritarios, no cosmética.
+Ver [AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md](AVANCE-REPRODUCCION-SEGUNDA-PELICULA-HLS-0013-20261122.md).
+
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
 - Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.
