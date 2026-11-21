@@ -1,0 +1,13 @@
+# Opt-in explícito solo para IDs creadas después del corte del despliegue.
+# Nunca enviar/arrancar torrents históricos ni ajenos a VIEWTV.
+services:
+  frontend:
+    image: viewtv-frontend:automatico-0012
+  worker:
+    image: viewtv:auto-worker-0012
+    environment:
+      VIEWTV_ENABLE_AUTO_DOWNLOAD: "true"
+      VIEWTV_AUTO_DOWNLOAD_AFTER_ID: "${VIEWTV_AUTO_DOWNLOAD_AFTER_ID:?Falta_umbral_autorizado}"
+      VIEWTV_ENABLE_TORRENT_SUBMIT: "false"
+      VIEWTV_ENABLE_DOWNLOAD_START: "false"
+      VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID: ""

@@ -69,7 +69,6 @@ export default function RequestsPanel({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [verifications, setVerifications] = useState<Record<number, ResultVerification>>({});
-  const [verifyingId, setVerifyingId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [resultsBusy, setResultsBusy] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -174,6 +173,50 @@ export default function RequestsPanel({
     };
   }, [selectedId, canSelect, onUnauthorized]);
 
+  // Los tamaños se consultan automáticamente al abrir resultados, con
+  // tres consultas simultáneas como máximo y sin repetir cada refresco.
+  const resultIds = results.map((item) => item.id).join(",");
+  useEffect(() => {
+    if (!selectedId || !canSelect || !resultIds) return;
+    const controller = new AbortController();
+    const ids = resultIds.split(",").map(Number);
+    let cursor = 0;
+    const getNext = async () => {
+      while (!controller.signal.aborted && cursor < ids.length) {
+        const id = ids[cursor++];
+        try {
+          const check = await apiRequest<ResultVerification>(
+            "/solicitudes/" + selectedId + "/resultados/" + id + "/verificacion",
+            { signal: controller.signal },
+          );
+          if (!controller.signal.aborted) {
+            setVerifications((previous) => ({ ...previous, [id]: check }));
+          }
+        } catch (cause) {
+          if (controller.signal.aborted) break;
+          if ((cause as Error & { status?: number }).status === 401) {
+            onUnauthorized();
+            break;
+          }
+          setVerifications((previous) => ({
+            ...previous,
+            [id]: {
+              estado: "no_verificable",
+              puede_seleccionar: false,
+              tamano_anunciado_bytes: null,
+              tamano_real_bytes: null,
+              advertencias: ["No se pudo obtener el tamaño del torrent."],
+            },
+          }));
+        }
+      }
+    };
+    void Promise.all(
+      Array.from({ length: Math.min(3, ids.length) }, () => getNext()),
+    );
+    return () => controller.abort();
+  }, [selectedId, canSelect, resultIds, onUnauthorized]);
+
   async function createRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = title.trim();
@@ -208,44 +251,8 @@ export default function RequestsPanel({
     }
   }
 
-  async function verifyResult(resultId: number) {
-    if (!selectedId || busy || verifyingId !== null || !canSelect) return;
-    setVerifyingId(resultId);
-    setVerifications((previous) => {
-      const next = { ...previous };
-      delete next[resultId];
-      return next;
-    });
-    setResultsError("");
-    try {
-      const check = await apiRequest<ResultVerification>(
-        "/solicitudes/" + selectedId + "/resultados/" + resultId + "/verificacion",
-      );
-      setVerifications((previous) => ({ ...previous, [resultId]: check }));
-    } catch (cause) {
-      if ((cause as Error & { status?: number }).status === 401) {
-        onUnauthorized();
-        return;
-      }
-      setVerifications((previous) => ({
-        ...previous,
-        [resultId]: {
-          estado: "no_verificable",
-          puede_seleccionar: false,
-          tamano_anunciado_bytes: null,
-          tamano_real_bytes: null,
-          advertencias: [
-            (cause as Error).message || "No se pudo comprobar el tamaño real.",
-          ],
-        },
-      }));
-    } finally {
-      setVerifyingId(null);
-    }
-  }
-
   async function chooseResult(resultId: number) {
-    if (!verifications[resultId]?.puede_seleccionar || verifyingId !== null) return;
+    if (!verifications[resultId]?.puede_seleccionar) return;
     if (!selectedId || busy || !canSelect) return;
     setBusy(true);
     setNotice("");
@@ -259,7 +266,7 @@ export default function RequestsPanel({
       setResults([]);
       setVerifications({});
       setShowHistory(false);
-      setNotice("Resultado seleccionado. La solicitud se ha retirado de pendientes. Puedes consultar su estado en Descargas.");
+      setNotice("Descarga solicitada. VIEWTV gestionará el envío y el inicio automáticamente. Consulta el progreso en Descargas.");
       await loadRequests();
     } catch (cause) {
       if ((cause as Error & { status?: number }).status === 401) {
@@ -333,15 +340,15 @@ export default function RequestsPanel({
         </button>
       </form>
       <p className="requests-note">
-        El tamaño anunciado por Jackett puede ser incorrecto.
-        Comprueba el tamaño real del archivo .torrent antes de seleccionar.
-        La búsqueda no inicia descargas. Solo selecciona contenido que tengas derecho a obtener.
+        VIEWTV obtiene automáticamente el tamaño de cada archivo .torrent.
+        Al pulsar «Descargar», iniciará el proceso automáticamente.
+        Selecciona solo contenido que tengas derecho a obtener.
       </p>
 
       {notice && (
         <p className="requests-notice" role="status">
           {notice}{" "}
-          {notice.includes("seleccionado") && (
+          {notice.includes("Descarga solicitada") && (
             <button className="quiet-button" data-spatial onClick={onShowDownloads} type="button">
               Ver descargas
             </button>
@@ -417,64 +424,33 @@ export default function RequestsPanel({
                       <p className="request-result-title">{result.titulo}</p>
                       <p className="download-item-meta">
                         {result.resolucion || "Resolución desconocida"}
-                        {" · Tamaño del torrent: " +
-                          (verifications[result.id]?.tamano_real_bytes !== null &&
-                          verifications[result.id]?.tamano_real_bytes !== undefined
+                        {" · " + (
+                          verifications[result.id]?.tamano_real_bytes != null
                             ? describeSize(verifications[result.id].tamano_real_bytes)
-                            : "por comprobar")}
+                            : verifications[result.id]
+                              ? "Tamaño no disponible"
+                              : "Consultando tamaño…"
+                        )}
                         {" · " + (result.seeders ?? 0) + " fuentes"}
                       </p>
-                      {verifications[result.id] && (
-                        <div role="status">
-                          {verifications[result.id].tamano_real_bytes !== null && (
-                            <p className="download-item-meta">
-                              Tamaño real verificado: <strong>
-                                {describeSize(verifications[result.id].tamano_real_bytes)}
-                              </strong>
-                              {" · Jackett anunciaba: " +
-                                describeSize(verifications[result.id].tamano_anunciado_bytes)}
-                            </p>
-                          )}
-                          {verifications[result.id].estado === "apto" && (
-                            <p className="muted">
-                              Tamaño obtenido del archivo .torrent y sin coincidencias con tus descartes.
-                              Comprueba que el contenido es el correcto antes de seleccionar.
-                            </p>
-                          )}
-                          {verifications[result.id].advertencias.map((warning, i) => (
-                            <p
-                              className={verifications[result.id].puede_seleccionar
-                                ? "muted" : "error-message"}
-                              key={i}
-                            >
-                              {warning}
-                            </p>
-                          ))}
-                        </div>
-                      )}
+                      {verifications[result.id] &&
+                        !verifications[result.id].puede_seleccionar && (
+                          <p className="error-message" role="status">
+                            {verifications[result.id].estado === "bloqueado"
+                              ? "Torrent descartado anteriormente; no se descargará."
+                              : "No se pudo obtener un torrent válido."}
+                          </p>
+                        )}
                     </div>
                     <div className="request-result-actions">
                       <button
-                        className="quiet-button"
-                        data-spatial
-                        disabled={busy || verifyingId !== null}
-                        onClick={() => void verifyResult(result.id)}
-                        type="button"
-                      >
-                        {verifyingId === result.id
-                          ? "Comprobando…"
-                          : verifications[result.id]
-                            ? "Verificar otra vez"
-                            : "Comprobar tamaño real"}
-                      </button>
-                      <button
                         className="primary-button compact"
                         data-spatial
-                        disabled={busy || verifyingId !== null || !verifications[result.id]?.puede_seleccionar}
+                        disabled={busy || !verifications[result.id]?.puede_seleccionar}
                         onClick={() => void chooseResult(result.id)}
                         type="button"
                       >
-                        Seleccionar
+                        Descargar
                       </button>
                     </div>
                   </div>

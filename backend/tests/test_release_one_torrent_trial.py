@@ -320,7 +320,7 @@ def test_jackett_url_windows_rewritten_and_only_one_paused_post(lab, monkeypatch
         "obtener_metadatos_jackett",
         lambda url, base: TorrentMetadata(1000, "c" * 40),
     )
-    qbit = FakeQbit([[], [torrent(second)]])
+    qbit = FakeQbit([[], [{**torrent(second), "hash": "c" * 40}]])
     assert processor.process_one_download(
         "worker-prueba", qbit,
         allowed_download_id=second, save_path=STAGING_PATH,

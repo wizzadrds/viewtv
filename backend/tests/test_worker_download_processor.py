@@ -542,3 +542,130 @@ def test_worker_rechaza_torrent_cambiado_tras_la_seleccion(monkeypatch):
         assert d.intentos_envio == 0
         assert "cambiaron" in d.ultimo_error
     assert qb.add_calls == []
+
+
+def test_auto_rejects_mismatch_after_qbit_add_without_start(monkeypatch):
+    """El .torrent que registra qBit debe ser el verificado."""
+    from worker.torrent_metadata import TorrentMetadata
+
+    engine = make_engine()
+    monkeypatch.setattr(processor, "engine", engine)
+    with Session(engine) as session:
+        _, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, engine, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda u, b: TorrentMetadata(1_503_238_554, "b" * 40),
+    )
+    qb = FakeQBittorrent(responses=[
+        [],
+        [{"hash": "c" * 40, "tags": f"viewtv-descarga-{did}",
+          "save_path": processor.STAGING_PATH, "state": "stoppedDL"}],
+    ])
+    assert processor.process_one_download(
+        "worker-auto", qb, allowed_download_id=did, save_path=processor.STAGING_PATH
+    )
+    with Session(engine) as session:
+        item = session.get(Descarga, did)
+        assert item.estado != "enviada"
+        assert item.qbittorrent_hash is None
+    assert qb.start_calls == []
+    assert len(qb.add_calls) == 1
+
+
+def test_auto_never_reconciles_wrong_existing_tagged_torrent(monkeypatch):
+    from types import SimpleNamespace
+
+    engine = make_engine()
+    monkeypatch.setattr(processor, "engine", engine)
+    with Session(engine) as session:
+        _, did = add_selected_download(session)
+        d = session.get(Descarga, did)
+        r = session.get(ResultadoBusqueda, d.resultado_busqueda_id)
+        r.download_url = "http://host.docker.internal:9117/dl/fake"
+        r.magnet_url = None
+        session.add(r)
+        session.commit()
+    monkeypatch.setattr(processor, "get_settings", lambda: SimpleNamespace(
+        jackett_base_url="http://host.docker.internal:9117"
+    ))
+    qb = FakeQBittorrent(responses=[[
+        {"hash": "c" * 40, "tags": f"viewtv-descarga-{did}",
+         "save_path": processor.STAGING_PATH, "state": "stoppedDL"}
+    ]])
+    assert processor.process_one_download(
+        "worker-auto", qb, allowed_download_id=did, save_path=processor.STAGING_PATH
+    )
+    with Session(engine) as session:
+        item = session.get(Descarga, did)
+        assert item.estado != "enviada"
+        assert item.qbittorrent_hash is None
+        assert item.intentos_envio == 0
+    assert qb.add_calls == []
+    assert qb.start_calls == []
+
+
+
+def test_auto_never_modifies_unrelated_preexisting_hash(monkeypatch):
+    """Mismo infohash en un torrent ajeno: no hacer POST ni START."""
+    from worker.torrent_metadata import TorrentMetadata
+
+    db = make_engine()
+    monkeypatch.setattr(processor, "engine", db)
+    with Session(db) as session:
+        _, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, db, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda u, b: TorrentMetadata(1_503_238_554, "b" * 40),
+    )
+    qb = FakeQBittorrent(responses=[
+        [],  # GET por etiqueta propia: no existe
+        [{"hash": "b" * 40, "tags": "privado",
+          "save_path": "C:\\otro\\directorio", "state": "downloading"}],
+    ])
+    assert processor.process_one_download(
+        "worker-auto", qb, allowed_download_id=did,
+        save_path=processor.STAGING_PATH, protect_unrelated=True,
+    )
+    with Session(db) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "fallida"
+        assert d.intentos_envio == 0
+        assert d.qbittorrent_hash is None
+    assert qb.add_calls == []
+    assert qb.start_calls == []
+    assert qb.info_calls[1]["hashes"] == ["b" * 40]
+
+
+def test_auto_submits_only_stopped_with_verified_hash_not_existing(monkeypatch):
+    from worker.torrent_metadata import TorrentMetadata
+
+    db = make_engine()
+    monkeypatch.setattr(processor, "engine", db)
+    with Session(db) as session:
+        _, did = add_selected_download(session)
+    _setup_jackett_verification(monkeypatch, db, did)
+    monkeypatch.setattr(
+        processor, "obtener_metadatos_jackett",
+        lambda u, b: TorrentMetadata(1_503_238_554, "b" * 40),
+    )
+    qb = FakeQBittorrent(responses=[
+        [],  # GET por etiqueta
+        [],  # GET por hash del torrent, ningún tercero lo tiene
+        [{"hash": "b" * 40, "tags": f"viewtv-descarga-{did}",
+          "save_path": processor.STAGING_PATH, "state": "stoppedDL"}],
+    ])
+    assert processor.process_one_download(
+        "worker-auto", qb, allowed_download_id=did,
+        save_path=processor.STAGING_PATH, protect_unrelated=True,
+    )
+    with Session(db) as session:
+        d = session.get(Descarga, did)
+        assert d.estado == "enviada"
+        assert d.intentos_envio == 1
+        assert d.qbittorrent_hash == "b" * 40
+    assert len(qb.add_calls) == 1
+    assert qb.add_calls[0]["stopped"] is True
+    assert qb.add_calls[0]["save_path"] == processor.STAGING_PATH
+    assert qb.start_calls == []

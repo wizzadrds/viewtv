@@ -86,9 +86,9 @@ function describeDownload(item: DownloadItem): {
   }
   if (item.estado === "seleccionada") {
     return {
-      title: "Seleccionada · sin iniciar",
-      detail: "Aún no se ha enviado a qBittorrent. El porcentaje no avanzará hasta autorizar el envío y, después, el inicio de esa descarga.",
-      tone: "warning",
+      title: "Preparando descarga automática",
+      detail: "VIEWTV está preparando el envío a qBittorrent; el porcentaje aparecerá cuando el gestor comience la transferencia.",
+      tone: "info",
     };
   }
   return {
@@ -101,8 +101,8 @@ function describeDownload(item: DownloadItem): {
 function formatSize(bytes: number | null): string | null {
   if (bytes === null || bytes <= 0) return null;
   const size = bytes >= 1024 ** 3
-    ? { value: bytes / (1024 ** 3), unit: "GB" }
-    : { value: bytes / (1024 ** 2), unit: "MB" };
+    ? { value: bytes / (1024 ** 3), unit: "GiB" }
+    : { value: bytes / (1024 ** 2), unit: "MiB" };
   return `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(size.value)} ${size.unit}`;
 }
 

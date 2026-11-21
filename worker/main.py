@@ -10,6 +10,7 @@ from app.database import engine
 from app.queue import get_queue_counts
 from sqlmodel import Session
 from worker.catalog_sync import CatalogSyncScheduler
+from worker.automatic_downloads import next_auto_download_id, parse_auto_floor
 from worker.download_monitor import monitor_downloads_once
 from worker.download_processor import STAGING_PATH, process_one_download
 from worker.download_starter import process_one_start
@@ -46,6 +47,14 @@ def parse_submission_target(value: str) -> int | None:
 SUBMISSION_TARGET_ID = parse_submission_target(
     os.environ.get("VIEWTV_TORRENT_SUBMIT_DOWNLOAD_ID", "")
 )
+# Opt-in explícito a partir de un ID de corte registrado al desplegar.
+# Ninguna selección histórica se incorpora al modo automático.
+AUTO_DOWNLOAD_ENABLED = (
+    os.environ.get("VIEWTV_ENABLE_AUTO_DOWNLOAD", "false").strip().lower() == "true"
+)
+AUTO_DOWNLOAD_AFTER_ID = parse_auto_floor(
+    os.environ.get("VIEWTV_AUTO_DOWNLOAD_AFTER_ID", "")
+)
 VERIFICATION_WORKER_ID = new_verification_worker_id()
 WORKER_ID = f"{socket.gethostname()[:80]}-{os.getpid()}"
 
@@ -70,27 +79,51 @@ def main():
         logger.error("Alta de torrent BLOQUEADA: falta ID individual autorizada.")
     if START_ENABLED and SUBMISSION_TARGET_ID is None:
         logger.error("Inicio de torrent BLOQUEADO: falta ID individual autorizada.")
+    if AUTO_DOWNLOAD_ENABLED and AUTO_DOWNLOAD_AFTER_ID is None:
+        logger.error("Modo automático BLOQUEADO: falta ID de activación válida.")
     while True:
         try:
             download_processed = False
-            if SUBMISSION_ENABLED and SUBMISSION_TARGET_ID is not None:
-                download_processed = process_one_download(
-                    WORKER_ID,
-                    allowed_download_id=SUBMISSION_TARGET_ID,
-                    save_path=STAGING_PATH,
-                )
-            request_processed = process_one_request(WORKER_ID)
-
             start_processed = False
-            if START_ENABLED and SUBMISSION_TARGET_ID is not None:
-                try:
-                    start_processed = process_one_start(
+            if AUTO_DOWNLOAD_ENABLED and AUTO_DOWNLOAD_AFTER_ID is not None:
+                # Solo un torrent nuevo elegido expresamente en VIEWTV
+                # a la vez; nunca tocar las ID previas al opt-in.
+                with Session(engine) as session:
+                    target = next_auto_download_id(
+                        session, after_id=AUTO_DOWNLOAD_AFTER_ID
+                    )
+                if target is not None:
+                    download_processed = process_one_download(
+                        WORKER_ID,
+                        allowed_download_id=target,
+                        save_path=STAGING_PATH,
+                        protect_unrelated=True,
+                    )
+                    try:
+                        start_processed = process_one_start(
+                            WORKER_ID,
+                            allowed_download_id=target,
+                            expected_save_path=STAGING_PATH,
+                        )
+                    except Exception:
+                        logger.exception("Error procesando inicio automático.")
+            else:
+                if SUBMISSION_ENABLED and SUBMISSION_TARGET_ID is not None:
+                    download_processed = process_one_download(
                         WORKER_ID,
                         allowed_download_id=SUBMISSION_TARGET_ID,
-                        expected_save_path=STAGING_PATH,
+                        save_path=STAGING_PATH,
                     )
-                except Exception:
-                    logger.exception("Error procesando inicio de torrent.")
+                if START_ENABLED and SUBMISSION_TARGET_ID is not None:
+                    try:
+                        start_processed = process_one_start(
+                            WORKER_ID,
+                            allowed_download_id=SUBMISSION_TARGET_ID,
+                            expected_save_path=STAGING_PATH,
+                        )
+                    except Exception:
+                        logger.exception("Error procesando inicio de torrent.")
+            request_processed = process_one_request(WORKER_ID)
 
             try:
                 updated = monitor_downloads_once()

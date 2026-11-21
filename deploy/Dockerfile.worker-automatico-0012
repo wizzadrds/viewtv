@@ -1,0 +1,5 @@
+# Worker de VIEWTV con cola automática de nuevas selecciones solamente.
+FROM viewtv:tamano-canonico-worker-0012
+COPY worker/main.py /opt/viewtv/worker/main.py
+COPY worker/automatic_downloads.py /opt/viewtv/worker/automatic_downloads.py
+COPY worker/download_processor.py /opt/viewtv/worker/download_processor.py

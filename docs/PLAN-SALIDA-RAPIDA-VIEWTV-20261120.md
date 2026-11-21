@@ -241,8 +241,10 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   `La.Odisea.2026.4K.4K.SPANISH` (seleccionada,
   0 intentos y sin hash). Jackett anuncia **20 GiB**
   pero el archivo .torrent realmente contiene
-  **33.260.748.236 bytes** (~33,26 GB): NO enviarlo.
-- [x] **Antes de seleccionar: tamaño real y advertencias**:
+  **33.260.748.236 bytes** (~33,26 GB). **Hecho
+  histórico:** la selección fue deshecha. La discrepancia
+  de tamaños por sí sola ya no bloquea resultados nuevos.
+- [x] **Hito anterior (ya sustituido): tamaño real bajo demanda**:
   API autenticada `GET /solicitudes/{id}/resultados/{id}/verificacion`
   consulta solo metadatos de Jackett de forma bajo demanda,
   compara el tamaño y detecta hashes ya descartados del perfil;
@@ -275,20 +277,39 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   **6/6** en copia SQLite real y **10/10** smoke.
   Informe:
   [AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md](AVANCE-TAMANO-CANONICO-DESDE-TORRENT-20261121.md).
-- [ ] **Comprobar nuevo candidato desde solicitud #6**:
-  «Ver resultados» → «Comprobar tamaño real».
-  La opción que Jackett anuncia como 20 GiB debe mostrar
-  **33.260.748.236 bytes** reales con advertencia no
-  bloqueante; elegir solo si el contenido es correcto y
-  existe espacio/permiso, antes de probar el envío.
-- [ ] **Automatización de descargas correctas**: el usuario desea
-  buscar, seleccionar y descargar automáticamente, pero
-  un título coincidente no garantiza identidad. Validar primero
-  un candidato correcto y autorizado, estabilidad de qBittorrent,
-  inicio individual con permiso específico, progreso, verificación
-  y publicación, antes de habilitar la cola general.
-- [ ] Establecer procedimiento reversible; no habilitar
-  ejecuciones masivas ni cambios de biblioteca por defecto.
+- [x] **Pantalla sin botón «Comprobar tamaño real»**:
+  los resultados obtienen el tamaño del .torrent
+  automáticamente al abrirse, con tres GET concurrentes
+  como máximo. La PWA presenta **una sola cifra real**
+  por candidato, sin datos de tamaño de Jackett.
+  «Seleccionar» pasa a **«Descargar»**.
+- [x] **Opt-in de envíos e inicios automáticos para nuevas
+  selecciones**: `VIEWTV_ENABLE_AUTO_DOWNLOAD=true`,
+  corte durable `VIEWTV_AUTO_DOWNLOAD_AFTER_ID=1`
+  (máximo ID al desplegar). El worker admite solo ID
+  posteriores, una descarga activa cada vez, ruta de
+  staging fija y torrent detenido hasta orden de inicio
+  individual. No reanuda pausas manuales ni toca torrents
+  ajenos a VIEWTV; rechaza hashes preexistentes ajenos,
+  previamente descartados o que cambian de identidad.
+  Las antiguas flags globales permanecen `false`.
+  API no se recreó; solo worker y frontend actualizados.
+  Tests **858/858**, focales **73/73**, smoke **10/10**,
+  primera comprobación real sin candidatas activas.
+  Informe:
+  [AVANCE-TAMANO-UNICO-Y-DESCARGAS-AUTOMATICAS-20261121.md](AVANCE-TAMANO-UNICO-Y-DESCARGAS-AUTOMATICAS-20261121.md).
+- [ ] **Prueba de primera transferencia real**:
+  el usuario debe seleccionar un candidato correcto y
+  autorizado desde solicitud #6; confirmar que qBittorrent
+  lo registra, inicia y reporta progreso sin afectar al
+  torrent ajeno. La automatización no se ha probado con
+  un archivo real completo. La validación y publicación
+  en Jellyfin siguen siendo un hito distinto.
+- [x] **Despliegue reversible**:
+  `scripts/viewtv_compose_automatico_0012.sh` permite
+  rollback independiente de frontend y worker sin
+  migraciones ni tocar la biblioteca. Mantener solo
+  una descarga VIEWTV activa por seguridad.
 
 ### Hito C — Organizador mínimo seguro 0013 (EN CURSO, NO DESPLEGADO)
 

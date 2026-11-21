@@ -131,8 +131,9 @@ def process_one_download(
     *,
     allowed_download_id: int | None = None,
     save_path: str | None = None,
+    protect_unrelated: bool = False,
 ) -> bool:
-    """Ensayo acotado: filtra ID y destino antes de reclamar una descarga."""
+    """Envía una descarga acotada por ID, destino y origen comprobado."""
     if allowed_download_id is not None and save_path != STAGING_PATH:
         raise ValueError("La ruta de staging autorizada no coincide")
 
@@ -216,6 +217,19 @@ def process_one_download(
                 raise QBittorrentError(
                     "qBittorrent encontró la etiqueta, pero no devolvió su hash."
                 )
+            # Las altas automáticas con .torrent Jackett solo admiten
+            # la identidad confirmada al seleccionar. No tocar otro hash.
+            if (
+                allowed_download_id is not None
+                and download_url
+                and es_url_jackett_dl(download_url, get_settings().jackett_base_url)
+                and download.info_hash
+                and re.fullmatch(r"[0-9a-fA-F]{40}", download.info_hash)
+                and existing_hash != download.info_hash.casefold()
+            ):
+                raise TrialAdmissionError(
+                    "El torrent registrado no coincide con la selección."
+                )
 
             with Session(engine) as session:
                 saved = mark_download_submitted(
@@ -252,6 +266,32 @@ def process_one_download(
                 "No se encontró el torrent en qBittorrent tras agotar los intentos.",
             )
             return True
+
+        if protect_unrelated:
+            # El modo automático nunca modifica un torrent previamente
+            # añadido de forma ajena a VIEWTV, aunque el infohash coincida.
+            if (
+                not download_url
+                or not es_url_jackett_dl(download_url, get_settings().jackett_base_url)
+                or not download.info_hash
+                or re.fullmatch(r"[0-9a-fA-F]{40}", download.info_hash) is None
+            ):
+                _record_failure(
+                    download_id,
+                    worker_id,
+                    "No se puede identificar de forma segura el torrent automático.",
+                    permanent=True,
+                )
+                return True
+            preexistente = qbittorrent.torrents_info(hashes=[download.info_hash])
+            if preexistente:
+                _record_failure(
+                    download_id,
+                    worker_id,
+                    "El torrent ya existe en qBittorrent fuera de esta selección.",
+                    permanent=True,
+                )
+                return True
 
         # Validamos el metainfo real, NO el tamaño anunciado por el
         # indexador. Esta lectura de Jackett es solo de metadatos
@@ -385,6 +425,17 @@ def process_one_download(
             raise QBittorrentError(
                 "qBittorrent aceptó el envío, pero todavía no aparece "
                 "el torrent con su etiqueta."
+            )
+        if (
+            allowed_download_id is not None
+            and download_url
+            and es_url_jackett_dl(download_url, get_settings().jackett_base_url)
+            and download.info_hash
+            and re.fullmatch(r"[0-9a-fA-F]{40}", download.info_hash)
+            and torrent_hash != download.info_hash.casefold()
+        ):
+            raise TrialAdmissionError(
+                "qBittorrent devolvió un torrent distinto al seleccionado."
             )
 
         with Session(engine) as session:
