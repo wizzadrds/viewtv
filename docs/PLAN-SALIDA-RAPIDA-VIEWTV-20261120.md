@@ -515,6 +515,19 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   la ID real y verificar la descarga. No añadir torrent manual.
   Informe:
   [AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md](AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md).
+- [x] **Segunda película real (#3) organizada y visible en ViewTV**:
+  descarga completada/verificada y propiedad qBittorrent comprobada
+  sin escritura. Respaldo SQLite online + `tar.gz` y SHA-256
+  verificados; histórico #1/#2 excluido. API autorizada temporalmente
+  **solo ID3**, worker sin organización; publicador Windows
+  `Once` completó enlace duro NTFS, journal, confirmación de cola
+  y solicitud de escaneo Jellyfin. Una coincidencia en Jellyfin
+  y una en catálogo ViewTV, ambas con carátula. API devuelta
+  a publicación `disabled`, worker intacto; smoke **10/10 PASS**.
+  Publicación supervisada, **todavía no servicio automático para
+  películas futuras** ni reproducción visual probada de #3.
+  Informe:
+  [AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md](AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md).
 - [ ] **Automatización GENERAL de publicación y carátulas**:
   este éxito es una acción de publicación individual,
   **no una cola automática para futuras películas**.

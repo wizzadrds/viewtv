@@ -9,10 +9,20 @@ y verificar una segunda película hasta Jellyfin/reproducción
 **no es backlog**, sino el bloqueo prioritario del plan de salida.
 La validación de LocalSystem no demuestra permisos confinados ni
 autoriza instalar automáticamente el servicio.
-El preflight Windows 0013 ya permite una **nueva selección en ViewTV**
-con publicación deshabilitada; solo falta el ID nueva real y verificada
-para la prueba `single`. Ver
+El preflight Windows 0013 permitió seleccionar la segunda película
+con publicación deshabilitada; esa ID real ya se obtuvo y publicó
+en la prueba `single` supervisada. Ver
 [AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md](AVANCE-PREFLIGHT-NUEVA-PELICULA-0013-20261121.md).
+
+**Hito 22/11/2026:** descarga #3 publicada por el broker
+Windows con `-Mode Once` limitado a ID3: origen NTFS
+intacto, enlace duro verificado, SQLite `organizada`,
+Jellyfin y ViewTV con la película y carátula.
+API devuelta a publicación `disabled`, sin Windows Service
+permanente. La **automatización desatendida de futuras películas**
+sigue siendo objetivo prioritario, **no backlog**; no confundir
+éxito individual con automatización general. Informe:
+[AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md](AVANCE-SEGUNDA-PELICULA-ID3-PUBLICACION-20261122.md).
 
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
