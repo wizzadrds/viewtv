@@ -1,0 +1,4 @@
+# Solo interfaz: hacer visible que un resultado coincide con uno descartado.
+services:
+  frontend:
+    image: viewtv-frontend:descartados-claros-0012

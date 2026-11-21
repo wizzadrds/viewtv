@@ -298,6 +298,20 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   primera comprobación real sin candidatas activas.
   Informe:
   [AVANCE-TAMANO-UNICO-Y-DESCARGAS-AUTOMATICAS-20261121.md](AVANCE-TAMANO-UNICO-Y-DESCARGAS-AUTOMATICAS-20261121.md).
+- [x] **Explicación y pantalla para torrents descartados duplicados**:
+  en solicitud #4 los dos resultados «Nadie 2» (4K y DVDRip)
+  devuelven **exactamente el infohash del torrent que el usuario
+  eliminó**; ambos tienen 16,47 GiB reales, por lo que
+  no son alternativas distintas y deben seguir bloqueados.
+  Los cinco resultados de solicitud #6 devolvieron cinco
+  infohash diferentes, ninguno igual al descartado.
+  La PWA muestra «Ya descartado» en lugar de «Descargar»
+  y explica las coincidencias aunque cambien los nombres;
+  cuando todos están descartados muestra aviso general.
+  Solo la PWA se recreó; worker automático, API,
+  qBittorrent, SQLite y Jellyfin permanecen intactos.
+  Compilación Next.js PASS; smoke producción readonly 10/10.
+  [AVANCE-RESULTADOS-DESCARTADOS-CLAROS-20261121.md](AVANCE-RESULTADOS-DESCARTADOS-CLAROS-20261121.md).
 - [ ] **Prueba de primera transferencia real**:
   el usuario debe seleccionar un candidato correcto y
   autorizado desde solicitud #6; confirmar que qBittorrent

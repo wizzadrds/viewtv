@@ -418,6 +418,14 @@ export default function RequestsPanel({
                 {!resultsBusy && !resultsError && results.length === 0 && (
                   <p className="muted">Ningún resultado coincide claramente con el título y tipo solicitados. Prueba otra búsqueda; no se pueden seleccionar coincidencias ajenas.</p>
                 )}
+                {results.length > 0 && results.every(
+                  (result) => verifications[result.id]?.estado === "bloqueado",
+                ) && (
+                  <p className="error-message" role="status">
+                    No hay opciones nuevas entre estos resultados: todos corresponden
+                    a torrents que ya descartaste. Prueba otra búsqueda.
+                  </p>
+                )}
                 {results.map((result) => (
                   <div className="request-result" key={result.id}>
                     <div>
@@ -437,7 +445,7 @@ export default function RequestsPanel({
                         !verifications[result.id].puede_seleccionar && (
                           <p className="error-message" role="status">
                             {verifications[result.id].estado === "bloqueado"
-                              ? "Torrent descartado anteriormente; no se descargará."
+                              ? "Es el mismo archivo .torrent que descartaste, aunque el nombre del resultado sea distinto."
                               : "No se pudo obtener un torrent válido."}
                           </p>
                         )}
@@ -450,7 +458,13 @@ export default function RequestsPanel({
                         onClick={() => void chooseResult(result.id)}
                         type="button"
                       >
-                        Descargar
+                        {verifications[result.id]?.estado === "bloqueado"
+                          ? "Ya descartado"
+                          : verifications[result.id]?.estado === "no_verificable"
+                            ? "No disponible"
+                            : verifications[result.id]?.puede_seleccionar
+                              ? "Descargar"
+                              : "Consultando…"}
                       </button>
                     </div>
                   </div>
