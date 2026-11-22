@@ -5,5 +5,6 @@ COPY backend/app/tmdb.py /opt/viewtv/backend/app/tmdb.py
 COPY backend/app/descubrir.py /opt/viewtv/backend/app/descubrir.py
 COPY backend/app/catalogo_cache.py /opt/viewtv/backend/app/catalogo_cache.py
 COPY backend/app/catalogador_cli.py /opt/viewtv/backend/app/catalogador_cli.py
+COPY backend/app/relevancia_resultado.py /opt/viewtv/backend/app/relevancia_resultado.py
 COPY backend/app/main.py /opt/viewtv/backend/app/main.py
-RUN python -m py_compile /opt/viewtv/backend/app/tmdb.py /opt/viewtv/backend/app/descubrir.py /opt/viewtv/backend/app/catalogo_cache.py /opt/viewtv/backend/app/catalogador_cli.py /opt/viewtv/backend/app/main.py
+RUN python -m py_compile /opt/viewtv/backend/app/tmdb.py /opt/viewtv/backend/app/descubrir.py /opt/viewtv/backend/app/catalogo_cache.py /opt/viewtv/backend/app/catalogador_cli.py /opt/viewtv/backend/app/relevancia_resultado.py /opt/viewtv/backend/app/main.py

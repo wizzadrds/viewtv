@@ -124,6 +124,15 @@ class TMDBClient:
             raise TMDBError("Identificador o tipo de medio no válido.")
         return self._get(f"{endpoints[media_type]}/{tmdb_id}")
 
+    def season_details(self, tmdb_id: int, season_number: int) -> dict:
+        """Episodios de una temporada; solo consulta metadatos TMDB."""
+        if (
+            type(tmdb_id) is not int or not 1 <= tmdb_id <= 2_147_483_647
+            or type(season_number) is not int or not 0 <= season_number <= 100
+        ):
+            raise TMDBError("Identificador de serie o temporada no válido.")
+        return self._get(f"tv/{tmdb_id}/season/{season_number}")
+
     @staticmethod
     def image_url(path: str | None, size: str) -> str | None:
         if not path or not path.startswith("/") or ".." in path:

@@ -5,7 +5,7 @@ separada y usa la cola existente; el usuario elige después una fuente autorizad
 """
 import re
 import unicodedata
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
@@ -192,7 +192,104 @@ def _detail_data(kind: Tipo, tmdb_id: int, session: Session) -> dict:
     item = _item(data, kind, _current_media(session, kind), detail=True)
     if item is None or item["tmdb_id"] != tmdb_id:
         raise HTTPException(status_code=404, detail="Ficha de TMDB no disponible.")
+    if kind == "serie":
+        item["temporadas"] = _season_summaries(data.get("seasons"))
     return item
+
+
+def _air_date(value: object) -> date | None:
+    if not isinstance(value, str) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) is None:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _season_summaries(raw: object) -> list[dict]:
+    """Una ficha por SERIE: resumen de temporadas, no episodios sueltos."""
+    if not isinstance(raw, list):
+        return []
+    seasons: dict[int, dict] = {}
+    for value in raw:
+        if not isinstance(value, dict):
+            continue
+        number = value.get("season_number")
+        count = value.get("episode_count")
+        if (type(number) is not int or not 0 <= number <= 100
+            or type(count) is not int or not 0 <= count <= 2000):
+            continue
+        name = value.get("name")
+        name = name.strip()[:160] if isinstance(name, str) else ""
+        seasons[number] = {
+            "temporada": number,
+            "titulo": name or ("Especiales" if number == 0 else f"Temporada {number}"),
+            "numero_episodios": count,
+            "imagen_portada": _image(value.get("poster_path"), "w500"),
+            "fecha_estreno": str(_air_date(value.get("air_date")))
+            if _air_date(value.get("air_date")) else None,
+        }
+    return [seasons[key] for key in sorted(seasons)]
+
+
+def _episode(row: object, season_number: int) -> dict | None:
+    if not isinstance(row, dict):
+        return None
+    number = row.get("episode_number")
+    season = row.get("season_number")
+    if (type(number) is not int or not 1 <= number <= 999
+        or season != season_number or type(season) is not int
+        or row.get("adult") is True):
+        return None
+    name = row.get("name")
+    name = name.strip()[:300] if isinstance(name, str) else ""
+    overview = row.get("overview")
+    runtime = row.get("runtime")
+    premiere = _air_date(row.get("air_date"))
+    return {
+        "episodio": number,
+        "temporada": season_number,
+        "titulo": name or f"Episodio {number}",
+        "sinopsis": overview[:3000] if isinstance(overview, str) else None,
+        "imagen": _image(row.get("still_path"), "w500"),
+        "fecha_emision": str(premiere) if premiere else None,
+        "duracion_minutos": runtime if type(runtime) is int and 1 <= runtime <= 300 else None,
+        "solicitable": premiere is None or premiere <= datetime.now(UTC).date(),
+    }
+
+
+def _series_season(
+    series_id: int, season_number: int, session: Session,
+) -> tuple[dict, dict, list[dict]]:
+    """Contrasta serie y temporada con TMDB antes de leer o solicitar."""
+    try:
+        provider = _tmdb_client()
+        show = provider.details("serie", series_id)
+    except TMDBError:
+        raise _tmdb_error() from None
+    local = _current_media(session, "serie")
+    show_item = _item(show, "serie", local, detail=True)
+    if show_item is None or show_item["tmdb_id"] != series_id:
+        raise HTTPException(status_code=404, detail="Serie no disponible.")
+    seasons = _season_summaries(show.get("seasons"))
+    if not any(season["temporada"] == season_number for season in seasons):
+        raise HTTPException(status_code=404, detail="La serie no tiene esa temporada.")
+    try:
+        data = provider.season_details(series_id, season_number)
+    except TMDBError:
+        raise _tmdb_error() from None
+    if type(data.get("season_number")) is not int or data["season_number"] != season_number:
+        raise HTTPException(status_code=404, detail="Datos de temporada no disponibles.")
+    raw = data.get("episodes")
+    if not isinstance(raw, list):
+        raise _tmdb_error()
+    episodes = []
+    for candidate in raw[:1500]:
+        parsed = _episode(candidate, season_number)
+        if parsed is not None:
+            episodes.append(parsed)
+    by_number = {episode["episodio"]: episode for episode in episodes}
+    return show_item, data, [by_number[key] for key in sorted(by_number)]
 
 
 # Filas curadas al estilo de las plataformas de streaming.
@@ -349,6 +446,81 @@ def cargar_fila(
         raise _tmdb_error() from None
 
 
+@router.get("/serie/{tmdb_id}/temporadas/{temporada}")
+def episodios_de_temporada(
+    tmdb_id: Annotated[int, Path(ge=1, le=MAX_TMDB_ID)],
+    temporada: Annotated[int, Path(ge=0, le=100)],
+    _perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+    pagina: Annotated[int, Query(ge=1, le=40)] = 1,
+) -> dict:
+    """Temporada real y episodios paginados, solo metadatos, sin descargas."""
+    show, season, episodes = _series_season(tmdb_id, temporada, session)
+    chunk = 40
+    return {
+        "tmdb_id": tmdb_id, "titulo_serie": show["titulo"],
+        "temporada": temporada, "titulo_temporada": (
+            season.get("name")[:160] if isinstance(season.get("name"), str) else
+            ("Especiales" if temporada == 0 else f"Temporada {temporada}")
+        ),
+        "sinopsis_temporada": (
+            season["overview"][:3000] if isinstance(season.get("overview"), str)
+            else None
+        ),
+        "episodios": episodes[(pagina - 1) * chunk:pagina * chunk],
+        "total": len(episodes),
+        "pagina": pagina,
+        "paginas": max(1, (len(episodes) + chunk - 1) // chunk),
+        "disponible_local": show["disponible_local"],
+        "aviso_disponibilidad": (
+            "La serie está en tu biblioteca. No se ha verificado qué episodios tienes."
+            if show["disponible_local"] else None
+        ),
+    }
+
+
+@router.post("/serie/{tmdb_id}/temporadas/{temporada}/episodios/{episodio}/solicitar",
+             status_code=201)
+def solicitar_episodio(
+    tmdb_id: Annotated[int, Path(ge=1, le=MAX_TMDB_ID)],
+    temporada: Annotated[int, Path(ge=0, le=100)],
+    episodio: Annotated[int, Path(ge=1, le=999)],
+    perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict:
+    """Solicitud única SxxEyy, nunca descarga ni crea múltiples torrents.
+
+    TMDB confirma la serie, temporada y episodio tras la pulsación explícita.
+    Una temporada de serie YA presente puede tener capítulos por adquirir.
+    """
+    show, _, episodes = _series_season(tmdb_id, temporada, session)
+    selected = next((e for e in episodes if e["episodio"] == episodio), None)
+    if selected is None:
+        raise HTTPException(status_code=404, detail="El episodio no existe.")
+    if not selected["solicitable"]:
+        raise HTTPException(
+            status_code=409, detail="Este episodio todavía no se ha estrenado."
+        )
+    # La cola actual identifica el capítulo de forma inequívoca en el título.
+    # No inventar columnas ni asumir que una serie instalada está completa.
+    title = f'{show["titulo"][:475]} S{temporada:02d}E{episodio:02d}'
+    result = crear_solicitud(
+        CrearSolicitudInput(titulo=title, tipo_medio="serie", anio=None),
+        perfil, session,
+    )
+    return {
+        "estado": "solicitud_creada",
+        "solicitud_id": result["id"],
+        "temporada": temporada,
+        "episodio": episodio,
+        "titulo_episodio": selected["titulo"],
+        "mensaje": (
+            "Episodio solicitado. Debes elegir una fuente autorizada en "
+            "«Buscar y pedir». No se ha iniciado ninguna descarga."
+        ),
+    }
+
+
 @router.get("/{tipo}/{tmdb_id}")
 def detalle(
     tipo: Tipo,
@@ -373,6 +545,11 @@ def solicitar_descarga(
     """
     if tmdb_id < 1 or tmdb_id > MAX_TMDB_ID:
         raise HTTPException(status_code=422, detail="Identificador inválido.")
+    if tipo == "serie":
+        raise HTTPException(
+            status_code=422,
+            detail="Elige primero una temporada y un episodio para solicitar una serie.",
+        )
     item = _detail_data(tipo, tmdb_id, session)
     if item["disponible_local"]:
         raise HTTPException(status_code=409, detail="Este contenido ya está en tu biblioteca.")

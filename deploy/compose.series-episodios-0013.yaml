@@ -1,0 +1,7 @@
+# Vista de series: temporadas, episodios y solicitudes individuales.
+# Solo cambia imágenes API/frontend; NO modifica worker ni catalogador.
+services:
+  api:
+    image: viewtv:series-episodios-api-0013
+  frontend:
+    image: viewtv-frontend:series-episodios-0013

@@ -516,3 +516,57 @@ button:disabled { cursor: wait; opacity: .55; }
   .cinema-catalog-counter { border-radius: 12px; }
   .cinema-catalog-counter span { width: 100%; }
 }
+
+
+/* Series profesionales: una carátula por serie, temporadas y capítulos dentro. */
+.series-detail-dialog { width: min(1090px, 100%); max-height: min(94dvh, 1120px); overflow-y: auto; overscroll-behavior: contain; }
+.series-detail-dialog .detail-copy { width: 100%; }
+.series-detail-dialog .detail-content { padding-bottom: 52px; }
+.series-season-panel { width: 100%; min-width: 0; margin-top: 27px; padding-top: 25px; border-top: 1px solid rgba(190, 174, 235, .19); }
+.series-season-intro { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.series-season-intro .eyebrow { font-size: 10px; letter-spacing: .14em; color: #bba5f3; }
+.series-season-intro h3 { margin: 5px 0 6px; font-size: clamp(19px, 2.4vw, 24px); letter-spacing: -.025em; }
+.series-season-intro .muted { margin: 0; font-size: 12px; line-height: 1.5; }
+.series-season-total { display: inline-flex; align-items: center; border-radius: 20px; padding: 7px 12px; border: 1px solid rgba(194,166,255,.25); color: #dac9ff; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.series-season-tabs { display: flex; gap: 9px; overflow-x: auto; scrollbar-width: thin; padding: 18px 1px 12px; scroll-snap-type: x mandatory; }
+.series-season-chip { display: flex; flex: 0 0 auto; min-width: 127px; flex-direction: column; gap: 5px; align-items: flex-start; justify-content: center; padding: 11px 15px; border: 1px solid rgba(179,172,209,.23); border-radius: 13px; color: #d9dbec; background: #191b2b; text-align: left; cursor: pointer; scroll-snap-align: start; transition: background .16s, border-color .16s, transform .16s; }
+.series-season-chip strong { font-size: 12px; font-weight: 800; }
+.series-season-chip span { font-size: 11px; color: #999db8; }
+.series-season-chip:hover, .series-season-chip:focus-visible { border-color: #ba9aff; background: #25203c; }
+.series-season-chip.selected { border-color: #b991ff; background: linear-gradient(115deg, #44337c, #241f41); color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+.series-season-chip.selected span { color: #e2cffc; }
+.series-season-description { display: flex; flex-wrap: wrap; gap: 5px 11px; align-items: baseline; padding: 12px 0 14px; }
+.series-season-description > strong { font-size: 15px; }
+.series-season-description > span { color: #aab0c3; font-size: 12px; }
+.series-season-description > p { width: 100%; margin: 3px 0 0; color: #b9becf; line-height: 1.55; font-size: 12px; }
+.series-season-description .series-local-warning { padding: 9px 11px; border-left: 3px solid #b48dff; background: rgba(153,101,232,.1); border-radius: 4px 9px 9px 4px; color: #dbc9ff; }
+.series-episode-list { display: flex; flex-direction: column; gap: 11px; }
+.series-episode { display: grid; grid-template-columns: minmax(124px, 31%) minmax(0, 1fr); align-items: stretch; gap: 14px; padding: 10px; border: 1px solid rgba(163,162,191,.15); border-radius: 16px; background: rgba(23,28,46,.84); transition: border-color .15s, background .15s; }
+.series-episode:hover, .series-episode:focus-within { border-color: rgba(195,153,255,.55); background: rgba(30,31,53,.95); }
+.series-episode-picture { min-height: 112px; aspect-ratio: 16/10; border-radius: 10px; overflow: hidden; background: linear-gradient(145deg, #3d335e, #101b32); display: grid; place-items: center; color: #bba4e3; font-weight: 950; letter-spacing: .18em; font-size: 12px; }
+.series-episode-picture img { width: 100%; height: 100%; object-fit: cover; }
+.series-episode-info { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 2px 0; }
+.series-episode-top { display: flex; flex-wrap: wrap; justify-content: space-between; width: 100%; align-items: center; gap: 6px; }
+.series-episode-number { color: #c2a3ff; font-size: 10px; font-weight: 900; letter-spacing: .09em; text-transform: uppercase; }
+.series-episode-meta { color: #939ab4; font-size: 10px; }
+.series-episode-info h4 { margin: 6px 0 5px; color: #faf8ff; font-size: 15px; line-height: 1.35; }
+.series-episode-synopsis { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; margin: 0 0 10px; color: #aaafc2; font-size: 12px; line-height: 1.55; }
+.series-episode-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; }
+.series-episode-request { min-height: 35px; padding: 8px 12px; border: 1px solid rgba(184,145,255,.65); background: rgba(124,77,224,.24); color: #eee1ff; border-radius: 9px; font-size: 11px; font-weight: 800; cursor: pointer; }
+.series-episode-request:hover, .series-episode-request:focus-visible { background: #6a46b9; color: #fff; }
+.series-episode-request:disabled { cursor: not-allowed; border-color: rgba(132,136,160,.25); background: rgba(95,104,123,.14); color: #8e98b0; }
+.series-episode-date-note { font-size: 10px; }
+.series-load-more { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 15px; }
+.series-season-footnote { margin: 18px 0 0; color: #9395a9; font-size: 11px; line-height: 1.7; }
+@media (max-width: 760px) {
+  .series-detail-dialog { width: 100%; border-radius: 17px; }
+  .series-season-panel { margin-top: 22px; }
+  .series-episode { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .series-episode-picture { max-height: 180px; min-height: 140px; aspect-ratio: 16/9; }
+  .series-episode-info h4 { font-size: 15px; }
+  .series-episode-request { min-height: 42px; padding: 11px 13px; }
+  .series-season-chip { min-width: 122px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .series-episode, .series-season-chip { transition: none; }
+}

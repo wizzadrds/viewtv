@@ -10,7 +10,11 @@ import re
 import unicodedata
 
 _EPISODIO = re.compile(
-    r"(?<![A-Z0-9])(?:S\d{1,2}[. _-]*E\d{1,3}|S\d{1,2}|\d{1,2}X\d{1,3})(?![A-Z0-9])",
+    r"(?<![A-Z0-9])(?:S\d{1,3}[. _-]*E\d{1,3}|S\d{1,3}|\d{1,2}X\d{1,3})(?![A-Z0-9])",
+    re.IGNORECASE,
+)
+_EPISODIO_CONCRETO = re.compile(
+    r"(?<![A-Z0-9])S(?P<season>\d{1,3})[. _-]*E(?P<episode>\d{1,3})(?![A-Z0-9])",
     re.IGNORECASE,
 )
 
@@ -38,6 +42,22 @@ def coincide_con_solicitud(
         return False
     if tipo_medio == "pelicula" and _EPISODIO.search(titulo_resultado):
         return False
+    if tipo_medio == "serie":
+        # Una solicitud S01E02 no puede seleccionar S01E01 ni un pack con
+        # capítulos adicionales. Las solicitudes antiguas de serie completa
+        # mantienen la comprobación conservadora previa.
+        requested = list(_EPISODIO_CONCRETO.finditer(titulo_solicitado))
+        if requested:
+            offered = list(_EPISODIO_CONCRETO.finditer(titulo_resultado))
+            if len(requested) != 1 or len(offered) != 1:
+                return False
+            expected = requested[0]
+            found = offered[0]
+            if (
+                int(expected["season"]) != int(found["season"])
+                or int(expected["episode"]) != int(found["episode"])
+            ):
+                return False
     # Año de estreno explícito diferente implica versión/obra distinta. Si el
     # resultado no menciona año, no se inventa; queda por revisar en la UI.
     if anio is not None:

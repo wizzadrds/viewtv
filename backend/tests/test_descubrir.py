@@ -447,3 +447,180 @@ def test_catalogo_reciente_sin_volumen_de_metadatos(client, monkeypatch, tmp_pat
     assert browser.get("/descubrir/catalogo/estado").json()["total"] == 0
     assert browser.get("/descubrir/filas/catalogo").json()["elementos"] == []
     assert browser.get("/descubrir/filas/recientes").status_code == 200
+
+
+class SeasonTMDB(StubTMDB):
+    """TMDB falso: ni web, ni qBittorrent, ni contenido privado."""
+    def details(self, media_type, tmdb_id):
+        result = super().details(media_type, tmdb_id)
+        if media_type == "serie":
+            result["name"] = "Serie de prueba"
+            result["seasons"] = [
+                {"season_number": 0, "name": "Especiales", "episode_count": 1},
+                {"season_number": 1, "name": "Temporada 1", "episode_count": 42,
+                 "poster_path": "/temporada.jpg", "air_date": "2020-04-12"},
+                {"season_number": 2, "name": "Temporada 2", "episode_count": 1},
+            ]
+        return result
+
+    def season_details(self, tmdb_id, season_number):
+        count = 42 if season_number == 1 else 1
+        return {
+            "season_number": season_number, "name": "Temporada de prueba",
+            "overview": "Sinopsis de la temporada",
+            "episodes": [
+                {
+                    "id": 8000 + n, "season_number": season_number,
+                    "episode_number": n, "name": f"Capítulo {n}",
+                    "overview": f"Trama del capítulo {n}",
+                    "runtime": 44, "still_path": "/fotograma.jpg",
+                    "air_date": "2999-01-01" if n == 42 else "2020-04-12",
+                }
+                for n in range(1, count + 1)
+            ],
+        }
+
+
+def test_serie_tiene_una_ficha_con_temporadas_y_especiales(client, monkeypatch):
+    browser, db = client
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: SeasonTMDB())
+    detail = browser.get("/descubrir/serie/15")
+    assert detail.status_code == 200
+    assert detail.json()["titulo"] == "Serie de prueba"
+    assert [s["temporada"] for s in detail.json()["temporadas"]] == [0, 1, 2]
+    assert detail.json()["temporadas"][1]["imagen_portada"].startswith(
+        "https://image.tmdb.org/t/p/w500/"
+    )
+    with Session(db) as s:
+        assert not s.exec(select(Solicitud)).all()
+        assert not s.exec(select(Descarga)).all()
+
+
+def test_temporada_episodios_paginados_sin_iniciar_descargas(client, monkeypatch):
+    browser, db = client
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: SeasonTMDB())
+    first = browser.get("/descubrir/serie/15/temporadas/1?pagina=1")
+    second = browser.get("/descubrir/serie/15/temporadas/1?pagina=2")
+    assert first.status_code == second.status_code == 200
+    a, b = first.json(), second.json()
+    assert a["total"] == 42 and a["paginas"] == 2
+    assert len(a["episodios"]) == 40 and len(b["episodios"]) == 2
+    assert a["episodios"][0]["episodio"] == 1
+    assert a["episodios"][0]["imagen"].startswith("https://image.tmdb.org/t/p/w500/")
+    assert a["episodios"][0]["duracion_minutos"] == 44
+    assert b["episodios"][-1]["episodio"] == 42
+    assert b["episodios"][-1]["solicitable"] is False
+    assert browser.get("/descubrir/serie/15/temporadas/0").status_code == 200
+    with Session(db) as s:
+        assert not s.exec(select(Solicitud)).all()
+        assert not s.exec(select(Descarga)).all()
+
+
+def test_pedir_episodio_crea_solo_solicitud_individual(client, monkeypatch):
+    browser, db = client
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: SeasonTMDB())
+    endpoint = "/descubrir/serie/15/temporadas/1/episodios/2/solicitar"
+    created = browser.post(endpoint)
+    assert created.status_code == 201
+    assert created.json()["temporada"] == 1
+    assert created.json()["episodio"] == 2
+    assert "fuente autorizada" in created.json()["mensaje"]
+    with Session(db) as s:
+        pending = s.exec(select(Solicitud)).all()
+        assert len(pending) == 1
+        assert pending[0].tipo_medio == "serie"
+        assert pending[0].titulo == "Serie de prueba S01E02"
+        assert pending[0].anio is None
+        assert not s.exec(select(Descarga)).all()
+    assert browser.post(endpoint).status_code == 409
+    other = browser.post("/descubrir/serie/15/temporadas/1/episodios/3/solicitar")
+    assert other.status_code == 201
+    with Session(db) as s:
+        titles = [item.titulo for item in s.exec(select(Solicitud)).all()]
+        assert titles == ["Serie de prueba S01E02", "Serie de prueba S01E03"]
+        assert not s.exec(select(Descarga)).all()
+
+
+def test_serie_instalada_no_impide_elegir_otro_episodio(client, monkeypatch):
+    browser, db = client
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: SeasonTMDB())
+    with Session(db) as s:
+        s.add(Medio(
+            jellyfin_id="jf-serie", tipo="serie", titulo="Serie de prueba",
+            tmdb_id=15, disponible_en_jellyfin=True,
+        ))
+        s.commit()
+    loaded = browser.get("/descubrir/serie/15/temporadas/1")
+    assert loaded.status_code == 200
+    assert loaded.json()["disponible_local"] is True
+    assert "No se ha verificado" in loaded.json()["aviso_disponibilidad"]
+    assert browser.post("/descubrir/serie/15/temporadas/1/episodios/2/solicitar").status_code == 201
+
+
+@pytest.mark.parametrize(("path", "expected"), [
+    ("/descubrir/serie/15/temporadas/3", 404),
+    ("/descubrir/serie/15/temporadas/-1", 422),
+    ("/descubrir/serie/15/temporadas/101", 422),
+    ("/descubrir/serie/15/temporadas/1?pagina=41", 422),
+    ("/descubrir/serie/15/temporadas/1/episodios/99/solicitar", 404),
+    ("/descubrir/serie/15/temporadas/1/episodios/42/solicitar", 409),
+    ("/descubrir/serie/15/solicitar", 422),
+])
+def test_serie_rechaza_episodios_y_temporadas_incorrectos(client, monkeypatch, path, expected):
+    browser, db = client
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: SeasonTMDB())
+    result = browser.post(path) if path.endswith("/solicitar") else browser.get(path)
+    assert result.status_code == expected
+    with Session(db) as s:
+        assert not s.exec(select(Solicitud)).all()
+        assert not s.exec(select(Descarga)).all()
+
+
+def test_temporada_no_fiable_o_show_adulto_se_rechaza(client, monkeypatch):
+    browser, db = client
+    class WrongSeason(SeasonTMDB):
+        def season_details(self, tmdb_id, season_number):
+            return {**super().season_details(tmdb_id, season_number), "season_number": 5}
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: WrongSeason())
+    assert browser.get("/descubrir/serie/15/temporadas/1").status_code == 404
+    assert browser.post(
+        "/descubrir/serie/15/temporadas/1/episodios/2/solicitar"
+    ).status_code == 404
+
+    class AdultShow(SeasonTMDB):
+        def details(self, media_type, tmdb_id):
+            return {**super().details(media_type, tmdb_id), "adult": True}
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: AdultShow())
+    assert browser.get("/descubrir/serie/15/temporadas/1").status_code == 404
+    assert browser.post(
+        "/descubrir/serie/15/temporadas/1/episodios/2/solicitar"
+    ).status_code == 404
+    with Session(db) as s:
+        assert not s.exec(select(Solicitud)).all()
+
+
+def test_temporadas_necesitan_sesion(client, monkeypatch):
+    browser, _ = client
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: SeasonTMDB())
+    app.dependency_overrides.pop(get_current_profile)
+    assert browser.get("/descubrir/serie/15/temporadas/1").status_code == 401
+    assert browser.post(
+        "/descubrir/serie/15/temporadas/1/episodios/2/solicitar"
+    ).status_code == 401
+
+
+def test_cliente_tmdb_restringe_urls_de_temporada(monkeypatch):
+    from app.tmdb import TMDBClient, TMDBError
+
+    fake = object.__new__(TMDBClient)
+    paths = []
+    def fake_get(path, params=None):
+        paths.append(path)
+        return {"season_number": 1, "episodes": []}
+    monkeypatch.setattr(fake, "_get", fake_get)
+    assert fake.season_details(15, 1)["season_number"] == 1
+    assert paths == ["tv/15/season/1"]
+    for series_id, season in [(0, 1), (15, -1), (15, 101), (True, 1), (15, True)]:
+        with pytest.raises(TMDBError):
+            fake.season_details(series_id, season)
+    assert paths == ["tv/15/season/1"]

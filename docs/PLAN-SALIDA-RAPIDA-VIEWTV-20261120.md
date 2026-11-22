@@ -812,3 +812,11 @@ antes de comprometer horas o una fecha final.
   decenas de miles manteniendo el presupuesto.
 Informe:
 [AVANCE-CATALOGO-ESCALABLE-250K-20261122.md](AVANCE-CATALOGO-ESCALABLE-250K-20261122.md).
+
+
+**Fase series por temporada (22/11/2026):**
+- [x] Una sola ficha y carátula por serie en Explorar; navegar temporadas, especiales y episodios dentro de la ficha, sin duplicarlos en portada.
+- [x] Solicitar **un capítulo específico**, confirmado con TMDB, con identificación SxxEyy en la cola, sin transferencias automáticas por navegación y sin packs ambiguos.
+- [x] Diseño adaptable a TV/móvil, control por cruceta, imágenes de episodios, fechas y sinopsis; 970 tests backend y smoke 10/10, API/frontend healthy.
+- [ ] **Fase independiente de publicación de series:** verificar episodio real dentro de torrent y planificar incorporación segura en NTFS de series y temporadas existentes, primero SOLO sandbox, sin cambiar `worker/organization_windows_authority.py` en producción sin autorización; inventario de capítulos presentes y reproducción individual desde Jellyfin.
+Informe: [AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md](AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md).

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { apiRequest } from "@/lib/api";
 import DiscoveryRows from "@/components/discovery-rows";
+import SeriesSeasonPicker from "@/components/series-season-picker";
+import type { SeasonSummary } from "@/components/series-season-picker";
 
 type Tipo = "pelicula" | "serie";
 
@@ -19,6 +21,7 @@ type DiscoveryItem = {
   medio_id: number | null;
   generos?: string[];
   duracion_minutos?: number | null;
+  temporadas?: SeasonSummary[];
 };
 
 type DiscoveryPage = {
@@ -105,7 +108,10 @@ export default function DiscoverPanel({
   }, [query]);
 
   const openDetail = async (item: DiscoveryItem) => {
-    if (item.disponible_local && item.medio_id != null) {
+    // En una serie, tener un capítulo en Jellyfin no implica tenerla completa.
+    // Abrir siempre la ficha TMDB para poder elegir los capítulos que faltan.
+    if (item.disponible_local && item.medio_id != null
+        && (item.tipo === "pelicula" || item.tmdb_id === null)) {
       onShowLibrary(item.medio_id);
       return;
     }
@@ -127,7 +133,8 @@ export default function DiscoverPanel({
   };
 
   const requestDownload = async (item: DiscoveryItem) => {
-    if (requestBusy || item.disponible_local || detailBusy || item.tmdb_id === null) return;
+    if (requestBusy || item.disponible_local || detailBusy
+        || item.tmdb_id === null || item.tipo !== "pelicula") return;
     setRequestBusy(true);
     setNotice("");
     try {
@@ -260,8 +267,12 @@ export default function DiscoverPanel({
 
       {detail && (
         <div className="dialog-backdrop" role="presentation" onClick={() => setDetail(null)}>
-          <section className="detail-dialog" role="dialog" aria-modal="true"
-            aria-labelledby="discovery-detail-title" onClick={(event) => event.stopPropagation()}>
+          <section
+            className={detail.tipo === "serie" ? "detail-dialog series-detail-dialog" : "detail-dialog"}
+            role="dialog" aria-modal="true" aria-labelledby="discovery-detail-title"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => { if (event.key === "Escape") setDetail(null); }}
+          >
             <button className="dialog-close" type="button" data-spatial
               aria-label="Cerrar ficha" onClick={() => setDetail(null)}>×</button>
             {detail.imagen_fondo && (
@@ -284,11 +295,35 @@ export default function DiscoverPanel({
                   </p>
                   <p className="detail-synopsis">{detail.sinopsis || "Sin sinopsis disponible."}</p>
                   <p className="discover-availability">
-                    {detail.disponible_local
-                      ? "Disponible para reproducir desde tu biblioteca"
-                      : "Ficha disponible · Vídeo no descargado"}
+                    {detail.tipo === "serie"
+                      ? (detail.disponible_local
+                        ? "Serie en tu biblioteca · Comprueba qué episodios tienes"
+                        : "Carátula de la serie · Elige temporada y episodio")
+                      : (detail.disponible_local
+                        ? "Disponible para reproducir desde tu biblioteca"
+                        : "Ficha disponible · Vídeo no descargado")}
                   </p>
-                  {detail.disponible_local ? (
+                  {detail.tipo === "serie" ? (
+                    <>
+                      {detail.disponible_local && (
+                        <button className="quiet-button" type="button" data-spatial
+                          onClick={() => { setDetail(null); onShowLibrary(detail.medio_id ?? undefined); }}>
+                          Ver esta serie en mi biblioteca
+                        </button>
+                      )}
+                      {detailBusy ? (
+                        <p className="muted">Preparando las temporadas de la serie…</p>
+                      ) : (
+                        <SeriesSeasonPicker
+                          key={detail.tmdb_id}
+                          seriesId={detail.tmdb_id ?? 0}
+                          seasons={detail.temporadas ?? []}
+                          onUnauthorized={onUnauthorized}
+                          onShowRequests={() => { setDetail(null); onShowRequests(); }}
+                        />
+                      )}
+                    </>
+                  ) : detail.disponible_local ? (
                     <>
                       <button className="primary-button compact" type="button" data-spatial
                         onClick={() => { setDetail(null); onShowLibrary(); }}>
