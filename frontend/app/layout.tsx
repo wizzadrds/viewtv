@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import AppUpdateMonitor from "@/components/app-update-monitor";
 
 export const metadata: Metadata = {
   title: "VIEWTV",
@@ -17,7 +18,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <AppUpdateMonitor />
+        {children}
+      </body>
     </html>
   );
 }

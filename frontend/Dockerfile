@@ -5,6 +5,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 
 COPY . .
+# Genera un hash reproducible en cada build; la TV detecta nuevas versiones.
+RUN node scripts/generate-release.cjs
 ARG VIEWTV_API_INTERNAL_URL=http://api:8000
 ENV VIEWTV_API_INTERNAL_URL=${VIEWTV_API_INTERNAL_URL}
 ENV NEXT_TELEMETRY_DISABLED=1

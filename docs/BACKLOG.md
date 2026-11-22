@@ -130,3 +130,27 @@ de aumentar indefinidamente `/discover`.
 
 
 **Series por temporadas/episodios (22/11/2026):** desplegada una ficha única por serie con selector de temporadas y especiales, lista de episodios, miniaturas, sinopsis, estrenos y solicitud explícita SxxEyy; nunca se descarga al navegar. El servidor contrasta serie y temporada con TMDB, rechaza episodios futuros y valida código exacto al emparejar fuentes, sin aceptar varios capítulos en un único resultado ambiguo. Pruebas backend **970/970**, smoke de producción **10/10** y consulta real de serie y temporada HTTP 200. **Pendiente crítico:** `worker/organization_windows_authority.py` solo autoriza publicar películas en el NTFS real, no episodios; no ampliar sin ensayo de broker en sandbox, verificación de contenido real del torrent y propiedad/hardlinks. También pendiente inventario y reproducción por episodio local. Informe [AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md](AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md).
+
+
+**Jackett + televisión con actualización compartida (22/11/2026):**
+Jackett muestra **3 indexadores configurados**, tanto desde
+API como worker: `divxtotal`, `dontorrent`,
+`mejortorrent`. Las consultas `t=caps` de los tres
+devuelven búsqueda de películas y series; sin búsquedas
+reales ni transferencias. Se ha desplegado el frontend
+`viewtv-frontend:tv-auto-update-0013`, con hash de
+versión generado durante Docker build, endpoint sin caché
+`/api/app-version`, comprobación cada minuto, aviso
+«Actualizar ahora» y recarga automática al quedar
+inactivo 90 segundos sin vídeo ni fichas abiertas.
+TypeScript/ESLint, build y smoke 10/10 PASS.
+
+**Acceso TV pendiente de paso manual del propietario**:
+Windows solo escucha `127.0.0.1:3000`. Para su Wi-Fi
+privada `192.168.1.138/24` se necesita habilitar
+un portproxy y regla firewall de red privada
+restringida; el conector remoto bloquea `netsh`
+y no lo ha modificado. No afirmar test en TV hasta
+verificación desde el dispositivo.
+Documento:
+[AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md](AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md).

@@ -820,3 +820,28 @@ Informe:
 - [x] Diseño adaptable a TV/móvil, control por cruceta, imágenes de episodios, fechas y sinopsis; 970 tests backend y smoke 10/10, API/frontend healthy.
 - [ ] **Fase independiente de publicación de series:** verificar episodio real dentro de torrent y planificar incorporación segura en NTFS de series y temporadas existentes, primero SOLO sandbox, sin cambiar `worker/organization_windows_authority.py` en producción sin autorización; inventario de capítulos presentes y reproducción individual desde Jellyfin.
 Informe: [AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md](AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md).
+
+
+**Fase televisión / Jackett / sincronización de versiones (22/11/2026):**
+- [x] Leer sin secretos los tres indexadores configurados
+  de Jackett (API y worker) y sus capacidades Torznab.
+- [x] Generar versión única de frontend en Docker,
+  publicarla sin caché en `/api/app-version` y
+  comprobarla cada minuto desde cualquier navegador.
+- [x] Avisar y permitir actualizar con mando, y recargar
+  automáticamente si hay 90 segundos inactivos y no
+  se reproduce vídeo ni hay una ficha abierta.
+- [x] Validar nueva imagen frontend, Compose, smoke 10/10,
+  API/Jellyfin/worker/productor intactos y plan rollback.
+- [ ] **Propietario en PowerShell Administrador:** autorizar
+  enlace LAN `192.168.1.138:3000` solo Wi-Fi
+  `192.168.1.0/24`, perfil Private (portproxy/firewall).
+  El conector remoto NO pudo ejecutar `netsh`;
+  no se ha abierto aún la red.
+- [ ] **Televisión real:** abrir la URL LAN, entrar,
+  comprobar navegación con mando, carátulas,
+  serie/temporada/episodio y vídeo autorizado con
+  imagen/sonido/pausa. Verificar actualización
+  al instalar una revisión de frontend posterior.
+Informe:
+[AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md](AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md).

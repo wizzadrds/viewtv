@@ -1,0 +1,4 @@
+# Solo sustituye la interfaz compartida entre ordenador y televisión.
+services:
+  frontend:
+    image: viewtv-frontend:tv-auto-update-0013

@@ -570,3 +570,29 @@ button:disabled { cursor: wait; opacity: .55; }
 @media (prefers-reduced-motion: reduce) {
   .series-episode, .series-season-chip { transition: none; }
 }
+
+/* Aviso de versión compartida TV/PC: siempre accesible con mando, sin tapar vídeos. */
+.viewtv-update-notice {
+  position: fixed; z-index: 90; bottom: max(18px, env(safe-area-inset-bottom));
+  left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  width: min(620px, calc(100vw - 32px)); padding: 14px 17px;
+  border: 1px solid rgba(179,157,240,.65); border-radius: 16px;
+  background: rgba(17,18,36,.98); color: #f9f5ff;
+  box-shadow: 0 16px 55px rgba(0,0,0,.55);
+}
+.viewtv-update-notice > div { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.viewtv-update-notice strong { font-size: 13px; }
+.viewtv-update-notice span { color: #bfc0d1; font-size: 11px; line-height: 1.5; }
+.viewtv-update-action {
+  flex: 0 0 auto; min-height: 42px; padding: 10px 17px; border: 0;
+  border-radius: 11px; background: #9371e5; color: #fff;
+  font-size: 12px; font-weight: 800; cursor: pointer;
+}
+.viewtv-update-action:hover, .viewtv-update-action:focus-visible {
+  background: #b39aff; color: #171127; outline: 3px solid #f9f5ff; outline-offset: 3px;
+}
+@media (max-width: 520px) {
+  .viewtv-update-notice { flex-direction: column; align-items: stretch; gap: 12px; }
+  .viewtv-update-action { width: 100%; }
+}
