@@ -124,6 +124,16 @@ class TMDBClient:
             raise TMDBError("Identificador o tipo de medio no válido.")
         return self._get(f"{endpoints[media_type]}/{tmdb_id}")
 
+    def details_with_aliases(self, media_type: str, tmdb_id: int) -> dict:
+        """Una única consulta TMDB para ficha, traducciones y títulos oficiales."""
+        kinds = {"pelicula": "movie", "serie": "tv"}
+        if media_type not in kinds or type(tmdb_id) is not int or not 1 <= tmdb_id <= 2_147_483_647:
+            raise TMDBError("Tipo o identificador no válido.")
+        return self._get(
+            f"{kinds[media_type]}/{tmdb_id}",
+            {"append_to_response": "translations,alternative_titles"},
+        )
+
     def season_details(self, tmdb_id: int, season_number: int) -> dict:
         """Episodios de una temporada; solo consulta metadatos TMDB."""
         if (

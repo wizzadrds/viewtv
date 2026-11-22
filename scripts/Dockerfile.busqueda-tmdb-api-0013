@@ -1,0 +1,7 @@
+# Hereda la API de series desplegada; únicamente cambia búsqueda y validación.
+FROM viewtv:series-episodios-api-0013
+COPY backend/app/tmdb.py /opt/viewtv/backend/app/tmdb.py
+COPY backend/app/titulo_cohesion.py /opt/viewtv/backend/app/titulo_cohesion.py
+COPY backend/app/relevancia_resultado.py /opt/viewtv/backend/app/relevancia_resultado.py
+COPY backend/app/solicitudes.py /opt/viewtv/backend/app/solicitudes.py
+RUN python -m py_compile /opt/viewtv/backend/app/tmdb.py /opt/viewtv/backend/app/titulo_cohesion.py /opt/viewtv/backend/app/relevancia_resultado.py /opt/viewtv/backend/app/solicitudes.py

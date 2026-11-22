@@ -845,3 +845,29 @@ Informe: [AVANCE-SERIES-TEMPORADAS-EPISODIOS-0013-20261122.md](AVANCE-SERIES-TEM
   al instalar una revisión de frontend posterior.
 Informe:
 [AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md](AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md).
+
+
+**Hito búsquedas asociadas a carátulas y Samsung (22/11/2026):**
+- [x] Identificar títulos oficiales con TMDB antes de las búsquedas
+  de Jackett; buscar hasta cuatro variantes, incluidos
+  originales en inglés y subtítulos breves.
+- [x] Comprobar título completo, año y episodio exacto:
+  los resultados de «Doomsday» sin identidad coincidente
+  con «Vengadores: Doomsday» no son seleccionables.
+- [x] Recargar TMDB en el worker por Compose privado,
+  conservar permisos de medios solo lectura y
+  la política Windows `general after_id=3`.
+- [x] Desplegar la versión Samsung sin React en `/tv.html`;
+  comprobar HTTP 200 por IP LAN, proxy de perfiles
+  y monitor de actualizaciones.
+- [x] Suite backend 978 PASS, smoke producción 10/10,
+  verificación del publicador limitado y copias
+  verificadas antes del despliegue.
+- [ ] **Usuario**: abrir `http://192.168.1.138:3000/tv.html`
+  en Samsung y probar mando, perfil y reproducción
+  de material propio sin seleccionar descargas.
+- [ ] Confirmar modelo exacto Samsung/año,
+  compatibilidad de vídeo y audio y, según
+  resultados, corregir soporte nativo HLS.
+Informe:
+[AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md](AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md).

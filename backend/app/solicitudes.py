@@ -8,13 +8,19 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
+from worker.torrent_metadata import (
+    TorrentMetadata,
+    TorrentMetadataError,
+    TorrentMetadataNotFoundError,
+    es_url_jackett_dl,
+    obtener_metadatos_jackett,
+    tamano_incoherente,
+)
 
 from app.auth import get_current_profile
 from app.config import get_settings
 from app.database import get_session
 from app.metadatos_resultado import extraer_metadatos
-from app.relevancia_resultado import coincide_con_solicitud
-from app.qbittorrent import QBittorrentClient, QBittorrentError
 from app.models import (
     Descarga,
     Medio,
@@ -23,14 +29,9 @@ from app.models import (
     Solicitud,
     utc_now,
 )
-from worker.torrent_metadata import (
-    TorrentMetadataError,
-    TorrentMetadataNotFoundError,
-    es_url_jackett_dl,
-    obtener_metadatos_jackett,
-    tamano_incoherente,
-    TorrentMetadata,
-)
+from app.qbittorrent import QBittorrentClient, QBittorrentError
+from app.relevancia_resultado import coincide_con_solicitud
+from app.titulo_cohesion import aliases_para_solicitud
 
 router = APIRouter(prefix="/solicitudes", tags=["solicitudes"])
 
@@ -611,10 +612,14 @@ def listar_resultados(
     }
 
     respuesta = []
+    aliases = aliases_para_solicitud(
+        solicitud.titulo, solicitud.tipo_medio, solicitud.anio,
+    )
 
     for resultado in resultados:
         if not coincide_con_solicitud(
-            solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
+            solicitud.titulo, solicitud.tipo_medio, solicitud.anio,
+            resultado.titulo, aliases,
         ):
             continue
         respuesta.append(
@@ -675,7 +680,8 @@ def verificar_resultado(
     if resultado is None:
         raise HTTPException(status_code=404, detail="Resultado no encontrado.")
     if not coincide_con_solicitud(
-        solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
+        solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo,
+        aliases_para_solicitud(solicitud.titulo, solicitud.tipo_medio, solicitud.anio),
     ):
         raise HTTPException(status_code=409, detail="El título no corresponde a la solicitud.")
     respuesta, _metainfo_privado = _verificar_metadatos_para_perfil(
@@ -711,6 +717,19 @@ def seleccionar_resultado(
     ).first()
     snapshot = None
     metainfo_validado: TorrentMetadata | None = None
+    # Resolver nombres oficiales antes de BEGIN IMMEDIATE para no bloquear
+    # SQLite mientras se consulta TMDB (o Jackett).
+    solicitud_pre = session.exec(
+        select(Solicitud).where(
+            Solicitud.id == solicitud_id,
+            Solicitud.perfil_id == perfil.id,
+        )
+    ).first()
+    aliases_pre = (
+        aliases_para_solicitud(
+            solicitud_pre.titulo, solicitud_pre.tipo_medio, solicitud_pre.anio,
+        ) if solicitud_pre is not None else ()
+    )
     if resultado_pre is not None:
         snapshot = (
             resultado_pre.download_url,
@@ -791,7 +810,8 @@ def seleccionar_resultado(
                 detail="Los metadatos del resultado han cambiado. Compruébalo de nuevo.",
             )
         if not coincide_con_solicitud(
-            solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo
+            solicitud.titulo, solicitud.tipo_medio, solicitud.anio,
+            resultado.titulo, aliases_pre,
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

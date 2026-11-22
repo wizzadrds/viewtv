@@ -1,0 +1,7 @@
+# Hereda el worker productivo ya autorizado y su configuración de seguridad.
+FROM viewtv:release-0013-worker-candidate
+COPY backend/app/tmdb.py /opt/viewtv/backend/app/tmdb.py
+COPY backend/app/titulo_cohesion.py /opt/viewtv/backend/app/titulo_cohesion.py
+COPY backend/app/relevancia_resultado.py /opt/viewtv/backend/app/relevancia_resultado.py
+COPY worker/processor.py /opt/viewtv/worker/processor.py
+RUN python -m py_compile /opt/viewtv/backend/app/tmdb.py /opt/viewtv/backend/app/titulo_cohesion.py /opt/viewtv/backend/app/relevancia_resultado.py /opt/viewtv/worker/processor.py

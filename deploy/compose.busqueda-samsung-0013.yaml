@@ -1,0 +1,11 @@
+# Busca títulos oficiales ES/EN con TMDB y ofrece navegador TV legado.
+# El worker recibe la MISMA TMDB_API_KEY privada que la API, nunca se registra.
+services:
+  api:
+    image: viewtv:busqueda-tmdb-api-0013
+  worker:
+    image: viewtv:busqueda-tmdb-worker-0013
+    environment:
+      TMDB_API_KEY: ${TMDB_API_KEY}
+  frontend:
+    image: viewtv-frontend:samsung-busqueda-0013

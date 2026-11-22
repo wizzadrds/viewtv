@@ -10,8 +10,9 @@ from sqlmodel import Session
 from app.database import engine
 from app.jackett import JackettClient, JackettError
 from app.models import ResultadoBusqueda
-from app.relevancia_resultado import coincide_con_solicitud
 from app.queue import claim_next_request, fail_request, finish_search_request
+from app.relevancia_resultado import coincide_con_solicitud
+from app.titulo_cohesion import aliases_para_solicitud, consultas_jackett
 
 logger = logging.getLogger("viewtv.worker.processor")
 
@@ -113,17 +114,24 @@ def process_one_request(
     if request_id is None:
         return True
 
-    query = f"{title} {year}" if year else title
-
     try:
+        aliases = aliases_para_solicitud(title, media_type, year)
+        queries = consultas_jackett(title, media_type, year, aliases)
         jackett = client or JackettClient()
-        found = jackett.search(
-            query,
-            search_type=_search_type(media_type),
-        )
+        found = []
+        for query in queries:
+            try:
+                found.extend(jackett.search(
+                    query, search_type=_search_type(media_type),
+                ))
+            except JackettError:
+                # No descartar resultados anteriores si falla un alias alternativo.
+                if not found:
+                    raise
+                logger.warning("Una consulta alternativa de Jackett no respondió")
         results = [
             item for item in _to_database_results(request_id, found)
-            if coincide_con_solicitud(title, media_type, year, item.titulo)
+            if coincide_con_solicitud(title, media_type, year, item.titulo, aliases)
         ]
 
         with Session(engine) as session:

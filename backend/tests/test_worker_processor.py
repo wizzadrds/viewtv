@@ -284,3 +284,74 @@ def test_lost_lease_does_not_save_search_results(monkeypatch):
         assert request.locked_until is not None
         assert request.locked_until <= datetime.now(UTC)
         assert results == []
+
+
+
+def test_solicitud_tmdb_multilingue_enlaza_unicamente_publicaciones_correctas(monkeypatch):
+    """Vengadores: Doomsday encuentra Avengers: Doomsday sin aceptar otros Doomsday."""
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    monkeypatch.setattr(
+        processor, "aliases_para_solicitud",
+        lambda title, kind, year: ("Vengadores: Doomsday", "Avengers: Doomsday"),
+    )
+
+    with Session(test_engine) as session:
+        request = add_request(session)
+        request.titulo = "Vengadores: Doomsday"
+        request.anio = 2026
+        request.jellyfin_item_id = None
+        session.add(request)
+        session.commit()
+        request_id = request.id
+
+    class BilingualJackett:
+        calls = []
+
+        def search(self, query, search_type="search", categories=None):
+            self.calls.append(query)
+            if query.startswith("Vengadores"):
+                return []
+            if query.startswith("Avengers"):
+                return [
+                    make_result(
+                        title="Avengers.Doomsday.2026.1080p.WEB-DL",
+                        info_hash="english-title",
+                    ),
+                ]
+            if query.startswith("Doomsday"):
+                return [
+                    make_result(
+                        title="Doomsday.2008.1080p.BluRay",
+                        info_hash="unrelated-film",
+                        download_url="https://jackett.test/download/other",
+                    ),
+                ]
+            return []
+
+    provider = BilingualJackett()
+    assert processor.process_one_request("worker-idiomas", provider)
+    with Session(test_engine) as session:
+        rows = session.exec(
+            select(ResultadoBusqueda).where(ResultadoBusqueda.solicitud_id == request_id)
+        ).all()
+        assert len(rows) == 1
+        assert rows[0].titulo == "Avengers.Doomsday.2026.1080p.WEB-DL"
+        assert session.get(Solicitud, request_id).estado == "esperando_seleccion"
+    assert any("Avengers: Doomsday" in query for query in provider.calls)
+    assert any(query.startswith("Doomsday") for query in provider.calls)
+    assert len(provider.calls) <= 4
+
+
+def test_fallback_sin_tmdb_conserva_consulta_original(monkeypatch):
+    test_engine = make_engine()
+    monkeypatch.setattr(processor, "engine", test_engine)
+    monkeypatch.setattr(processor, "aliases_para_solicitud", lambda *args: ())
+    with Session(test_engine) as session:
+        request = add_request(session)
+        request.titulo = "Título no identificado"
+        session.add(request)
+        session.commit()
+    provider = FakeJackett(results=[make_result(title="Título no identificado 2020 1080p")])
+    assert processor.process_one_request("sin-tmdb", provider)
+    assert provider.calls == [("Título no identificado 2020", "movie")]

@@ -154,3 +154,30 @@ y no lo ha modificado. No afirmar test en TV hasta
 verificación desde el dispositivo.
 Documento:
 [AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md](AVANCE-TV-JACKETT-ACTUALIZACIONES-0013-20261122.md).
+
+
+**Cohesión carátulas TMDB ↔ Jackett y compatibilidad Samsung (22/11/2026):**
+las solicitudes ahora buscan el título local, original y
+variantes oficiales enlazadas a un único ID TMDB (máximo
+cuatro consultas); se reserva una búsqueda por subtítulo
+sin permitir seleccionar películas que solo compartan
+una palabra. La API y el worker utilizan los mismos alias,
+el año y el código SxxEyy exacto. La clave TMDB se recargó
+también en el worker, sin mostrarla. Comprobación real:
+«Vengadores: Doomsday» ID TMDB 1003596 y 6 alias;
+Jackett devolvió 10 resultados para «Doomsday»,
+pero ninguno correspondía a esa película, por lo que
+**no se ofreció ningún resultado incorrecto**.
+Suite backend **978/978 PASS**, smoke 10/10, sin descargas.
+
+Samsung: se instaló una web alternativa de navegador
+`/tv.html` (HTML/JavaScript ES5 sin React) para
+perfil/PIN, carátulas, temporadas, biblioteca y prueba
+de vídeo HTML5; se mantiene la app moderna.
+`http://192.168.1.138:3000/tv.html` devuelve
+HTTP 200 y los perfiles por LAN también.
+**Pendiente** comprobar realmente en el televisor
+inicio de sesión, mando y reproducción/códec;
+no inferir éxito solo por HTTP desde Windows.
+Documento:
+[AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md](AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md).
