@@ -6,11 +6,12 @@ import Hls from "hls.js";
 import DiscoverPanel from "@/components/discover-panel";
 import DownloadsPanel from "@/components/downloads-panel";
 import RequestsPanel from "@/components/requests-panel";
+import StoragePanel from "@/components/storage-panel";
 import { apiPath, apiRequest } from "@/lib/api";
 import type { CatalogResponse, MediaItem, Profile } from "@/lib/api";
 
 type Session = { id: number; nombre: string };
-type View = "loading" | "login" | "catalog" | "discover" | "requests" | "downloads";
+type View = "loading" | "login" | "catalog" | "discover" | "requests" | "downloads" | "storage";
 
 function useSpatialNavigation(enabled: boolean) {
   useEffect(() => {
@@ -78,7 +79,7 @@ export default function ViewTVApp() {
   const playbackRequest = useRef(0);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  useSpatialNavigation((view === "catalog" || view === "discover" || view === "login" || view === "requests" || view === "downloads") && !playbackUrl);
+  useSpatialNavigation((view === "catalog" || view === "discover" || view === "login" || view === "requests" || view === "downloads" || view === "storage") && !playbackUrl);
 
   const loadProfiles = useCallback(async () => {
     const controller = new AbortController();
@@ -476,6 +477,13 @@ export default function ViewTVApp() {
             type="button"
             aria-current={view === "downloads" ? "page" : undefined}
           >Descargas</button>
+          <button
+            className={view === "storage" ? "nav-link nav-active" : "nav-link"}
+            data-spatial
+            onClick={() => setView("storage")}
+            type="button"
+            aria-current={view === "storage" ? "page" : undefined}
+          >Espacio</button>
         </nav>
         <div className="account-actions">
           <span className="profile-label">{profile?.nombre}</span>
@@ -561,6 +569,9 @@ export default function ViewTVApp() {
       )}
       {view === "downloads" && profile && (
         <DownloadsPanel key={profile.id} onUnauthorized={handleSessionExpired} />
+      )}
+      {view === "storage" && profile && (
+        <StoragePanel key={profile.id} onUnauthorized={handleSessionExpired} />
       )}
 
       {selectedItem && !playbackUrl && (

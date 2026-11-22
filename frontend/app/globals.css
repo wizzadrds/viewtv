@@ -610,3 +610,93 @@ button:disabled { cursor: wait; opacity: .55; }
 .tv-boot-fallback a:focus-visible,.tv-boot-fallback a:hover {
   outline: 3px solid #fff; outline-offset: 4px; background: #6242a4;
 }
+
+/* Gestión de espacio 0015: legible a distancia, foco claro y acciones explícitas. */
+.storage-section {
+  width: min(1200px, calc(100% - 40px));
+  margin: 44px auto 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: #f6f4ff;
+}
+.storage-heading h1 { margin: 10px 0 7px; font-size: clamp(27px, 3vw, 41px); }
+.storage-heading .welcome-copy { max-width: 770px; }
+.storage-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.storage-metric {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
+  padding: 22px; min-height: 164px;
+  border: 1px solid rgba(181,162,226,.25);
+  background: linear-gradient(145deg, #26213f, #15192c);
+  border-radius: 18px;
+}
+.storage-metric > span { font-size: 13px; color: #c9bde8; font-weight: 700; }
+.storage-metric strong { font-size: clamp(21px,2.3vw,30px); letter-spacing: -.025em; }
+.storage-metric small { color: #aeb3cc; font-size: 11px; line-height: 1.55; }
+.storage-cache-actions {
+  display: flex; justify-content: space-between; align-items: center; gap: 24px;
+  padding: 20px 24px; background: rgba(19,22,39,.8);
+  border: 1px solid rgba(188,175,230,.17); border-radius: 16px;
+}
+.storage-cache-actions h2, .storage-list-heading h2 { font-size: 22px; margin: 0 0 8px; }
+.storage-cache-actions p, .storage-list-heading p { color: #b7b5ca; font-size: 13px; line-height: 1.65; margin: 0; max-width: 800px; }
+.storage-warning {
+  font-size: 12px; line-height: 1.7; padding: 12px 16px;
+  border-left: 3px solid #baa0ff; color: #d0c6e9;
+  background: rgba(130,87,193,.11);
+}
+.storage-notice {
+  padding: 12px 16px; background: rgba(51,100,82,.25);
+  border: 1px solid rgba(127,203,176,.55); border-radius: 12px;
+  color: #ceffe9; font-size: 13px;
+}
+.storage-list-heading {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 20px; padding-top: 25px; border-top: 1px solid #34334e;
+}
+.storage-filters { display: flex; flex-direction: column; gap: 10px; min-width: 205px; }
+.storage-filters > input {
+  width: 100%; padding: 12px; background: #17182b; color: #fff;
+  border-radius: 9px; border: 1px solid #55516f;
+}
+.storage-filters label { display: flex; align-items: center; gap: 8px; color: #c9bfda; font-size: 12px; }
+.storage-film-list { display: flex; flex-direction: column; gap: 10px; }
+.storage-film {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  padding: 15px 19px; border-radius: 13px; border: 1px solid #36354c;
+  background: rgba(26,27,47,.92);
+}
+.storage-film-info { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.storage-film-info strong { font-size: 16px; overflow-wrap: anywhere; }
+.storage-film-info span { color: #aeb0ca; font-size: 12px; }
+.storage-film-info .storage-pending { color: #ffe1a8; font-weight: 700; }
+.storage-film-actions { display: flex; gap: 9px; flex-wrap: wrap; align-items: center; }
+.storage-remove-action {
+  min-height: 44px; padding: 11px 16px; border-radius: 10px;
+  border: 1px solid #d59a9a; color: #ffe7e7;
+  background: rgba(133,52,65,.18); cursor: pointer; font-weight: 750;
+}
+.storage-remove-action:hover:not(:disabled),
+.storage-remove-action:focus-visible { background: #7f3044; }
+.storage-remove-action:disabled { opacity: .45; cursor: not-allowed; }
+.storage-section button:focus-visible, .storage-section input:focus-visible {
+  outline: 3px solid #e9d5ff; outline-offset: 3px;
+}
+.storage-section button:disabled { cursor: not-allowed; }
+.storage-pagination { display: flex; gap: 18px; justify-content: center; align-items: center; flex-wrap: wrap; padding: 14px 0; }
+.storage-pagination span { font-size: 12px; color: #c5bfda; }
+@media (max-width: 1000px) { .storage-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 670px) {
+  .storage-section { width: calc(100% - 24px); margin-top: 20px; }
+  .storage-stats { grid-template-columns: 1fr; }
+  .storage-metric { min-height: auto; }
+  .storage-cache-actions, .storage-list-heading, .storage-film { flex-direction: column; align-items: stretch; }
+  .storage-filters { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .storage-section * { scroll-behavior: auto; transition: none; }
+}

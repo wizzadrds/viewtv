@@ -1,0 +1,5 @@
+# Reversión de interfaz/lógica, conservando tablas y datos de 0015.
+FROM viewtv:cohesion-caratula-api-0014
+COPY backend/migrations/versions/0015_gestion_espacio_vistas.py /opt/viewtv/backend/migrations/versions/
+COPY backend/app/models.py /opt/viewtv/backend/app/models.py
+RUN cd /opt/viewtv/backend && alembic heads | grep 0015_gestion_espacio_vistas

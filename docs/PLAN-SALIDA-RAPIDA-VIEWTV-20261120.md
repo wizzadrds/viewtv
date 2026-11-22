@@ -902,3 +902,33 @@ Informe:
   enlace `/tv.html` ya arranca según confirmación del usuario.
 
 Informe: [AVANCE-COHESION-CARATULA-TMDB-0014-20261122.md](AVANCE-COHESION-CARATULA-TMDB-0014-20261122.md).
+
+## Nueva prioridad: gestión de espacio previa a la app Samsung (0015)
+
+- [x] Revisar ocupación real: biblioteca `24,31 GiB / 4 archivos`,
+  temporales `24,31 GiB / 8 archivos`; **no sumar ni llamar
+  «recuperables»**: origen y destino comparten enlaces NTFS.
+  Caché de VIEWTV **vacía**, disco con `705,5 GiB` libres.
+- [x] Panel PWA «Espacio», datos agregados y explicaciones,
+  tamaño lógico de carpetas, ficha TMDB separada y cuota 80 GiB
+  expresamente informativa/no exigida.
+- [x] Marcar vista/desmarcar por perfil, solicitudes de retirada con
+  título exacto, doble confirmación y cancelación, **sin borrar**.
+- [x] Limpieza de temporales solo con marcador y patrón propios,
+  sin symlinks, hardlinks múltiples ni archivos fuera de raíz.
+- [x] Migración SQLite 0015 aditiva/reversible sobre clon de
+  producción; backup con hash; **1017/1017 backend PASS**,
+  **18/18 frontend PASS**, build/TS/ESLint/Ruff y smoke **10/10**.
+- [x] API/worker/frontend 0015 desplegados con los demás servicios,
+  archivos multimedia y tarea Windows intactos. PR #2 OPEN/DRAFT.
+- [ ] **Antes de la app Samsung:** realizar autoridad/executor Windows
+  para **borrado físico verificado**, identificación exacta de propiedad,
+  hardlinks y estado qBittorrent, confirmación del administrador,
+  sandbox NTFS, recuperación de errores y registro de bytes realmente
+  liberados. Ningún borrado automático por estar vista una película.
+- [ ] Cuota/evicción real para caché que produzca archivos propios,
+  y validación del nuevo panel con sesión autenticada.
+- [ ] Solo entonces: app Samsung instalable profesional a color;
+  después: feed futuro «VIEWTV Momentos».
+
+Informe: [AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md](AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md).

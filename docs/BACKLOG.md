@@ -226,3 +226,37 @@ catálogo y recomendaciones. No hacer cambios de código ahora.
 
 Documento de producto, arquitectura candidata, criterios de aceptación
 y riesgos: [IDEA-FUTURA-MOMENTOS-VERTICALES-TV-20261122.md](IDEA-FUTURA-MOMENTOS-VERTICALES-TV-20261122.md).
+
+## Prioridad actual corregida por el propietario: espacio ANTES de Samsung (22/11/2026)
+
+**Tarea en curso: gestión de almacenamiento.** La app Samsung instalable
+y su rediseño a color **quedan después** del sistema completo de
+espacio, caché y borrado seguro de películas vistas; «VIEWTV Momentos»
+queda después de la app. Este orden reemplaza los apartados anteriores
+que indicaban la app como próxima tarea inmediata.
+
+**Hito 0015 desplegado:** nueva pantalla «Espacio» en la PWA
+principal, disco libre, tamaños lógicos de biblioteca/descargas,
+caché 0 GiB actualmente, cuota de 80 GiB indicada como **no aplicada**;
+marcas «vista» por perfil, solicitudes de retirada confirmadas y
+cancelables. La solicitud **no borra la película** ni libera espacio.
+Limpiar caché se limita a temporales propios marcados y no a Jellyfin,
+torrent, originales NTFS ni base de fichas TMDB. Backend
+**1017/1017 pruebas**, frontend **18/18**, smoke **10/10**,
+API/worker/frontend saludables, SQLite 0015; documentos, código y
+rollback preparados. Ningún archivo de película o torrent fue eliminado.
+
+**Bloqueo prioritario aún abierto (antes de la app):** implementar y
+validar la **retirada física segura** mediante la autoridad Windows,
+resolviendo propiedad exacta Jellyfin↔journal↔descarga, todos los
+hardlinks, torrents ajenos/en curso y acceso de otros perfiles. Requerir
+confirmación de administrador de biblioteca, pruebas de sandbox NTFS
+y medición de bytes *realmente* liberados. No utilizar `os.remove`
+desde API ni borrados por coincidencia de nombres; con el flujo actual,
+24,31 GiB en `Peliculas` y 24,31 GiB en
+`descargas_temporales` pueden representar datos compartidos.
+Pendiente también aplicar cuota real solo a cachés escritoras de
+VIEWTV que se implementen en el futuro. No afirmar borrado terminado.
+
+Informe completo:
+[AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md](AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md).

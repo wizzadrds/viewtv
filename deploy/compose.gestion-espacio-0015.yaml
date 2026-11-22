@@ -1,0 +1,8 @@
+# Únicamente API, worker y PWA. Sin cambios a qBit, Jellyfin ni NTFS.
+services:
+  api:
+    image: viewtv:gestion-espacio-api-0015
+  worker:
+    image: viewtv:gestion-espacio-worker-0015
+  frontend:
+    image: viewtv-frontend:gestion-espacio-0015

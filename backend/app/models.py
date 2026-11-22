@@ -63,6 +63,40 @@ class Medio(SQLModel, table=True):
     tmdb_intentado_en: datetime | None = None
 
 
+class PeliculaVista(SQLModel, table=True):
+    """Marca manual y privada de 'vista' por perfil, no telemetría Jellyfin."""
+
+    __tablename__ = "pelicula_vista"
+    __table_args__ = (
+        UniqueConstraint("perfil_id", "medio_id", name="uq_pelicula_vista_perfil_medio"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    perfil_id: int = Field(foreign_key="perfil.id", index=True)
+    medio_id: int = Field(foreign_key="medio.id", index=True)
+    vista_en: datetime = Field(default_factory=utc_now)
+
+
+class SolicitudRetirada(SQLModel, table=True):
+    """Revisión humana; nunca ejecuta un borrado por sí sola."""
+
+    __tablename__ = "solicitud_retirada"
+    __table_args__ = (
+        UniqueConstraint("perfil_id", "medio_id", name="uq_retirada_perfil_medio"),
+        CheckConstraint(
+            "estado IN ('pendiente_revision', 'cancelada')",
+            name="ck_retirada_estado",
+        ),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    perfil_id: int = Field(foreign_key="perfil.id", index=True)
+    medio_id: int = Field(foreign_key="medio.id", index=True)
+    estado: str = Field(default="pendiente_revision", max_length=24)
+    creada_en: datetime = Field(default_factory=utc_now)
+    actualizada_en: datetime = Field(default_factory=utc_now)
+
+
 class Solicitud(SQLModel, table=True):
     """Cola durable. El worker reclama tareas mediante un lease temporal."""
 

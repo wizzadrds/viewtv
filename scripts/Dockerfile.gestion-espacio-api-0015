@@ -1,0 +1,9 @@
+# Añade gestión de espacio sin modificar las reglas de descargas.
+FROM viewtv:cohesion-caratula-api-0014
+COPY backend/migrations/versions/0015_gestion_espacio_vistas.py /opt/viewtv/backend/migrations/versions/
+COPY backend/app/models.py /opt/viewtv/backend/app/models.py
+COPY backend/app/main.py /opt/viewtv/backend/app/main.py
+COPY backend/app/almacenamiento.py /opt/viewtv/backend/app/almacenamiento.py
+COPY backend/app/almacenamiento_archivos.py /opt/viewtv/backend/app/almacenamiento_archivos.py
+RUN cd /opt/viewtv/backend && alembic heads | grep 0015_gestion_espacio_vistas
+RUN python -m py_compile /opt/viewtv/backend/app/models.py /opt/viewtv/backend/app/main.py /opt/viewtv/backend/app/almacenamiento.py /opt/viewtv/backend/app/almacenamiento_archivos.py

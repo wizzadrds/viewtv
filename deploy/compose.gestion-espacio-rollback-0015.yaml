@@ -1,0 +1,8 @@
+# Reversión segura con tablas 0015 conservadas; no revierte SQLite real.
+services:
+  api:
+    image: viewtv:gestion-espacio-rollback-api-0015
+  worker:
+    image: viewtv:gestion-espacio-rollback-worker-0015
+  frontend:
+    image: viewtv-frontend:samsung-busqueda-0013
