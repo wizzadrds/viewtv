@@ -5,6 +5,7 @@ separada y usa la cola existente; el usuario elige después una fuente autorizad
 """
 import re
 import unicodedata
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
@@ -191,6 +192,112 @@ def _detail_data(kind: Tipo, tmdb_id: int, session: Session) -> dict:
     if item is None or item["tmdb_id"] != tmdb_id:
         raise HTTPException(status_code=404, detail="Ficha de TMDB no disponible.")
     return item
+
+
+# Filas curadas al estilo de las plataformas de streaming.
+# Las claves no llegan nunca como género/endpoint arbitrario a TMDB.
+# El primer estante es local: funciona incluso sin clave de TMDB.
+FILAS = (
+    ("recientes", "Recién añadidas", "Ya disponibles en tu biblioteca",
+     "local", "pelicula", None),
+    ("peliculas-nuevas", "Estrenos del año", "Películas recientes, sin descargar",
+     "anio", "pelicula", None),
+    ("tendencias", "En tendencia", "De las más comentadas esta semana",
+     "tendencia", "pelicula", None),
+    ("accion", "Acción y aventura", "Para no despegarse del sofá",
+     "genero", "pelicula", 28),
+    ("terror", "Noche de terror", "Para quien disfruta de un buen susto",
+     "genero", "pelicula", 27),
+    ("comedia", "Un rato de risas", "Comedias para desconectar",
+     "genero", "pelicula", 35),
+    ("ciencia-ficcion", "Ciencia ficción", "Otros mundos te esperan",
+     "genero", "pelicula", 878),
+    ("series-tendencia", "Series que están dando que hablar",
+     "Descubre series sin ocupar espacio en tu equipo",
+     "tendencia", "serie", None),
+    ("series-misterio", "Misterio y suspense", "Series para ver un episodio más",
+     "genero", "serie", 9648),
+)
+
+
+@router.get("/filas")
+def listar_filas(
+    _perfil: Annotated[Perfil, Depends(get_current_profile)],
+) -> dict:
+    """Orden de portada: reciente local, estrenos, tendencias y géneros."""
+    current_year = datetime.now(UTC).year
+    rows = [
+        {
+            "id": key,
+            "titulo": f"Películas nuevas de {current_year}" if origin == "anio" else title,
+            "descripcion": description,
+            "origen": origin,
+            "tipo": kind,
+        }
+        for key, title, description, origin, kind, _ in FILAS
+    ]
+    return {"filas": rows, "tmdb_configurado": bool(get_settings().tmdb_api_key)}
+
+
+def _local_recent(session: Session) -> list[dict]:
+    # El orden por ID refleja primera incorporación: actualizado_en cambia
+    # en cada sincronización de Jellyfin y NO es una fecha de alta fiable.
+    local = session.exec(
+        select(Medio)
+        .where(
+            Medio.disponible_en_jellyfin.is_(True),
+            Medio.tipo.in_(("pelicula", "serie")),
+        )
+        .order_by(Medio.id.desc())
+        .limit(20)
+    ).all()
+    return [
+        {
+            "tmdb_id": m.tmdb_id if isinstance(m.tmdb_id, int) else None,
+            "medio_id": m.id,
+            "tipo": m.tipo,
+            "titulo": m.titulo,
+            "sinopsis": m.sinopsis,
+            "anio": m.anio,
+            "imagen_portada": (
+                f"/jellyfin/media/{m.id}/images/primary" if m.imagen_portada else None
+            ),
+            "imagen_fondo": (
+                f"/jellyfin/media/{m.id}/images/backdrop" if m.imagen_fondo else None
+            ),
+            "generos": m.generos,
+            "disponible_local": True,
+        }
+        for m in local
+    ]
+
+
+@router.get("/filas/{fila_id}")
+def cargar_fila(
+    fila_id: str,
+    _perfil: Annotated[Perfil, Depends(get_current_profile)],
+    session: Annotated[Session, Depends(get_session)],
+) -> dict:
+    """Una fila por consulta. Fallos TMDB no afectan a otras filas."""
+    shelf = next((row for row in FILAS if row[0] == fila_id), None)
+    if shelf is None:
+        raise HTTPException(status_code=404, detail="Categoría no disponible.")
+    _, _, _, origin, kind, genre = shelf
+    if origin == "local":
+        return {"id": fila_id, "elementos": _local_recent(session)}
+    try:
+        client = _tmdb_client()
+        if origin == "tendencia":
+            page = client.trending(kind, 1)
+        else:
+            page = client.discover(
+                kind,
+                genre_id=genre if origin == "genero" else None,
+                release_year=datetime.now(UTC).year if origin == "anio" else None,
+            )
+        return {"id": fila_id, "elementos": _page(page, kind, session, 1)["elementos"]}
+    except TMDBError:
+        raise _tmdb_error() from None
 
 
 @router.get("/{tipo}/{tmdb_id}")

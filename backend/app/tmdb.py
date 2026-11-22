@@ -1,5 +1,7 @@
 """Cliente HTTP para la API v3 de The Movie Database."""
 
+from datetime import UTC, datetime
+
 import httpx
 
 from app.config import get_settings
@@ -48,6 +50,41 @@ class TMDBClient:
         if media_type not in kinds or not 1 <= page <= 10:
             raise TMDBError("Tipo o página no válidos para TMDB.")
         return self._get(f"trending/{kinds[media_type]}/week", {"page": page})
+
+    def discover(
+        self,
+        media_type: str,
+        *,
+        genre_id: int | None = None,
+        release_year: int | None = None,
+        page: int = 1,
+    ) -> dict:
+        """Filtros de metadatos TMDB; jamás envía trabajos a qBittorrent."""
+        kinds = {"pelicula": "movie", "serie": "tv"}
+        if media_type not in kinds or not 1 <= page <= 10:
+            raise TMDBError("Tipo o página no válidos.")
+        allowed_genres = {
+            "pelicula": {28, 27, 35, 18, 53, 878, 12, 16},
+            "serie": {18, 35, 80, 9648, 10759, 10765},
+        }
+        if genre_id is not None and genre_id not in allowed_genres[media_type]:
+            raise TMDBError("Género no permitido.")
+        if release_year is not None:
+            current_year = datetime.now(UTC).year
+            if media_type != "pelicula" or not 2000 <= release_year <= current_year:
+                raise TMDBError("Año de estreno no válido.")
+        params: dict[str, str | int] = {
+            "page": page,
+            "sort_by": "popularity.desc",
+            "include_adult": "false",
+            "include_video": "false",
+        }
+        if genre_id is not None:
+            params["with_genres"] = genre_id
+        if release_year is not None:
+            params["primary_release_year"] = release_year
+            params["primary_release_date.lte"] = datetime.now(UTC).date().isoformat()
+        return self._get(f"discover/{kinds[media_type]}", params)
 
     def search_page(self, media_type: str, title: str, page: int = 1) -> dict:
         """Búsqueda de metadatos paginada, separada de Jackett/qBittorrent."""

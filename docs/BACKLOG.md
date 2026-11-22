@@ -62,18 +62,26 @@ visualización de la carátula y reproducción de #4 con
 el usuario**, no declarar E2E cerrado todavía.
 Ver [AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md](AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md).
 
-**Nuevo desarrollo 22/11/2026 — catálogo de descubrimiento:**
-API autenticada para tendencias/búsqueda/fichas TMDB y creación
-explícita de solicitud sin torrent, más PWA «Explorar» con
-pósteres de películas/series y estados «sin descargar» y
-«en tu biblioteca». Código y tests, **no desplegado**:
-`TMDB_CONFIGURADA=False`, falta credencial/atribución
-y prueba contra datos reales; no existe ahora ingesta
-persistente en segundo plano. «Desinstalar» sigue
-deshabilitado y se diseñará con autoridad Windows limitada,
-prueba de propiedad, quiescencia y confirmación, sin
-eliminar fuentes ajenas ni originales actuales.
-Ver [AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md](AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md).
+**Portada Netflix 22/11/2026 — desplegada:**
+API y PWA candidatas activadas solo en `api` y
+`frontend`, ambos healthy, 10/10 smoke, 928 pruebas
+backend. Tras login aparece «Explorar» con hero,
+pósteres verticales y filas de recién añadidas
+(**cuatro medios locales reales**), películas de
+2026, tendencias, acción, terror, comedia, ciencia
+ficción y series, con navegación para TV. Consultar
+no descarga vídeo; solicitar aún exige elegir fuente.
+TMDB tiene logo oficial/atribución, pero
+**TMDB_CONFIGURADA=False**: solo se llena la fila
+local por ahora. Pendiente que el propietario
+configure `TMDB_API_KEY` en archivo privado, prueba
+con tendencias reales y mejorar persistencia de fichas
+sin descargar. **Desinstalar no activo**: requiere
+un borrado selectivo seguro de la copia propietaria
+y verificación de hardlinks/qBit antes de liberar
+espacio, no borrar descargas ajenas. PR #2 sigue
+OPEN/DRAFT. Informe completo:
+[AVANCE-PORTADA-CATEGORIAS-0013-20261122.md](AVANCE-PORTADA-CATEGORIAS-0013-20261122.md).
 
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.

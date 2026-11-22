@@ -126,7 +126,7 @@ export default function ViewTVApp() {
       .then((session) => {
         if (!active) return;
         setProfile(session);
-        setView("catalog");
+        setView("discover");
       })
       .catch(() => {
         if (active) void loadProfiles();
@@ -183,7 +183,7 @@ export default function ViewTVApp() {
       });
       setProfile(result.perfil);
       setPin("");
-      setView("catalog");
+      setView("discover");
     } catch (error) {
       setLoginError((error as Error).message || "No se ha podido iniciar sesión.");
       setPin("");
@@ -273,6 +273,21 @@ export default function ViewTVApp() {
     } finally {
       if (playbackRequest.current === requestId) {
         setPlaybackBusy(false);
+      }
+    }
+  }
+
+  async function openFromDiscover(mediaId?: number) {
+    setView("catalog");
+    setFilter("todo");
+    if (mediaId === undefined) return;
+    try {
+      const catalog = await apiRequest<CatalogResponse>("/jellyfin/catalog?limit=100");
+      const item = catalog.elementos.find((entry) => entry.id === mediaId);
+      if (item) openDetails(item);
+    } catch (cause) {
+      if ((cause as Error & { status?: number }).status === 401) {
+        handleSessionExpired();
       }
     }
   }
@@ -496,7 +511,7 @@ export default function ViewTVApp() {
           key={profile.id}
           onUnauthorized={handleSessionExpired}
           onShowRequests={() => setView("requests")}
-          onShowLibrary={() => { setView("catalog"); void loadCatalog(); }}
+          onShowLibrary={(mediaId) => { void openFromDiscover(mediaId); }}
         />
       )}
       {view === "requests" && profile && (

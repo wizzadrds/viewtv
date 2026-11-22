@@ -577,19 +577,26 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   de imágenes no prueba reproducción completa. Mejorar
   experiencia de espera de metadatos solo si sigue suponiendo
   un bloqueo visible.
-- [x] **Primer desarrollo del catálogo sin vídeo (TMDB)**:
-  `/descubrir` expone tendencias, búsqueda de películas y series,
-  fichas, pósteres seguros y estado instalado/no descargado,
-  **sin descargar nada al explorar**. La PWA añade «Explorar».
-  La acción de descarga crea solo una solicitud con confirmación
-  de fuente en «Buscar y pedir»; no lanza torrents directamente.
-  **No desplegado**: TMDB no tiene API key configurada en el
-  servidor, y falta logo aprobado/atribución y prueba real.
-  «Desinstalar» aparece deshabilitado hasta crear un borrado
-  selectivo seguro, sin tocar las copias actuales. No hay aún
-  persistencia periódica de metadatos remotos en SQLite.
+- [x] **Portada por categorías desplegada**:
+  inicio «Explorar» con hero y filas horizontales 2:3;
+  primer estante «Recién añadidas» de Jellyfin, y
+  categorías TMDB previstas: películas de 2026,
+  tendencias, acción, terror, comedia, ciencia ficción
+  y series. Fichas, fondos y pósteres sin transferencias
+  al explorar; «Descargar» crea una solicitud explícita
+  y requiere elegir una fuente. Logo oficial TMDB
+  y atribución instalados. **API y frontend HEALTHY
+  en producción**, smoke **10/10 PASS**, backend
+  **928/928 PASS**, test de biblioteca real solo lectura
+  **4 entradas y auth 401/200**. Worker, Jellyfin,
+  torrents y SQLite intactos. **TMDB_API_KEY aún
+  NO configurada**: por ahora la fila local se llena,
+  las externas se activarán solo con esa clave;
+  no mostrar títulos simulados. Botón
+  «Desinstalar» deshabilitado por seguridad hasta
+  liberar correctamente hardlinks y origen qBittorrent.
   Informe:
-  [AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md](AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md).
+  [AVANCE-PORTADA-CATEGORIAS-0013-20261122.md](AVANCE-PORTADA-CATEGORIAS-0013-20261122.md).
 - [ ] **Fase siguiente: descubrimiento y desinstalación**:
   configurar TMDB/atribución localmente, ensayar API real
   de metadatos y despliegue controlado; después persistencia

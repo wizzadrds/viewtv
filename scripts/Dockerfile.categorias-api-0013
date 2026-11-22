@@ -1,0 +1,7 @@
+# Conserva EXACTAMENTE las dependencias de la API productiva 0013.
+# Solo incorpora endpoints de metadatos, sin cambiar CLI de publicación ni DB.
+FROM viewtv:auto-publicador-api-0013
+COPY backend/app/tmdb.py /opt/viewtv/backend/app/tmdb.py
+COPY backend/app/descubrir.py /opt/viewtv/backend/app/descubrir.py
+COPY backend/app/main.py /opt/viewtv/backend/app/main.py
+RUN python -m py_compile /opt/viewtv/backend/app/tmdb.py /opt/viewtv/backend/app/descubrir.py /opt/viewtv/backend/app/main.py

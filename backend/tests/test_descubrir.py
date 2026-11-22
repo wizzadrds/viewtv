@@ -236,3 +236,152 @@ def test_descubrimiento_requiere_sesion(client):
     app.dependency_overrides.pop(get_current_profile)
     response = browser.get("/descubrir/estado")
     assert response.status_code == 401
+
+
+def test_filas_definidas_con_local_primera_y_generos(client):
+    browser, _ = client
+    response = browser.get("/descubrir/filas")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tmdb_configurado"] is True
+    assert [row["id"] for row in payload["filas"]][:5] == [
+        "recientes", "peliculas-nuevas", "tendencias", "accion", "terror",
+    ]
+    assert any(row["id"] == "series-tendencia" for row in payload["filas"])
+    assert any("Películas nuevas de" in row["titulo"] for row in payload["filas"])
+    assert all("torrent" not in str(row).lower() for row in payload["filas"])
+
+
+def test_fila_recientes_funciona_sin_tmdb_y_no_crea_descargas(client, monkeypatch):
+    browser, db = client
+    monkeypatch.setattr(descubrir, "get_settings", lambda: SimpleNamespace(tmdb_api_key=""))
+    with Session(db) as s:
+        s.add(Medio(
+            jellyfin_id="local-1", titulo="Primera", tipo="pelicula",
+            anio=2022, imagen_portada="/jellyfin/media/1/images/primary",
+            disponible_en_jellyfin=True,
+        ))
+        s.add(Medio(
+            jellyfin_id="local-2", titulo="Segunda", tipo="serie",
+            disponible_en_jellyfin=True,
+        ))
+        s.add(Medio(
+            jellyfin_id="retirada", titulo="Retirada", tipo="pelicula",
+            disponible_en_jellyfin=False,
+        ))
+        s.commit()
+    payload = browser.get("/descubrir/filas/recientes").json()
+    assert [row["titulo"] for row in payload["elementos"]] == ["Segunda", "Primera"]
+    assert payload["elementos"][0]["tmdb_id"] is None
+    assert payload["elementos"][0]["disponible_local"] is True
+    assert payload["elementos"][1]["imagen_portada"].startswith("/jellyfin/media/")
+    assert browser.get("/descubrir/filas").json()["tmdb_configurado"] is False
+    assert browser.get("/descubrir/filas/accion").status_code == 503
+    with Session(db) as s:
+        assert not s.exec(select(Solicitud)).all()
+        assert not s.exec(select(Descarga)).all()
+
+
+@pytest.mark.parametrize(("shelf", "kind", "genre"), [
+    ("accion", "pelicula", 28),
+    ("terror", "pelicula", 27),
+    ("comedia", "pelicula", 35),
+    ("ciencia-ficcion", "pelicula", 878),
+    ("series-misterio", "serie", 9648),
+])
+def test_generos_api_usan_solo_filtro_fijo_y_sin_torrent(
+    client, monkeypatch, shelf, kind, genre,
+):
+    browser, db = client
+    calls = []
+
+    class CatalogStub(StubTMDB):
+        def discover(self, media_type, *, genre_id=None, release_year=None, page=1):
+            calls.append((media_type, genre_id, release_year, page))
+            return {"results": [media(111, kind=media_type)], "total_pages": 1}
+
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: CatalogStub())
+    response = browser.get("/descubrir/filas/" + shelf)
+    assert response.status_code == 200
+    assert response.json()["elementos"][0]["disponible_local"] is False
+    assert calls == [(kind, genre, None, 1)]
+    with Session(db) as s:
+        assert not s.exec(select(Solicitud)).all()
+        assert not s.exec(select(Descarga)).all()
+
+
+def test_fila_de_estrenos_limita_ano_de_lanzamiento(client, monkeypatch):
+    browser, _ = client
+    captured = []
+
+    class CatalogStub(StubTMDB):
+        def discover(self, media_type, *, genre_id=None, release_year=None, page=1):
+            captured.append((media_type, genre_id, release_year))
+            return {"results": [media()], "total_pages": 1}
+
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: CatalogStub())
+    response = browser.get("/descubrir/filas/peliculas-nuevas")
+    assert response.status_code == 200
+    from datetime import UTC, datetime
+    assert captured == [("pelicula", None, datetime.now(UTC).year)]
+
+
+def test_fila_tendencias_series(client, monkeypatch):
+    browser, _ = client
+    calls = []
+
+    class CatalogStub(StubTMDB):
+        def trending(self, media_type, page):
+            calls.append((media_type, page))
+            return {"results": [media(81, kind="serie")], "total_pages": 1}
+
+    monkeypatch.setattr(descubrir, "_tmdb_client", lambda: CatalogStub())
+    response = browser.get("/descubrir/filas/series-tendencia")
+    assert response.status_code == 200
+    assert response.json()["elementos"][0]["tipo"] == "serie"
+    assert calls == [("serie", 1)]
+
+
+@pytest.mark.parametrize("shelf", ["sin-categoria", "../media", "hack", "adultos"])
+def test_fila_no_autorizada_no_consulta_proveedor(client, monkeypatch, shelf):
+    browser, _ = client
+    monkeypatch.setattr(
+        descubrir, "_tmdb_client",
+        lambda: (_ for _ in ()).throw(AssertionError("no consultar TMDB")),
+    )
+    assert browser.get("/descubrir/filas/" + shelf).status_code in (404, 422)
+
+
+def test_filtrar_ano_y_genero_en_cliente_tmdb_sin_exponer_clave(monkeypatch):
+    from datetime import UTC, datetime
+
+    from app.tmdb import TMDBClient, TMDBError
+
+    tmdb = object.__new__(TMDBClient)
+    called = []
+    def fake_get(path, params=None):
+        called.append((path, params))
+        return {"results": []}
+    monkeypatch.setattr(tmdb, "_get", fake_get)
+
+    year = datetime.now(UTC).year
+    assert tmdb.discover("pelicula", genre_id=27, release_year=year) == {"results": []}
+    path, options = called[0]
+    assert path == "discover/movie"
+    assert options["with_genres"] == 27
+    assert options["primary_release_year"] == year
+    assert options["primary_release_date.lte"] <= datetime.now(UTC).date().isoformat()
+    assert options["include_adult"] == "false"
+    assert options["sort_by"] == "popularity.desc"
+    with pytest.raises(TMDBError):
+        tmdb.discover("serie", genre_id=27)
+    with pytest.raises(TMDBError):
+        tmdb.discover("pelicula", release_year=year + 1)
+    assert len(called) == 1
+
+
+def test_filas_requieren_autenticacion(client):
+    browser, _ = client
+    app.dependency_overrides.pop(get_current_profile)
+    assert browser.get("/descubrir/filas").status_code == 401
+    assert browser.get("/descubrir/filas/recientes").status_code == 401

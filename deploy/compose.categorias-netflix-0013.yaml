@@ -1,0 +1,7 @@
+# Dos únicos servicios candidatos: API de metadatos y PWA por filas.
+# No modifica worker, Jellyfin, qBit, volúmenes ni política de publicación.
+services:
+  api:
+    image: viewtv:categorias-0013-api-conservative
+  frontend:
+    image: viewtv-frontend:categorias-0013-candidate

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { apiRequest } from "@/lib/api";
+import DiscoveryRows from "@/components/discovery-rows";
 
 type Tipo = "pelicula" | "serie";
 
 type DiscoveryItem = {
-  tmdb_id: number;
+  tmdb_id: number | null;
   tipo: Tipo;
   titulo: string;
   sinopsis: string | null;
@@ -33,7 +34,7 @@ export default function DiscoverPanel({
 }: {
   onUnauthorized: () => void;
   onShowRequests: () => void;
-  onShowLibrary: () => void;
+  onShowLibrary: (mediaId?: number) => void;
 }) {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [kind, setKind] = useState<Tipo>("pelicula");
@@ -62,7 +63,7 @@ export default function DiscoverPanel({
   }, [onUnauthorized]);
 
   useEffect(() => {
-    if (configured !== true) return;
+    if (configured !== true || !searched) return;
     const controller = new AbortController();
     const load = async () => {
       setBusy(true);
@@ -104,6 +105,11 @@ export default function DiscoverPanel({
   }, [query]);
 
   const openDetail = async (item: DiscoveryItem) => {
+    if (item.disponible_local && item.medio_id != null) {
+      onShowLibrary(item.medio_id);
+      return;
+    }
+    if (item.tmdb_id === null) return;
     setDetail(item);
     setDetailBusy(true);
     setNotice("");
@@ -121,7 +127,7 @@ export default function DiscoverPanel({
   };
 
   const requestDownload = async (item: DiscoveryItem) => {
-    if (requestBusy || item.disponible_local || detailBusy) return;
+    if (requestBusy || item.disponible_local || detailBusy || item.tmdb_id === null) return;
     setRequestBusy(true);
     setNotice("");
     try {
@@ -155,22 +161,12 @@ export default function DiscoverPanel({
 
       {configured === null && !error && <p className="muted">Comprobando el catálogo de metadatos…</p>}
 
-      {configured === false && (
-        <div className="empty-state" role="status">
-          <div className="empty-icon">▧</div>
-          <h2>Falta configurar TMDB</h2>
-          <p>
-            La búsqueda de películas, series, carátulas y tendencias utiliza
-            The Movie Database. Falta la clave del servidor; tu biblioteca
-            de películas descargadas sigue funcionando normalmente.
-          </p>
-          <p className="muted">
-            Configura TMDB_API_KEY en el archivo .env privado del servidor. No introduzcas claves en esta página.
-          </p>
-          <button className="quiet-button" type="button" data-spatial onClick={onShowLibrary}>
-            Ir a mi biblioteca
-          </button>
-        </div>
+      {!searched && (
+        <DiscoveryRows
+          onOpen={(item) => void openDetail(item)}
+          onUnauthorized={onUnauthorized}
+          onShowLibrary={() => onShowLibrary()}
+        />
       )}
 
       {configured === true && (
@@ -202,6 +198,8 @@ export default function DiscoverPanel({
             )}
           </div>
 
+          {searched && (
+          <>
           <h2 className="discover-list-title">
             {searched ? "Resultados para «" + searched + "»" : "Tendencias de la semana"}
           </h2>
@@ -243,11 +241,20 @@ export default function DiscoverPanel({
             </div>
           )}
 
-          <p className="discover-credit">
-            Metadatos de <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer">TMDB</a>.
-            Este producto utiliza la API de TMDB, pero no está respaldado ni certificado por TMDB.
-            Que un título aparezca aquí no garantiza que esté disponible para descargar legalmente.
-          </p>
+          </>
+          )}
+          <div className="discover-credit tmdb-credit" aria-label="Créditos de los metadatos">
+            <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer"
+              aria-label="The Movie Database: fuente de metadatos">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/tmdb-logo.svg" alt="TMDB" />
+            </a>
+            <p>
+              Este producto utiliza la API de TMDB, pero no está respaldado ni certificado por TMDB.
+              Las carátulas y fichas son metadatos; que un título aparezca aquí no garantiza
+              disponibilidad de una fuente autorizada ni inicia descargas.
+            </p>
+          </div>
         </>
       )}
 
