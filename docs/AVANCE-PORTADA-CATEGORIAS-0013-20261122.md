@@ -1,5 +1,13 @@
 # VIEWTV — portada por categorías, catálogo remoto y biblioteca independiente
 
+**Actualización posterior (22/11/2026, 02:04):** la clave
+TMDB v3 ya fue configurada por el propietario y recargada
+en la API. Las **nueve filas** se comprobaron con HTTP 200,
+carátulas reales y sesión protegida. La situación
+`TMDB_CONFIGURADA=False` descrita abajo corresponde al
+primer despliegue y **ya no es el estado actual**.
+Ver [activación real de TMDB](AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md).
+
 **22/11/2026 · rama `viewtv-seguimiento-descargas-0012` · PR #2 OPEN/DRAFT.**
 Worktree autorizada: `/home/viewtv/projects/viewtv-broker-0013-20261119`.
 

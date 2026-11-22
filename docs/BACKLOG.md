@@ -71,12 +71,19 @@ pósteres verticales y filas de recién añadidas
 2026, tendencias, acción, terror, comedia, ciencia
 ficción y series, con navegación para TV. Consultar
 no descarga vídeo; solicitar aún exige elegir fuente.
-TMDB tiene logo oficial/atribución, pero
-**TMDB_CONFIGURADA=False**: solo se llena la fila
-local por ahora. Pendiente que el propietario
-configure `TMDB_API_KEY` en archivo privado, prueba
-con tendencias reales y mejorar persistencia de fichas
-sin descargar. **Desinstalar no activo**: requiere
+TMDB tiene logo oficial/atribución y ya está
+**TMDB_CONFIGURADA=True** tras recargar únicamente
+la API con la clave v3 privada del usuario.
+Prueba real de **9/9 filas** por HTTP 200:
+recientes (4 con póster), estrenos 2026, tendencias,
+acción, terror, comedia, ciencia ficción y series
+(todas con fichas y carátulas). Tarea Windows
+reanudada con código 0 y smoke 10/10.
+**Pendiente** persistencia programada de fichas
+remotas (ahora consultas bajo demanda) y validación
+visual en navegador. Reporte:
+[AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md](AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md).
+**Desinstalar no activo**: requiere
 un borrado selectivo seguro de la copia propietaria
 y verificación de hardlinks/qBit antes de liberar
 espacio, no borrar descargas ajenas. PR #2 sigue

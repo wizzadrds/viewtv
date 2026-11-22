@@ -589,19 +589,26 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   en producción**, smoke **10/10 PASS**, backend
   **928/928 PASS**, test de biblioteca real solo lectura
   **4 entradas y auth 401/200**. Worker, Jellyfin,
-  torrents y SQLite intactos. **TMDB_API_KEY aún
-  NO configurada**: por ahora la fila local se llena,
-  las externas se activarán solo con esa clave;
-  no mostrar títulos simulados. Botón
-  «Desinstalar» deshabilitado por seguridad hasta
-  liberar correctamente hardlinks y origen qBittorrent.
-  Informe:
-  [AVANCE-PORTADA-CATEGORIAS-0013-20261122.md](AVANCE-PORTADA-CATEGORIAS-0013-20261122.md).
-- [ ] **Fase siguiente: descubrimiento y desinstalación**:
-  configurar TMDB/atribución localmente, ensayar API real
-  de metadatos y despliegue controlado; después persistencia
-  programada independiente y broker seguro de desinstalación.
-  No activar borrado sobre archivos actuales por adelantado.
+  torrents y SQLite intactos. **TMDB_API_KEY activada**
+  posteriormente desde `.env` privado, recargando
+  solo la API: las **9 filas** responden con metadatos
+  reales y pósteres (4 títulos locales y 8 filas TMDB);
+  consulta sin descargas. Código 0 del publicador
+  limitado y smoke 10/10 tras recargar la clave.
+  Botón «Desinstalar» continúa deshabilitado por
+  seguridad hasta liberar correctamente hardlinks
+  y origen qBittorrent. Informes:
+  [portada](AVANCE-PORTADA-CATEGORIAS-0013-20261122.md)
+  y [activación real de TMDB](AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md).
+- [ ] **Fase siguiente: catálogo persistente y desinstalación**:
+  TMDB ya está conectado, las nueve filas responden
+  en producción. Confirmar portada visualmente; después
+  diseñar tabla separada de metadatos y actualización
+  periódica limitada (sin descargas de vídeo).
+  El borrado seguro de copias deberá ser un broker
+  aparte con verificación de propiedad, hardlinks y
+  quiescencia. No activar borrado de archivos actuales
+  por adelantado.
 - [x] **Cola 0013 limitada a una sola ID de descarga**:
   `claim_next_organization(..., allowed_download_id=...)` selecciona
   y reserva solo esa ID **dentro de BEGIN IMMEDIATE**; el runner y
