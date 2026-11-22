@@ -84,7 +84,7 @@ def test_reescribe_metadatos_no_duplica(isolated_catalog):
     assert updated["elementos"][0]["sinopsis"] == "Sinopsis actualizada"
 
 
-def test_paginacion_hasta_50_000_sin_cargarlo_todo(isolated_catalog):
+def test_paginacion_hasta_250_000_sin_cargarlo_todo(isolated_catalog):
     db = isolated_catalog
     for page in range(3):
         catalogo_cache.upsert_page(
@@ -192,3 +192,96 @@ def test_limite_duro_de_fichas_sin_borrar_existentes(isolated_catalog, monkeypat
     assert catalogo_cache.status()["total"] == 3
     assert catalogo_cache.search_shelf("pelicula", "número 99")["total"] == 0
     assert catalogo_cache.read_shelf("pelicula")["elementos"][0]["sinopsis"] == "Portada revisada"
+
+
+def test_cuota_escalable_y_rechazo_de_configuracion_no_segura():
+    assert catalogo_cache._catalog_limit("250000") == 250_000
+    assert catalogo_cache._catalog_limit("1000000") == 1_000_000
+    assert catalogo_cache.MAX_PAGE >= 50_000
+    for value in ("", "-1", "0", "100", "1000001", "sin_limite", "1.2"):
+        with pytest.raises(ValueError):
+            catalogo_cache._catalog_limit(value)
+
+
+def test_metadatos_caducados_no_se_sirven_ni_se_cuentan(isolated_catalog):
+    db = isolated_catalog
+    assert catalogo_cache.upsert_page(
+        db, "pelicula", {"results": [entry(10), entry(11)]},
+    ) == 2
+    db.execute(
+        "UPDATE ficha SET actualizado_en = datetime('now','-151 days') "
+        "WHERE tmdb_id = 10",
+    )
+    db.commit()
+    assert catalogo_cache.status()["total"] == 1
+    assert catalogo_cache.read_shelf("pelicula")["total"] == 1
+    assert catalogo_cache.search_shelf("pelicula", "número 10")["total"] == 0
+    assert catalogo_cache.prune_expired(db, now=datetime.now(UTC)) == 1
+    db.commit()
+    assert db.execute("SELECT COUNT(*) FROM ficha").fetchone()[0] == 1
+    assert catalogo_cache.prune_expired(db, now=datetime.now(UTC)) == 0
+
+
+def test_catalogador_renueva_los_existentes_con_limite_alcanzado(monkeypatch, tmp_path):
+    monkeypatch.setenv("VIEWTV_CATALOG_PATH", str(tmp_path / "metadatos.db"))
+    monkeypatch.setattr(catalogo_cache, "MAX_CATALOG", 1)
+    mock = FakeTMDB()
+    first = catalogador_cli.refresh(
+        now=datetime.now(UTC), pause=0, pages_per_stream=1, client=mock,
+    )
+    assert first["estado"] == "correcto"
+    assert first["peticiones"] == len(catalogador_cli._streams())
+    assert catalogo_cache.status()["total"] == 1
+    # El tope no bloquea la renovación: se consultan fuentes igualmente.
+    assert catalogo_cache.open_reader() is not None
+
+
+def test_catalogador_elimina_caducados_aunque_no_toque_ciclo(monkeypatch, tmp_path):
+    monkeypatch.setenv("VIEWTV_CATALOG_PATH", str(tmp_path / "metadatos.db"))
+    source = FakeTMDB()
+    instant = datetime.now(UTC)
+    first = catalogador_cli.refresh(
+        now=instant, pause=0, pages_per_stream=1, client=source,
+    )
+    assert first["estado"] == "correcto"
+    db = catalogo_cache.create_writer()
+    try:
+        db.execute("UPDATE ficha SET actualizado_en = datetime('now','-151 days')")
+        db.commit()
+    finally:
+        db.close()
+    no_request_count = len(source.calls)
+    result = catalogador_cli.refresh(
+        now=instant + timedelta(minutes=10), pause=0, client=source,
+    )
+    assert result["estado"] == "esperando_proximo_ciclo"
+    assert len(source.calls) == no_request_count
+    assert catalogo_cache.status()["total"] == 0
+    db = catalogo_cache.open_reader()
+    assert db is not None
+    try:
+        assert db.execute("SELECT COUNT(*) FROM ficha").fetchone()[0] == 0
+    finally:
+        db.close()
+
+
+def test_presupuesto_maximo_por_ciclo(monkeypatch, tmp_path):
+    monkeypatch.setenv("VIEWTV_CATALOG_PATH", str(tmp_path / "metadatos.db"))
+    # Nunca más de 96 peticiones aunque se añadan fuentes en el futuro.
+    streams = [("s-" + str(i), "pelicula", None, None) for i in range(120)]
+    monkeypatch.setattr(catalogador_cli, "_streams", lambda: streams)
+    mock = FakeTMDB()
+    result = catalogador_cli.refresh(
+        now=datetime.now(UTC), pause=0, pages_per_stream=1, client=mock,
+    )
+    assert result["estado"] == "correcto"
+    assert result["peticiones"] == catalogador_cli.MAX_REQUESTS_PER_CYCLE
+    assert len(mock.calls) == catalogador_cli.MAX_REQUESTS_PER_CYCLE
+
+
+
+def test_indice_caducidad_creado_sin_migrar_base_principal(isolated_catalog):
+    db = isolated_catalog
+    indexes = {r[1] for r in db.execute("PRAGMA index_list('ficha')").fetchall()}
+    assert "idx_ficha_actualizado_en" in indexes
+    assert db.execute("PRAGMA user_version").fetchone()[0] == 1

@@ -1,5 +1,11 @@
 # VIEWTV — catálogo amplio y persistente, sin descargar vídeos
 
+**Actualización 22/11/2026, noche:** el límite histórico de
+50.000 fichas que figura más abajo fue ampliado a **250.000**,
+configurable hasta 1.000.000, con caducidad de metadatos TMDB
+a los 150 días y nuevas fuentes de películas y series. Ver
+[AVANCE-CATALOGO-ESCALABLE-250K-20261122.md](AVANCE-CATALOGO-ESCALABLE-250K-20261122.md).
+
 **Fecha de la intervención:** 22/11/2026, Europe/Madrid.
 **Rama autorizada:** `viewtv-seguimiento-descargas-0012`.
 **PR #2:** OPEN/DRAFT, no fusionada.

@@ -791,3 +791,24 @@ Con la API arreglada, el próximo bloqueador real se determina
 por la primera prueba funcional del usuario y del circuito de
 descarga. Registrar qué falla y cuánto trabajo concreto exige
 antes de comprometer horas o una fecha final.
+
+
+**Fase adicional — catálogo escalable (22/11/2026, noche):**
+- [x] Cambiar límite local **50.000 → 250.000**
+  fichas únicas, configurable hasta 1.000.000.
+- [x] Ampliar fuentes por épocas y géneros,
+  con tope **96** consultas por ciclo y
+  conservación de cursores.
+- [x] No servir registros TMDB con más de
+  **150 días sin actualizar**; limpieza
+  restringida a `metadatos.db` e índice.
+- [x] Respaldar ambos SQLite antes de cambios,
+  recrear únicamente API/catalogador,
+  reactivar publicador limitado, validar
+  salud y rutas privadas del catálogo.
+- [ ] Validación visual del propietario y
+  diseño posterior de ID exports/actualizaciones
+  por cambios, para pasar de miles a
+  decenas de miles manteniendo el presupuesto.
+Informe:
+[AVANCE-CATALOGO-ESCALABLE-250K-20261122.md](AVANCE-CATALOGO-ESCALABLE-250K-20261122.md).

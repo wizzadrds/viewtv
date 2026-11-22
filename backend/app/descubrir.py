@@ -289,7 +289,7 @@ def cargar_fila(
     fila_id: str,
     _perfil: Annotated[Perfil, Depends(get_current_profile)],
     session: Annotated[Session, Depends(get_session)],
-    pagina: Annotated[int, Query(ge=1, le=2500)] = 1,
+    pagina: Annotated[int, Query(ge=1, le=catalogo_cache.MAX_PAGE)] = 1,
 ) -> dict:
     """Una fila por consulta. La caché local evita consultas TMDB masivas."""
     shelf = next((row for row in FILAS if row[0] == fila_id), None)

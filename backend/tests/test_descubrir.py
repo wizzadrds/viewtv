@@ -411,7 +411,7 @@ def test_catalogo_persistente_http_con_contador_y_paginacion(
     assert stats.status_code == 200
     assert stats.json()["total"] == 40
     assert stats.json()["solo_metadatos"] is True
-    assert stats.json()["limite_fichas"] == 50_000
+    assert stats.json()["limite_fichas"] == 250_000
 
     full = browser.get("/descubrir/filas/catalogo")
     assert full.status_code == 200

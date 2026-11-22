@@ -9,15 +9,40 @@ import json
 import os
 import re
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.tmdb import TMDBClient
 
 IMAGE_RE = re.compile(r"/[A-Za-z0-9_-]{1,128}\.(?:jpg|jpeg|png|webp)\Z")
 MAX_TMDB_ID = 2_147_483_647
-MAX_CATALOG = 50_000
 PAGE_SIZE = 20
+MAX_CACHE_DAYS = 150  # Por debajo de 6 meses: caducidad de metadatos TMDB.
+
+
+def _catalog_limit(raw: str) -> int:
+    """Límite configurable por entorno; no permitir crecimiento sin presupuesto."""
+    if not raw.isdecimal() or not 20_000 <= int(raw) <= 1_000_000:
+        raise ValueError("VIEWTV_CATALOG_MAX_ITEMS debe estar entre 20000 y 1000000.")
+    return int(raw)
+
+
+MAX_CATALOG = _catalog_limit(os.getenv("VIEWTV_CATALOG_MAX_ITEMS", "250000"))
+MAX_PAGE = 50_000
+
+
+def _expiry_cutoff(now: datetime | None = None) -> str:
+    """Fechas SQLite UTC comparables sin ambigüedad de zona horaria."""
+    instant = now or datetime.now(UTC)
+    return (instant - timedelta(days=MAX_CACHE_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def prune_expired(db: sqlite3.Connection, *, now: datetime | None = None) -> int:
+    """Borra SOLO fichas TMDB caducadas; nunca películas ni descargas."""
+    result = db.execute(
+        "DELETE FROM ficha WHERE actualizado_en < ?", (_expiry_cutoff(now),)
+    )
+    return result.rowcount
 
 
 def catalog_path() -> Path:
@@ -72,6 +97,7 @@ def create_writer(path: Path | None = None) -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_ficha_tipo_popularidad
           ON ficha(tipo, popularidad DESC);
         CREATE INDEX IF NOT EXISTS idx_ficha_anio ON ficha(tipo, anio);
+        CREATE INDEX IF NOT EXISTS idx_ficha_actualizado_en ON ficha(actualizado_en);
         CREATE TABLE IF NOT EXISTS cursor_ingesta (
           clave TEXT PRIMARY KEY,
           pagina_siguiente INTEGER NOT NULL DEFAULT 1,
@@ -199,14 +225,14 @@ def _query(
     limit: int = PAGE_SIZE,
 ) -> dict | None:
     """Devuelve None si la BD no existe, sin escribirla desde la API."""
-    if not 1 <= page <= 2500 or not 1 <= limit <= 50:
+    if not 1 <= page <= MAX_PAGE or not 1 <= limit <= 50:
         raise ValueError("Paginación no válida.")
     db = open_reader()
     if db is None:
         return None
     try:
-        where = ["1=1"]
-        args: list[object] = []
+        where = ["f.actualizado_en >= ?"]
+        args: list[object] = [_expiry_cutoff()]
         if kind:
             if kind not in ("pelicula", "serie"):
                 raise ValueError("Tipo inválido.")
@@ -265,7 +291,8 @@ def status() -> dict:
         return {"total": 0, "peliculas": 0, "series": 0, "ultima_actualizacion": None}
     try:
         counts = dict(db.execute(
-            "SELECT tipo, COUNT(*) FROM ficha GROUP BY tipo"
+            "SELECT tipo, COUNT(*) FROM ficha WHERE actualizado_en >= ? GROUP BY tipo",
+            (_expiry_cutoff(),),
         ).fetchall())
         recent = db.execute(
             "SELECT valor FROM estado_ingesta WHERE clave='ultima_actualizacion'"

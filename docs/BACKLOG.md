@@ -109,3 +109,21 @@ OPEN/DRAFT. Informe completo:
 - Identidades Windows independientes, aislamiento extra de cuentas y ACL adicionales no indispensables para un único ensayo autorizado.
 - Más escenarios del broker, tuberías, firmas, reintentos y fallos físicos que no bloqueen la publicación inicial controlada.
 - Automatizaciones, funciones complementarias y cualquier mejora oportunista no imprescindible para terminar la aplicación.
+
+
+**Actualización de escala (22/11/2026, noche):**
+se eliminó el tope fijo de 50.000 fichas de la
+implementación anterior. ViewTV ahora admite por
+defecto **250.000 fichas únicas**, ampliables por
+`VIEWTV_CATALOG_MAX_ITEMS` hasta 1.000.000,
+sin ampliar las carpetas de vídeo. El catalogador
+revisa más géneros/años con presupuesto máximo
+96 solicitudes cada seis horas; las fichas
+caducan a los 150 días y se depuran solo en el
+volumen de metadatos. Se añadió índice por fecha,
+sin cambiar Alembic ni SQLite principal.
+Informe:
+[AVANCE-CATALOGO-ESCALABLE-250K-20261122.md](AVANCE-CATALOGO-ESCALABLE-250K-20261122.md).
+Siguiente mejora de escala: estudiar Daily ID Exports
+oficiales para crecer con menos peticiones en lugar
+de aumentar indefinidamente `/discover`.

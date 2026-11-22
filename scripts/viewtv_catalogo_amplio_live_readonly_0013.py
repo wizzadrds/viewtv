@@ -54,7 +54,7 @@ with TestClient(app) as browser:
             assert result.status_code == 200, (category, result.status_code)
             assert result.json()["elementos"], category
             print("FILA_"+category+"=200")
-        assert browser.get("/descubrir/filas/catalogo?pagina=2501").status_code == 422
+        assert browser.get("/descubrir/filas/catalogo?pagina=50001").status_code == 422
         print("LIMITE_PAGINACION=422")
     finally:
         app.dependency_overrides.clear()

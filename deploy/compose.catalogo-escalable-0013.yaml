@@ -1,0 +1,11 @@
+# Segunda fase: escala de catálogo configurada sin tocar frontend ni worker.
+# La API solo lee /catalogo y el catalogador es el único escritor.
+services:
+  api:
+    image: viewtv:catalogo-escalable-api-0013
+    environment:
+      VIEWTV_CATALOG_MAX_ITEMS: "${VIEWTV_CATALOG_MAX_ITEMS:-250000}"
+  catalogador:
+    image: viewtv:catalogo-escalable-api-0013
+    environment:
+      VIEWTV_CATALOG_MAX_ITEMS: "${VIEWTV_CATALOG_MAX_ITEMS:-250000}"
