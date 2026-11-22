@@ -381,3 +381,38 @@ button:disabled { cursor: wait; opacity: .55; }
   .downloads-pagination { flex-direction: column; align-items: stretch; }
   .downloads-pagination-actions { justify-content: space-between; }
 }
+
+
+/* Explorar: fichas remotas TMDB independientes de la biblioteca local. */
+.discover-section { max-width: 1560px; margin-inline: auto; padding: clamp(36px,6vh,65px) 0 44px; }
+.discover-heading h1 { margin: 0; font-size: clamp(31px,4vw,50px); letter-spacing: -.04em; }
+.discover-heading .welcome-copy { max-width: 760px; line-height: 1.55; }
+.discover-search { display: grid; max-width: 720px; gap: 10px; margin: 34px 0 12px; }
+.discover-search label { font-size: 13px; font-weight: 700; color: #d6d7e5; }
+.discover-search-line { display: flex; gap: 12px; }
+.discover-search input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 13px; padding: 12px 16px; color: #fff; background: #0b0e17; }
+.discover-search input:focus { border-color: var(--accent); outline-offset: 3px; }
+.discover-list-title { margin: 22px 0 23px; font-size: 22px; letter-spacing: -.02em; }
+.discover-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px,1fr)); gap: 26px 17px; }
+.discover-card { text-align: left; display: flex; flex-direction: column; min-width: 0; padding: 0; background: transparent; border: 0; }
+.discover-poster { position: relative; display: block; aspect-ratio: 2/3; border-radius: 13px; overflow: hidden; background: #161c2c; box-shadow: 0 7px 24px rgba(0,0,0,.23); }
+.discover-poster > img { width: 100%; height: 100%; object-fit: cover; transition: transform .2s ease; }
+.discover-card:hover .discover-poster img, .discover-card:focus-visible .discover-poster img { transform: scale(1.04); }
+.discover-status { position: absolute; right: 7px; bottom: 7px; left: 7px; padding: 7px 6px; font-size: 11px; font-weight: 750; text-align: center; border-radius: 8px; background: rgba(11,14,25,.91); }
+.discover-status.installed { background: rgba(28,75,52,.94); color: #cbffdf; }
+.discover-availability { font-size: 13px; font-weight: 750; color: #c9b8ff; }
+.discover-pages { display: flex; gap: 18px; align-items: center; justify-content: center; margin: 38px 0 26px; }
+.discover-credit { padding-top: 36px; max-width: 850px; color: #949aad; font-size: 12px; line-height: 1.6; }
+.discover-credit a { color: #b7a0fb; }
+.discover-notice { margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; font-size: 13px; line-height: 1.6; }
+.discover-notice .quiet-button { display: block; margin-top: 12px; }
+@media (max-width: 760px) {
+  .main-nav { display: flex; flex: 1; gap: 10px; overflow-x: auto; scrollbar-width: thin; }
+  .main-nav .nav-link { flex: 0 0 auto; font-size: 12px; }
+  .main-nav .nav-active::after { bottom: -7px; }
+  .topbar { gap: 12px; flex-wrap: wrap; height: auto; min-height: 84px; padding: 12px 0; }
+  .topbar .account-actions { gap: 6px; }
+  .topbar .profile-label { display: none; }
+  .discover-grid { grid-template-columns: repeat(auto-fill, minmax(118px,1fr)); gap: 21px 11px; }
+  .discover-search-line .primary-button { padding-inline: 12px; }
+}

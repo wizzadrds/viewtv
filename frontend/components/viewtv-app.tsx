@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import Hls from "hls.js";
+import DiscoverPanel from "@/components/discover-panel";
 import DownloadsPanel from "@/components/downloads-panel";
 import RequestsPanel from "@/components/requests-panel";
 import { apiPath, apiRequest } from "@/lib/api";
 import type { CatalogResponse, MediaItem, Profile } from "@/lib/api";
 
 type Session = { id: number; nombre: string };
-type View = "loading" | "login" | "catalog" | "requests" | "downloads";
+type View = "loading" | "login" | "catalog" | "discover" | "requests" | "downloads";
 
 function useSpatialNavigation(enabled: boolean) {
   useEffect(() => {
@@ -77,7 +78,7 @@ export default function ViewTVApp() {
   const playbackRequest = useRef(0);
   const pinRef = useRef<HTMLInputElement>(null);
 
-  useSpatialNavigation((view === "catalog" || view === "login" || view === "requests" || view === "downloads") && !playbackUrl);
+  useSpatialNavigation((view === "catalog" || view === "discover" || view === "login" || view === "requests" || view === "downloads") && !playbackUrl);
 
   const loadProfiles = useCallback(async () => {
     try {
@@ -402,6 +403,13 @@ export default function ViewTVApp() {
             aria-current={view === "catalog" ? "page" : undefined}
           >Biblioteca</button>
           <button
+            className={view === "discover" ? "nav-link nav-active" : "nav-link"}
+            data-spatial
+            onClick={() => setView("discover")}
+            type="button"
+            aria-current={view === "discover" ? "page" : undefined}
+          >Explorar</button>
+          <button
             className={view === "requests" ? "nav-link nav-active" : "nav-link"}
             data-spatial
             onClick={() => setView("requests")}
@@ -482,6 +490,14 @@ export default function ViewTVApp() {
         </div>
       </section>
         </>
+      )}
+      {view === "discover" && profile && (
+        <DiscoverPanel
+          key={profile.id}
+          onUnauthorized={handleSessionExpired}
+          onShowRequests={() => setView("requests")}
+          onShowLibrary={() => { setView("catalog"); void loadCatalog(); }}
+        />
       )}
       {view === "requests" && profile && (
         <RequestsPanel

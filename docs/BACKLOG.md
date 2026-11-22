@@ -62,6 +62,19 @@ visualización de la carátula y reproducción de #4 con
 el usuario**, no declarar E2E cerrado todavía.
 Ver [AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md](AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md).
 
+**Nuevo desarrollo 22/11/2026 — catálogo de descubrimiento:**
+API autenticada para tendencias/búsqueda/fichas TMDB y creación
+explícita de solicitud sin torrent, más PWA «Explorar» con
+pósteres de películas/series y estados «sin descargar» y
+«en tu biblioteca». Código y tests, **no desplegado**:
+`TMDB_CONFIGURADA=False`, falta credencial/atribución
+y prueba contra datos reales; no existe ahora ingesta
+persistente en segundo plano. «Desinstalar» sigue
+deshabilitado y se diseñará con autoridad Windows limitada,
+prueba de propiedad, quiescencia y confirmación, sin
+eliminar fuentes ajenas ni originales actuales.
+Ver [AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md](AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md).
+
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
 - Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.

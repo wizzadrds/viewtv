@@ -5,6 +5,7 @@ from slowapi.errors import RateLimitExceeded
 from app.auth import limiter
 from app.auth import router as auth_router
 from app.config import get_settings
+from app.descubrir import router as descubrir_router
 from app.jellyfin import router as jellyfin_router
 from app.jellyfin_playback import router as jellyfin_playback_router
 from app.solicitudes import router as solicitudes_router
@@ -17,6 +18,7 @@ app.include_router(solicitudes_router)
 app.include_router(auth_router)
 app.include_router(jellyfin_router)
 app.include_router(jellyfin_playback_router)
+app.include_router(descubrir_router)
 
 
 @app.get("/health", tags=["sistema"])

@@ -42,6 +42,23 @@ class TMDBClient:
             raise TMDBError("TMDB devolvió una respuesta no válida.")
         return data
 
+    def trending(self, media_type: str, page: int = 1) -> dict:
+        """Novedades de metadatos; no consulta ni inicia descargas."""
+        kinds = {"pelicula": "movie", "serie": "tv"}
+        if media_type not in kinds or not 1 <= page <= 10:
+            raise TMDBError("Tipo o página no válidos para TMDB.")
+        return self._get(f"trending/{kinds[media_type]}/week", {"page": page})
+
+    def search_page(self, media_type: str, title: str, page: int = 1) -> dict:
+        """Búsqueda de metadatos paginada, separada de Jackett/qBittorrent."""
+        kinds = {"pelicula": "movie", "serie": "tv"}
+        if media_type not in kinds or not 1 <= page <= 10 or not 2 <= len(title.strip()) <= 100:
+            raise TMDBError("Parámetros de búsqueda no válidos.")
+        return self._get(
+            f"search/{kinds[media_type]}",
+            {"query": title.strip(), "page": page, "include_adult": "false"},
+        )
+
     def search(self, media_type: str, title: str, year: int | None = None) -> list[dict]:
         endpoints = {
             "pelicula": "search/movie",

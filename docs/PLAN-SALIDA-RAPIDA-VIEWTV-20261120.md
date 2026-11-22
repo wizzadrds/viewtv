@@ -577,6 +577,24 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   de imágenes no prueba reproducción completa. Mejorar
   experiencia de espera de metadatos solo si sigue suponiendo
   un bloqueo visible.
+- [x] **Primer desarrollo del catálogo sin vídeo (TMDB)**:
+  `/descubrir` expone tendencias, búsqueda de películas y series,
+  fichas, pósteres seguros y estado instalado/no descargado,
+  **sin descargar nada al explorar**. La PWA añade «Explorar».
+  La acción de descarga crea solo una solicitud con confirmación
+  de fuente en «Buscar y pedir»; no lanza torrents directamente.
+  **No desplegado**: TMDB no tiene API key configurada en el
+  servidor, y falta logo aprobado/atribución y prueba real.
+  «Desinstalar» aparece deshabilitado hasta crear un borrado
+  selectivo seguro, sin tocar las copias actuales. No hay aún
+  persistencia periódica de metadatos remotos en SQLite.
+  Informe:
+  [AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md](AVANCE-DESCUBRIMIENTO-TMDB-SIN-DESCARGA-20261122.md).
+- [ ] **Fase siguiente: descubrimiento y desinstalación**:
+  configurar TMDB/atribución localmente, ensayar API real
+  de metadatos y despliegue controlado; después persistencia
+  programada independiente y broker seguro de desinstalación.
+  No activar borrado sobre archivos actuales por adelantado.
 - [x] **Cola 0013 limitada a una sola ID de descarga**:
   `claim_next_organization(..., allowed_download_id=...)` selecciona
   y reserva solo esa ID **dentro de BEGIN IMMEDIATE**; el runner y
