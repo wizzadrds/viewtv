@@ -600,14 +600,28 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   y origen qBittorrent. Informes:
   [portada](AVANCE-PORTADA-CATEGORIAS-0013-20261122.md)
   y [activación real de TMDB](AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md).
-- [ ] **Fase siguiente: catálogo persistente y desinstalación**:
-  TMDB ya está conectado, las nueve filas responden
-  en producción. Confirmar portada visualmente; después
-  diseñar tabla separada de metadatos y actualización
-  periódica limitada (sin descargas de vídeo).
-  El borrado seguro de copias deberá ser un broker
-  aparte con verificación de propiedad, hardlinks y
-  quiescencia. No activar borrado de archivos actuales
+- [x] **Catálogo amplio persistente automático**:
+  SQLite `/catalogo/metadatos.db` en volumen Docker
+  independiente, con tabla de fichas TMDB únicas,
+  cursores por fuente y actualización cada **seis
+  horas**, sin vídeo ni acceso del catalogador a
+  `/media` o `/data`. Máximo técnico **50.000
+  fichas**; no es una promesa de disponibilidad de
+  vídeos ni de superar inmediatamente un servicio
+  de streaming. Primera ingesta verificada:
+  **728 fichas únicas (599 películas y 129 series)**
+  mediante 48 consultas, con 940 pruebas backend
+  aprobadas y smoke producción 10/10. La portada
+  enseña contador real y fila «Todo el catálogo»
+  con «Ver 20 títulos más». API y frontend nuevos
+  healthy, worker/publicador permanecen seguros.
+  Informe:
+  [AVANCE-CATALOGO-AMPLIO-PERSISTENTE-0013-20261122.md](AVANCE-CATALOGO-AMPLIO-PERSISTENTE-0013-20261122.md).
+- [ ] **Fase siguiente: validación visual y desinstalación**:
+  usuario confirma contador/filas/paginación tras
+  Ctrl+F5. El borrado seguro debe ser un broker
+  aparte con propiedad, hardlinks y quiescencia.
+  No activar borrado de archivos actuales
   por adelantado.
 - [x] **Cola 0013 limitada a una sola ID de descarga**:
   `claim_next_organization(..., allowed_download_id=...)` selecciona

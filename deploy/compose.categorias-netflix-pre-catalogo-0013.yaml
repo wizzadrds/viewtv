@@ -1,0 +1,6 @@
+# Reversión de imágenes anterior al catálogo persistente. Sin catalogador.
+services:
+  api:
+    image: viewtv:categorias-0013-api-conservative
+  frontend:
+    image: viewtv-frontend:categorias-0013-candidate

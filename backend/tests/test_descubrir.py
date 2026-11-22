@@ -385,3 +385,65 @@ def test_filas_requieren_autenticacion(client):
     app.dependency_overrides.pop(get_current_profile)
     assert browser.get("/descubrir/filas").status_code == 401
     assert browser.get("/descubrir/filas/recientes").status_code == 401
+
+
+def test_catalogo_persistente_http_con_contador_y_paginacion(
+    client, monkeypatch, tmp_path,
+):
+    from app import catalogo_cache
+
+    browser, engine = client
+    monkeypatch.setenv("VIEWTV_CATALOG_PATH", str(tmp_path / "metadatos.db"))
+    db = catalogo_cache.create_writer()
+    try:
+        for part in range(2):
+            raw = {"results": [
+                media(1000 + part * 20 + i,
+                      title="Terror nuevo " + str(part * 20 + i),
+                      genre_ids=[27], popularity=60 - i)
+                for i in range(20)
+            ]}
+            catalogo_cache.upsert_page(db, "pelicula", raw)
+        db.commit()
+    finally:
+        db.close()
+    stats = browser.get("/descubrir/catalogo/estado")
+    assert stats.status_code == 200
+    assert stats.json()["total"] == 40
+    assert stats.json()["solo_metadatos"] is True
+    assert stats.json()["limite_fichas"] == 50_000
+
+    full = browser.get("/descubrir/filas/catalogo")
+    assert full.status_code == 200
+    assert full.json()["total"] == 40
+    assert full.json()["paginas"] == 2
+    assert len(full.json()["elementos"]) == 20
+    second = browser.get("/descubrir/filas/catalogo?pagina=2")
+    assert second.status_code == 200
+    assert len(second.json()["elementos"]) == 20
+    assert {
+        element["tmdb_id"] for element in full.json()["elementos"]
+    }.isdisjoint({
+        element["tmdb_id"] for element in second.json()["elementos"]
+    })
+    horror = browser.get("/descubrir/filas/terror")
+    assert horror.status_code == 200
+    assert horror.json()["total"] == 40
+    with Session(engine) as s:
+        assert not s.exec(select(Solicitud)).all()
+        assert not s.exec(select(Descarga)).all()
+
+
+def test_catalogo_estadisticas_requieren_sesion(client):
+    browser, _ = client
+    app.dependency_overrides.pop(get_current_profile)
+    assert browser.get("/descubrir/catalogo/estado").status_code == 401
+    assert browser.get("/descubrir/filas/catalogo").status_code == 401
+
+
+def test_catalogo_reciente_sin_volumen_de_metadatos(client, monkeypatch, tmp_path):
+    browser, _ = client
+    monkeypatch.setenv("VIEWTV_CATALOG_PATH", str(tmp_path / "metadatos.db"))
+    assert browser.get("/descubrir/catalogo/estado").json()["total"] == 0
+    assert browser.get("/descubrir/filas/catalogo").json()["elementos"] == []
+    assert browser.get("/descubrir/filas/recientes").status_code == 200

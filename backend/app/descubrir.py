@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlmodel import Session, select
 
+from app import catalogo_cache
 from app.auth import get_current_profile
 from app.config import get_settings
 from app.database import get_session
@@ -217,6 +218,8 @@ FILAS = (
      "tendencia", "serie", None),
     ("series-misterio", "Misterio y suspense", "Series para ver un episodio más",
      "genero", "serie", 9648),
+    ("catalogo", "Todo el catálogo", "Miles de títulos sin descargar vídeos",
+     "cache", "pelicula", None),
 )
 
 
@@ -272,30 +275,76 @@ def _local_recent(session: Session) -> list[dict]:
     ]
 
 
+@router.get("/catalogo/estado")
+def estado_catalogo(
+    _perfil: Annotated[Perfil, Depends(get_current_profile)],
+) -> dict:
+    """Número real de fichas únicas; jamás incluye rutas de disco ni secretos."""
+    result = catalogo_cache.status()
+    return {**result, "solo_metadatos": True, "limite_fichas": catalogo_cache.MAX_CATALOG}
+
+
 @router.get("/filas/{fila_id}")
 def cargar_fila(
     fila_id: str,
     _perfil: Annotated[Perfil, Depends(get_current_profile)],
     session: Annotated[Session, Depends(get_session)],
+    pagina: Annotated[int, Query(ge=1, le=2500)] = 1,
 ) -> dict:
-    """Una fila por consulta. Fallos TMDB no afectan a otras filas."""
+    """Una fila por consulta. La caché local evita consultas TMDB masivas."""
     shelf = next((row for row in FILAS if row[0] == fila_id), None)
     if shelf is None:
         raise HTTPException(status_code=404, detail="Categoría no disponible.")
     _, _, _, origin, kind, genre = shelf
     if origin == "local":
-        return {"id": fila_id, "elementos": _local_recent(session)}
+        if pagina != 1:
+            return {"id": fila_id, "elementos": [], "pagina": pagina, "paginas": 1}
+        return {"id": fila_id, "elementos": _local_recent(session),
+                "pagina": 1, "paginas": 1}
+    if origin == "cache":
+        cached = catalogo_cache.read_shelf(None, page=pagina)
+        if cached is not None:
+            local_movie = _current_media(session, "pelicula")
+            local_series = _current_media(session, "serie")
+            for item in cached["elementos"]:
+                media_id = _installed(item, local_movie if item["tipo"] == "pelicula"
+                                      else local_series)
+                item["disponible_local"] = media_id is not None
+                item["medio_id"] = media_id
+            return {"id": fila_id, **cached}
+        return {"id": fila_id, "elementos": [], "pagina": 1, "paginas": 0}
+    if origin == "tendencia" and pagina > 10:
+        raise HTTPException(status_code=422, detail="Máximo 10 páginas de tendencias.")
+    year = datetime.now(UTC).year if origin == "anio" else None
+    if origin != "tendencia":
+        cached = catalogo_cache.read_shelf(kind, genre=genre, year=year, page=pagina)
+        if cached is not None and cached["total"] > 0:
+            local = _current_media(session, kind)
+            for item in cached["elementos"]:
+                media_id = _installed(item, local)
+                item["disponible_local"] = media_id is not None
+                item["medio_id"] = media_id
+            return {"id": fila_id, **cached}
+    if pagina > 500:
+        raise HTTPException(status_code=422, detail="Página todavía no incorporada.")
     try:
         client = _tmdb_client()
         if origin == "tendencia":
-            page = client.trending(kind, 1)
+            page = client.trending(kind, min(pagina, 10))
         else:
             page = client.discover(
                 kind,
                 genre_id=genre if origin == "genero" else None,
-                release_year=datetime.now(UTC).year if origin == "anio" else None,
+                release_year=year,
+                page=pagina,
             )
-        return {"id": fila_id, "elementos": _page(page, kind, session, 1)["elementos"]}
+        parsed = _page(page, kind, session, pagina)
+        pages = page.get("total_pages", 1)
+        parsed["paginas"] = (
+            min(10 if origin == "tendencia" else 500, pages)
+            if type(pages) is int else 1
+        )
+        return {"id": fila_id, **parsed}
     except TMDBError:
         raise _tmdb_error() from None
 

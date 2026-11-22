@@ -1,5 +1,13 @@
 # VIEWTV — clave TMDB activada y categorías reales comprobadas
 
+**Actualización 22/11/2026:** la ampliación posterior
+ya incluye SQLite de metadatos persistente y
+catalogador cada seis horas, con primera ingesta
+de **728 fichas únicas**. El apartado que dice que
+no existe base persistente describe el estado **anterior**
+a esta ampliación. Ver
+[catálogo amplio](AVANCE-CATALOGO-AMPLIO-PERSISTENTE-0013-20261122.md).
+
 **Fecha:** 22/11/2026, 02:04 (Europe/Madrid).
 **Worktree autorizada:** `/home/viewtv/projects/viewtv-broker-0013-20261119`.
 **Rama:** `viewtv-seguimiento-descargas-0012` · PR #2 OPEN/DRAFT.

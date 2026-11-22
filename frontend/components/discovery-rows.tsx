@@ -22,11 +22,12 @@ type Shelf = {
   id: string;
   titulo: string;
   descripcion: string;
-  origen: "local" | "genero" | "anio" | "tendencia";
+  origen: "local" | "genero" | "anio" | "tendencia" | "cache";
   tipo: Kind;
 };
 type ShelfResponse = { filas: Shelf[]; tmdb_configurado: boolean };
-type ShelfData = { id: string; elementos: ShelfItem[] };
+type ShelfData = { id: string; elementos: ShelfItem[]; pagina?: number; paginas?: number; total?: number };
+type CatalogStatus = { total: number; peliculas: number; series: number; ultima_actualizacion: string | null };
 
 function imagePath(url: string | null): string | null {
   if (!url) return null;
@@ -49,6 +50,11 @@ export default function DiscoveryRows({
   const [items, setItems] = useState<Record<string, ShelfItem[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [pageNumbers, setPageNumbers] = useState<Record<string, number>>({});
+  const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
+  const [totalCounts, setTotalCounts] = useState<Record<string, number>>({});
+  const [moreBusy, setMoreBusy] = useState<Record<string, boolean>>({});
+  const [catalogStatus, setCatalogStatus] = useState<CatalogStatus | null>(null);
   const [loadError, setLoadError] = useState("");
   const strips = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -62,6 +68,9 @@ export default function DiscoveryRows({
         if (controller.signal.aborted) return;
         setShelves(listing.filas);
         setConfigured(listing.tmdb_configurado);
+        void apiRequest<CatalogStatus>("/descubrir/catalogo/estado", { signal: controller.signal })
+          .then((status) => { if (!controller.signal.aborted) setCatalogStatus(status); })
+          .catch(() => { /* Si falta la caché, el catálogo TMDB actual sigue disponible. */ });
         // El primer carrusel de la biblioteca se carga incluso SIN TMDB.
         const jobs = listing.filas.filter(
           (shelf) => shelf.origen === "local" || listing.tmdb_configurado,
@@ -78,6 +87,11 @@ export default function DiscoveryRows({
               );
               if (!controller.signal.aborted) {
                 setItems((previous) => ({ ...previous, [shelf.id]: data.elementos }));
+                setPageNumbers((previous) => ({ ...previous, [shelf.id]: data.pagina ?? 1 }));
+                setPageCounts((previous) => ({ ...previous, [shelf.id]: data.paginas ?? 1 }));
+                if (typeof data.total === "number") {
+                  setTotalCounts((previous) => ({ ...previous, [shelf.id]: data.total! }));
+                }
               }
             } catch (cause) {
               if (controller.signal.aborted) return;
@@ -104,6 +118,29 @@ export default function DiscoveryRows({
     void load();
     return () => controller.abort();
   }, [onUnauthorized]);
+
+  const loadNext = async (id: string) => {
+    if (moreBusy[id] || (pageNumbers[id] ?? 1) >= (pageCounts[id] ?? 1)) return;
+    const next = (pageNumbers[id] ?? 1) + 1;
+    setMoreBusy((previous) => ({ ...previous, [id]: true }));
+    try {
+      const data = await apiRequest<ShelfData>(
+        "/descubrir/filas/" + encodeURIComponent(id) + "?pagina=" + next,
+      );
+      setItems((previous) => {
+        const known = new Set((previous[id] ?? []).map((item) => item.tipo + "-" + item.tmdb_id));
+        const additions = data.elementos.filter((item) => !known.has(item.tipo + "-" + item.tmdb_id));
+        return { ...previous, [id]: [...(previous[id] ?? []), ...additions] };
+      });
+      setPageNumbers((previous) => ({ ...previous, [id]: next }));
+      setPageCounts((previous) => ({ ...previous, [id]: data.paginas ?? next }));
+    } catch (cause) {
+      if ((cause as Error & { status?: number }).status === 401) onUnauthorized();
+      else setErrors((previous) => ({ ...previous, [id]: true }));
+    } finally {
+      setMoreBusy((previous) => ({ ...previous, [id]: false }));
+    }
+  };
 
   const featured = items["recientes"]?.[0]
     ?? shelves.flatMap((row) => items[row.id] ?? []).find(
@@ -135,6 +172,12 @@ export default function DiscoveryRows({
           <span className="cinema-hero-kicker">
             <span className="cinema-live-dot" /> TU CINE EN CASA
           </span>
+          {catalogStatus && catalogStatus.total > 0 && (
+            <p className="cinema-catalog-counter">
+              <strong>{catalogStatus.total.toLocaleString("es-ES")}</strong> fichas únicas en el catálogo
+              <span> · {catalogStatus.peliculas.toLocaleString("es-ES")} películas y {catalogStatus.series.toLocaleString("es-ES")} series</span>
+            </p>
+          )}
           <h2 id="cinema-hero-title">
             {featured ? featured.titulo : <>Un universo de historias <em>a tu manera.</em></>}
           </h2>
@@ -170,6 +213,11 @@ export default function DiscoveryRows({
               <div>
                 <h3 id={"shelf-" + shelf.id}>{shelf.titulo}</h3>
                 <p>{shelf.descripcion}</p>
+                {totalCounts[shelf.id] > 20 && (
+                  <span className="cinema-row-counter">
+                    {content.length.toLocaleString("es-ES")} de {totalCounts[shelf.id].toLocaleString("es-ES")} fichas
+                  </span>
+                )}
               </div>
               <div className="cinema-shelf-arrows">
                 <button type="button" data-spatial aria-label={"Desplazar a la izquierda: " + shelf.titulo}
@@ -218,6 +266,16 @@ export default function DiscoveryRows({
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {content.length > 0 && !isLoading && (pageNumbers[shelf.id] ?? 1) < (pageCounts[shelf.id] ?? 1) && (
+              <div className="cinema-more-row">
+                <button type="button" data-spatial className="cinema-outline-button"
+                  disabled={moreBusy[shelf.id]}
+                  onClick={() => { void loadNext(shelf.id); }}>
+                  {moreBusy[shelf.id] ? "Cargando más títulos…" : "Ver 20 títulos más"}
+                </button>
+                <span className="muted">Página {pageNumbers[shelf.id] ?? 1} de {pageCounts[shelf.id]}</span>
               </div>
             )}
           </section>

@@ -497,3 +497,22 @@ button:disabled { cursor: wait; opacity: .55; }
   .cinema-skeleton { animation: none; }
   .cinema-shelf-track { scroll-behavior: auto; }
 }
+
+
+/* Catálogo TMDB persistente: cifras reales y ampliación por páginas. */
+.cinema-catalog-counter {
+  display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px;
+  margin: 16px 0 0 !important; padding: 9px 14px;
+  background: rgba(9, 12, 24, .62); border: 1px solid rgba(196,181,253,.36);
+  border-radius: 999px; font-size: 12px !important; line-height: 1.45 !important;
+  color: #e4dbff !important;
+}
+.cinema-catalog-counter strong { font-size: 16px; color: #fff; }
+.cinema-catalog-counter span { color: #aea7cb; }
+.cinema-row-counter { display: inline-block; padding-top: 5px; color: #bfaafa; font-size: 11px; font-weight: 700; }
+.cinema-more-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 15px; padding: 5px 8px 0; font-size: 12px; }
+.cinema-more-row .cinema-outline-button { min-height: 39px; font-size: 12px; padding: 8px 14px; }
+@media (max-width: 760px) {
+  .cinema-catalog-counter { border-radius: 12px; }
+  .cinema-catalog-counter span { width: 100%; }
+}

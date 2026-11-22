@@ -61,7 +61,7 @@ class TMDBClient:
     ) -> dict:
         """Filtros de metadatos TMDB; jamás envía trabajos a qBittorrent."""
         kinds = {"pelicula": "movie", "serie": "tv"}
-        if media_type not in kinds or not 1 <= page <= 10:
+        if media_type not in kinds or not 1 <= page <= 500:
             raise TMDBError("Tipo o página no válidos.")
         allowed_genres = {
             "pelicula": {28, 27, 35, 18, 53, 878, 12, 16},
@@ -71,7 +71,7 @@ class TMDBClient:
             raise TMDBError("Género no permitido.")
         if release_year is not None:
             current_year = datetime.now(UTC).year
-            if media_type != "pelicula" or not 2000 <= release_year <= current_year:
+            if media_type != "pelicula" or not 1900 <= release_year <= current_year:
                 raise TMDBError("Año de estreno no válido.")
         params: dict[str, str | int] = {
             "page": page,

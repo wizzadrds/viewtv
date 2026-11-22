@@ -79,10 +79,19 @@ recientes (4 con póster), estrenos 2026, tendencias,
 acción, terror, comedia, ciencia ficción y series
 (todas con fichas y carátulas). Tarea Windows
 reanudada con código 0 y smoke 10/10.
-**Pendiente** persistencia programada de fichas
-remotas (ahora consultas bajo demanda) y validación
-visual en navegador. Reporte:
-[AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md](AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md).
+**Persistencia programada ya desplegada**:
+  catálogo SQLite separado, servicio `catalogador`
+  sin privilegios ni montajes de medios, cada seis
+  horas agrega fichas únicas con cursores por fuente,
+  máximo 50.000. Primera pasada **728 títulos
+  únicos** (599 películas + 129 series), 48
+  consultas a TMDB. Paginación real de 20 en 20
+  y contador en la portada. Suite backend
+  **940/940 PASS**, producción smoke 10/10.
+  Pendiente: comprobación visual del propietario.
+  Informes:
+[AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md](AVANCE-ACTIVACION-TMDB-CATEGORIAS-0013-20261122.md)
+y [AVANCE-CATALOGO-AMPLIO-PERSISTENTE-0013-20261122.md](AVANCE-CATALOGO-AMPLIO-PERSISTENTE-0013-20261122.md).
 **Desinstalar no activo**: requiere
 un borrado selectivo seguro de la copia propietaria
 y verificación de hardlinks/qBit antes de liberar

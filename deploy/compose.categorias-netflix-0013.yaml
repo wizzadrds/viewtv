@@ -1,7 +1,34 @@
-# Dos únicos servicios candidatos: API de metadatos y PWA por filas.
-# No modifica worker, Jellyfin, qBit, volúmenes ni política de publicación.
+# Metadatos TMDB de gran catálogo: almacenamiento dedicado sin medios.
+# No modifica el volumen SQLite principal ni los archivos de películas.
 services:
   api:
-    image: viewtv:categorias-0013-api-conservative
+    image: viewtv:catalogo-amplio-api-0013
+    environment:
+      VIEWTV_CATALOG_PATH: /catalogo/metadatos.db
+    volumes:
+      - viewtv_catalogo_data:/catalogo:ro
   frontend:
-    image: viewtv-frontend:categorias-0013-candidate
+    image: viewtv-frontend:catalogo-amplio-0013
+  catalogador:
+    image: viewtv:catalogo-amplio-api-0013
+    command: ["python", "-m", "app.catalogador_cli", "loop"]
+    working_dir: /opt/viewtv/backend
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      TMDB_API_KEY: ${TMDB_API_KEY}
+      TMDB_LANGUAGE: es-ES
+      VIEWTV_CATALOG_PATH: /catalogo/metadatos.db
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - viewtv_catalogo_data:/catalogo
+    restart: unless-stopped
+
+volumes:
+  viewtv_catalogo_data:
