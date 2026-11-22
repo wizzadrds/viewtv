@@ -202,3 +202,27 @@ Tizen, certificados, publicación en tienda ni nuevas funcionalidades
 mientras el bloqueo de cohesión carátula ↔ fuente siga abierto.
 No prometer disponibilidad en Samsung Apps/Smart Hub sin comprobar
 requisitos específicos de Samsung y el modelo del televisor.
+
+## Idea futura, posterior a la app Samsung: «VIEWTV Momentos» (22/11/2026)
+
+**Propuesta del propietario, documentada pero NO implementada:** feed de
+**clips de películas en formato vertical 9:16**, inspirado en el
+desplazamiento de TikTok pero adaptado a **pantalla TV 16:9 y mando
+↑/↓/OK/Volver**. Un espectador descubre una escena interesante y,
+al pulsar OK, abre **la ficha de esa película exacta por TMDB ID**,
+con reproducción desde Jellyfin solo si está autorizada y disponible.
+
+La propuesta abarca carátulas a color, foco y controles remotos claros,
+vídeo centrado sin deformación, subtítulos, avisos de spoilers y edad,
+fuentes de clips **con derechos válidos**, consumo moderado de recursos
+y fallback visual si no hay vídeo autorizado. No implica recortar ni
+redistribuir películas ajenas sin permiso; **nunca** crea descargas
+automáticas para producir clips.
+
+**Orden estricto:** primero completar y validar la **app Samsung instalable
+y profesional** ya anotada; después diseñar prototipo con contenido
+ficticio y un piloto de clips licenciados, y solo entonces plantear
+catálogo y recomendaciones. No hacer cambios de código ahora.
+
+Documento de producto, arquitectura candidata, criterios de aceptación
+y riesgos: [IDEA-FUTURA-MOMENTOS-VERTICALES-TV-20261122.md](IDEA-FUTURA-MOMENTOS-VERTICALES-TV-20261122.md).
