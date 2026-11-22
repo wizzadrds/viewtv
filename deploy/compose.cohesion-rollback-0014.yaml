@@ -1,0 +1,6 @@
+# Reversión segura del algoritmo sin quitar tmdb_id ni tocar los datos.
+services:
+  api:
+    image: viewtv:cohesion-rollback-api-0014
+  worker:
+    image: viewtv:cohesion-rollback-worker-0014

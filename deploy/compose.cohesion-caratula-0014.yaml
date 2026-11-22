@@ -1,0 +1,7 @@
+# Solo sustituir API y worker en la MISMA revisión 0014.
+# Mantener frontend Samsung, catalogador, Jellyfin, flags y volúmenes.
+services:
+  api:
+    image: viewtv:cohesion-caratula-api-0014
+  worker:
+    image: viewtv:cohesion-caratula-worker-0014

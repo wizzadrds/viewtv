@@ -1,0 +1,5 @@
+# Retroceso de algoritmo manteniendo esquema 0014 y solicitudes ya existentes.
+FROM viewtv:busqueda-tmdb-worker-0013
+COPY backend/migrations/versions/0014_identidad_tmdb_solicitud.py /opt/viewtv/backend/migrations/versions/
+COPY backend/app/models.py /opt/viewtv/backend/app/models.py
+RUN cd /opt/viewtv/backend && alembic heads | grep 0014_identidad_tmdb_solicitud

@@ -89,6 +89,8 @@ class Solicitud(SQLModel, table=True):
     titulo: str = Field(max_length=500)
     tipo_medio: str | None = Field(default=None, max_length=20)
     anio: int | None = Field(default=None, ge=1870, le=2200)
+    # Identidad exacta de la carátula elegida; nulo para solicitudes históricas.
+    tmdb_id: int | None = Field(default=None, gt=0, index=True)
     estado: str = Field(default="pendiente", max_length=20, index=True)
     prioridad: int = Field(default=50, ge=0, le=100, index=True)
     intentos: int = Field(default=0, ge=0)

@@ -69,7 +69,7 @@ def test_tmdb_oficial_identifica_caratula_en_es_y_publicacion_en_ingles(monkeypa
     assert queries[0] == "Vengadores: Doomsday 2026"
     assert "Avengers: Doomsday 2026" in queries
     assert any(q == "Doomsday" for q in queries)
-    assert len(queries) <= 4
+    assert len(queries) <= 6
     assert coincide_con_solicitud(
         "Vengadores: Doomsday", "pelicula", 2026,
         "Avengers.Doomsday.2026.1080p.WEB-DL", aliases,
@@ -78,7 +78,7 @@ def test_tmdb_oficial_identifica_caratula_en_es_y_publicacion_en_ingles(monkeypa
         "Vengadores: Doomsday", "pelicula", 2026,
         "Doomsday.2026.1080p", aliases,
     )
-    assert not coincide_con_solicitud(
+    assert coincide_con_solicitud(
         "Vengadores: Doomsday", "pelicula", 2026,
         "Avengers.Doomsday.2025.1080p", aliases,
     )
@@ -94,7 +94,7 @@ def test_sin_identidad_tmdb_no_inventa_traducciones(monkeypatch):
     monkeypatch.setattr(cohesion, "TMDBClient", lambda: fake)
     assert cohesion.aliases_para_solicitud("La película inexistente", "pelicula", 2026) == ()
     assert cohesion.consultas_jackett("La película inexistente", "pelicula", 2026, ()) == (
-        "La película inexistente 2026",
+        "La película inexistente 2026", "La película inexistente",
     )
     assert not coincide_con_solicitud(
         "La película inexistente", "pelicula", 2026,
@@ -104,7 +104,7 @@ def test_sin_identidad_tmdb_no_inventa_traducciones(monkeypatch):
 
 def test_anio_distinto_no_enlaza_fichas(monkeypatch):
     monkeypatch.setattr(cohesion, "TMDBClient", FakeTMDB)
-    assert cohesion.aliases_para_solicitud("Vengadores: Doomsday", "pelicula", 2025) == ()
+    assert cohesion.aliases_para_solicitud("Vengadores: Doomsday", "pelicula", 2022) == ()
 
 
 def test_series_mantienen_episodio_en_idioma_original(monkeypatch):
@@ -150,4 +150,4 @@ def test_reserva_busqueda_corta_con_muchas_traducciones():
     assert queries[0] == "Vengadores: Doomsday 2026"
     assert "Avengers: Doomsday 2026" in queries
     assert queries[-1] == "Doomsday"
-    assert len(queries) <= 4
+    assert len(queries) <= 6

@@ -1,9 +1,12 @@
 """Procesamiento de búsquedas de la cola durable."""
 
+import base64
 import hashlib
 import logging
+import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from urllib.parse import parse_qs, urlsplit
 
 from sqlmodel import Session
 
@@ -12,7 +15,11 @@ from app.jackett import JackettClient, JackettError
 from app.models import ResultadoBusqueda
 from app.queue import claim_next_request, fail_request, finish_search_request
 from app.relevancia_resultado import coincide_con_solicitud
-from app.titulo_cohesion import aliases_para_solicitud, consultas_jackett
+from app.titulo_cohesion import (
+    aliases_para_solicitud,
+    consultas_jackett,
+    solicitud_sin_anio_ambigua,
+)
 
 logger = logging.getLogger("viewtv.worker.processor")
 
@@ -30,12 +37,33 @@ def _result_key(
     magnet_url: str | None,
     download_url: str | None,
 ) -> str:
-    if info_hash:
-        identity = f"hash:{info_hash.strip().lower()}"
+    def normalize_hash(value: str) -> str | None:
+        value = value.strip().lower()
+        if re.fullmatch(r"[0-9a-f]{40}", value):
+            return value
+        if re.fullmatch(r"[a-z2-7]{32}", value):
+            try:
+                return base64.b32decode(value.upper()).hex()
+            except ValueError:
+                return None
+        return None
+
+    canonical = normalize_hash(info_hash) if info_hash else None
+    if not canonical and magnet_url and magnet_url.lower().startswith("magnet:?"):
+        for xt in parse_qs(urlsplit(magnet_url).query).get("xt", []):
+            if xt.casefold().startswith("urn:btih:"):
+                canonical = normalize_hash(xt[9:])
+                if canonical:
+                    break
+
+    if canonical:
+        identity = f"hash:{canonical}"
+    elif info_hash:
+        identity = f"hash-literal:{info_hash.strip().lower()}"
     elif magnet_url:
         identity = f"magnet:{magnet_url.strip()}"
     else:
-        identity = f"url:{download_url.strip()}"
+        identity = f"url:{(download_url or '').strip()}"
 
     return hashlib.sha256(identity.encode("utf-8")).hexdigest()
 
@@ -110,16 +138,30 @@ def process_one_request(
         title = request.titulo
         year = request.anio
         media_type = request.tipo_medio
+        tmdb_id = request.tmdb_id
 
     if request_id is None:
         return True
 
     try:
-        aliases = aliases_para_solicitud(title, media_type, year)
+        aliases = (
+            aliases_para_solicitud(title, media_type, year, tmdb_id)
+            if tmdb_id is not None else
+            aliases_para_solicitud(title, media_type, year)
+        )
         queries = consultas_jackett(title, media_type, year, aliases)
         jackett = client or JackettClient()
         found = []
-        for query in queries:
+        ambiguous = (
+            tmdb_id is None and year is None
+            and solicitud_sin_anio_ambigua(title, media_type)
+        )
+        if ambiguous:
+            logger.warning(
+                "Solicitud %s: título ambiguo; indicar año o elegir carátula TMDB",
+                request_id,
+            )
+        for query in (() if ambiguous else queries):
             try:
                 found.extend(jackett.search(
                     query, search_type=_search_type(media_type),

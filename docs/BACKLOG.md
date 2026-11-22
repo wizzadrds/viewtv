@@ -181,3 +181,24 @@ inicio de sesión, mando y reproducción/códec;
 no inferir éxito solo por HTTP desde Windows.
 Documento:
 [AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md](AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md).
+
+## Próxima tarea autorizada tras cerrar la cohesión (confirmación del propietario, 22/11/2026)
+
+**Aplicación Samsung instalable, con acabado profesional.**
+El propietario confirma que el enlace `/tv.html` **ya funciona en su televisor**,
+pero las carátulas se ven en blanco y negro y la interfaz actual le
+parece poco cuidada. No dar por comprobadas reproducción ni descarga
+en Samsung solo por esta confirmación de arranque.
+
+Objetivo de la siguiente intervención: evaluar el modelo/versión Tizen
+y crear una **app instalada desde el televisor, con icono y lanzamiento
+tipo Netflix o Prime Video**, reutilizando el servidor doméstico ViewTV
+y manteniendo el proxy same-origin; diseñar portada/color/carátulas,
+foco/cruceta, carruseles, carga de imágenes y reproducción compatible,
+y probarla físicamente sin manipular descargas ni biblioteca.
+
+**Aplazada expresamente:** no empezar diseño visual, empaquetado
+Tizen, certificados, publicación en tienda ni nuevas funcionalidades
+mientras el bloqueo de cohesión carátula ↔ fuente siga abierto.
+No prometer disponibilidad en Samsung Apps/Smart Hub sin comprobar
+requisitos específicos de Samsung y el modelo del televisor.

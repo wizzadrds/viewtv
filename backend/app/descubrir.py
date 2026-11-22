@@ -504,10 +504,9 @@ def solicitar_episodio(
     # La cola actual identifica el capítulo de forma inequívoca en el título.
     # No inventar columnas ni asumir que una serie instalada está completa.
     title = f'{show["titulo"][:475]} S{temporada:02d}E{episodio:02d}'
-    result = crear_solicitud(
-        CrearSolicitudInput(titulo=title, tipo_medio="serie", anio=None),
-        perfil, session,
-    )
+    request = CrearSolicitudInput(titulo=title, tipo_medio="serie", anio=None)
+    request._tmdb_id = tmdb_id
+    result = crear_solicitud(request, perfil, session)
     return {
         "estado": "solicitud_creada",
         "solicitud_id": result["id"],
@@ -556,6 +555,7 @@ def solicitar_descarga(
     request = CrearSolicitudInput(
         titulo=item["titulo"], tipo_medio=tipo, anio=item["anio"],
     )
+    request._tmdb_id = tmdb_id
     result = crear_solicitud(request, perfil, session)
     return {
         "estado": "solicitud_creada",

@@ -123,7 +123,7 @@ def test_process_saves_results_and_releases_lease(monkeypatch):
         request = add_request(session)
         request_id = request.id
 
-    jackett = FakeJackett(results=[make_result()])
+    jackett = FakeJackett(results=[make_result(title="Película de prueba 2020 1080p")])
 
     assert processor.process_one_request("worker-test", jackett)
 
@@ -140,9 +140,9 @@ def test_process_saves_results_and_releases_lease(monkeypatch):
         assert request.locked_by is None
         assert request.locked_until is None
         assert len(results) == 1
-        assert results[0].titulo == "Película de prueba 1080p"
+        assert results[0].titulo == "Película de prueba 2020 1080p"
 
-    assert jackett.calls == [("Película de prueba 2020", "movie")]
+    assert jackett.calls == [("Película de prueba 2020", "movie"), ("Película de prueba", "movie")]
 
 
 def test_process_without_results_sets_empty_state(monkeypatch):
@@ -231,6 +231,7 @@ def test_series_request_uses_tvsearch(monkeypatch):
         request = add_request(session)
         request.tipo_medio = "serie"
         request.titulo = "Serie de prueba"
+        request.anio = None  # Los episodios no llevan año de estreno de la serie.
         session.add(request)
         session.commit()
         request_id = request.id
@@ -239,7 +240,7 @@ def test_series_request_uses_tvsearch(monkeypatch):
 
     assert processor.process_one_request("worker-test", jackett)
 
-    assert jackett.calls == [("Serie de prueba 2020", "tvsearch")]
+    assert jackett.calls == [("Serie de prueba", "tvsearch")]
 
     with Session(test_engine) as session:
         request = session.get(Solicitud, request_id)
@@ -340,7 +341,7 @@ def test_solicitud_tmdb_multilingue_enlaza_unicamente_publicaciones_correctas(mo
         assert session.get(Solicitud, request_id).estado == "esperando_seleccion"
     assert any("Avengers: Doomsday" in query for query in provider.calls)
     assert any(query.startswith("Doomsday") for query in provider.calls)
-    assert len(provider.calls) <= 4
+    assert len(provider.calls) <= 6
 
 
 def test_fallback_sin_tmdb_conserva_consulta_original(monkeypatch):
@@ -354,4 +355,7 @@ def test_fallback_sin_tmdb_conserva_consulta_original(monkeypatch):
         session.commit()
     provider = FakeJackett(results=[make_result(title="Título no identificado 2020 1080p")])
     assert processor.process_one_request("sin-tmdb", provider)
-    assert provider.calls == [("Título no identificado 2020", "movie")]
+    assert provider.calls == [
+        ("Título no identificado 2020", "movie"),
+        ("Título no identificado", "movie"),
+    ]

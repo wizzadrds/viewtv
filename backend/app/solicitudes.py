@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, model_validator
 from sqlalchemy import func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -31,7 +31,7 @@ from app.models import (
 )
 from app.qbittorrent import QBittorrentClient, QBittorrentError
 from app.relevancia_resultado import coincide_con_solicitud
-from app.titulo_cohesion import aliases_para_solicitud
+from app.titulo_cohesion import aliases_para_solicitud, solicitud_sin_anio_ambigua
 
 router = APIRouter(prefix="/solicitudes", tags=["solicitudes"])
 
@@ -49,6 +49,28 @@ ESTADOS_DESCARGA_ACTIVOS = (
     "descargando",
     "pausada",
 )
+
+
+def _rechazar_ambiguedad(solicitud: Solicitud) -> None:
+    if (solicitud.tmdb_id is None and solicitud.anio is None
+            and solicitud_sin_anio_ambigua(
+                solicitud.titulo, solicitud.tipo_medio,
+            )):
+        raise HTTPException(
+            status_code=409,
+            detail="TMDB conoce varios títulos iguales: solicita la película con año.",
+        )
+
+
+def _aliases_de_solicitud(solicitud: Solicitud) -> tuple[str, ...]:
+    """API y worker respetan el mismo ID TMDB sin delegarlo al navegador."""
+    if solicitud.tmdb_id is not None:
+        return aliases_para_solicitud(
+            solicitud.titulo, solicitud.tipo_medio, solicitud.anio, solicitud.tmdb_id,
+        )
+    return aliases_para_solicitud(
+        solicitud.titulo, solicitud.tipo_medio, solicitud.anio,
+    )
 
 
 def _verificar_metadatos_para_perfil(
@@ -121,6 +143,9 @@ class CrearSolicitudInput(BaseModel):
     titulo: str | None = Field(default=None, min_length=1, max_length=500)
     tipo_medio: Literal["pelicula", "serie"] | None = None
     anio: int | None = Field(default=None, ge=1870, le=2200)
+    # Solo lo establece el servidor al pulsar una carátula TMDB.
+    # Nunca se acepta de JSON enviado por un cliente externo.
+    _tmdb_id: int | None = PrivateAttr(default=None)
 
     @model_validator(mode="after")
     def validar_modalidad(self):
@@ -236,6 +261,7 @@ def crear_solicitud(
             titulo=titulo,
             tipo_medio=tipo_medio,
             anio=anio,
+            tmdb_id=(medio.tmdb_id if medio is not None else payload._tmdb_id),
         )
         session.add(solicitud)
         session.commit()
@@ -611,10 +637,9 @@ def listar_resultados(
         "480p": 4,
     }
 
+    _rechazar_ambiguedad(solicitud)
     respuesta = []
-    aliases = aliases_para_solicitud(
-        solicitud.titulo, solicitud.tipo_medio, solicitud.anio,
-    )
+    aliases = _aliases_de_solicitud(solicitud)
 
     for resultado in resultados:
         if not coincide_con_solicitud(
@@ -679,9 +704,10 @@ def verificar_resultado(
     ).first()
     if resultado is None:
         raise HTTPException(status_code=404, detail="Resultado no encontrado.")
+    _rechazar_ambiguedad(solicitud)
     if not coincide_con_solicitud(
         solicitud.titulo, solicitud.tipo_medio, solicitud.anio, resultado.titulo,
-        aliases_para_solicitud(solicitud.titulo, solicitud.tipo_medio, solicitud.anio),
+        _aliases_de_solicitud(solicitud),
     ):
         raise HTTPException(status_code=409, detail="El título no corresponde a la solicitud.")
     respuesta, _metainfo_privado = _verificar_metadatos_para_perfil(
@@ -725,10 +751,10 @@ def seleccionar_resultado(
             Solicitud.perfil_id == perfil.id,
         )
     ).first()
+    if solicitud_pre is not None:
+        _rechazar_ambiguedad(solicitud_pre)
     aliases_pre = (
-        aliases_para_solicitud(
-            solicitud_pre.titulo, solicitud_pre.tipo_medio, solicitud_pre.anio,
-        ) if solicitud_pre is not None else ()
+        _aliases_de_solicitud(solicitud_pre) if solicitud_pre is not None else ()
     )
     if resultado_pre is not None:
         snapshot = (

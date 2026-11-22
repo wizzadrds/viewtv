@@ -24,7 +24,7 @@ XML_TWO_RESULTS = b"""<?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:torznab="http://torznab.com/schemas/2015/feed">
  <channel>
   <item>
-   <title>Contenido ficticio 1080p WEB</title>
+   <title>Contenido ficticio 2026 1080p WEB</title>
    <enclosure url="https://ejemplo.invalid/descarga-fixture-1"
        type="application/x-bittorrent" length="1000000000"/>
    <torznab:attr name="seeders" value="20"/>
@@ -33,7 +33,7 @@ XML_TWO_RESULTS = b"""<?xml version="1.0" encoding="UTF-8"?>
    <jackettindexer>indexador-local-de-prueba</jackettindexer>
   </item>
   <item>
-   <title>Contenido ficticio 720p</title>
+   <title>Contenido ficticio 2026 720p</title>
    <enclosure url="https://ejemplo.invalid/descarga-fixture-2"
        type="application/x-bittorrent" length="500000000"/>
    <torznab:attr name="seeders" value="40"/>
@@ -126,9 +126,11 @@ def test_api_worker_torznab_selection_and_download_tracking(flow_lab, media_kind
     search_requests: list[httpx.Request] = []
     jackett = make_fake_jackett(search_requests, XML_TWO_RESULTS)
     assert processor.process_one_request("worker-de-prueba", client=jackett)
-    assert len(search_requests) == 1
-    assert search_requests[0].url.params["q"] == "Contenido ficticio 2026"
-    assert search_requests[0].url.params["t"] == expected_search
+    assert len(search_requests) == 2
+    assert [r.url.params["q"] for r in search_requests] == [
+        "Contenido ficticio 2026", "Contenido ficticio",
+    ]
+    assert all(r.url.params["t"] == expected_search for r in search_requests)
 
     listed = client.get("/solicitudes")
     assert listed.status_code == 200
@@ -269,6 +271,7 @@ def test_worker_marks_no_results_if_only_unrelated_releases(flow_lab):
     rid = client.post(
         "/solicitudes", json={"titulo": "Nadie 2", "tipo_medio": "pelicula"},
     ).json()["id"]
+    assert rid > 0
     wrong = b"""<rss><channel>
       <item><title>Cuando.nadie.nos.ve.S01E01.HDTV.720p.SPANISH</title>
         <enclosure url="https://fixture.invalid/episode"/></item>

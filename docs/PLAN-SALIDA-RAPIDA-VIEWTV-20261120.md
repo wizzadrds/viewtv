@@ -871,3 +871,34 @@ Informe:
   resultados, corregir soporte nativo HLS.
 Informe:
 [AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md](AVANCE-BUSQUEDA-COHESION-SAMSUNG-0013-20261122.md).
+
+## Cohesión de carátula y búsqueda desplegada (22/11/2026, 0014)
+
+- [x] Al pulsar solicitar desde una carátula TMDB, la solicitud nueva
+  conserva el ID de esa ficha en SQLite (migración nullable 0014).
+  Las solicitudes antiguas no se han convertido ni alterado.
+- [x] El worker consulta máximo seis variantes de título oficial
+  ES/EN y títulos alternativos, con/sin año; la búsqueda parcial
+  es solo descubrimiento, nunca identidad suficiente para ofrecer.
+- [x] API y worker aplican validación por conjuntos de tokens, año
+  explícito ±1 para películas, tipo y código exacto SxxEyy. Rechazo
+  de remakes ambiguos, secuelas ajenas y duplicados por infohash.
+- [x] Suite backend **1006/1006 PASS**, Ruff PASS; migración
+  **0013 → 0014 → 0013 → 0014** sobre clon real, con integridad
+  y FK correctas; SQLite productiva respaldada antes de despliegue.
+- [x] Sólo API y worker 0014 recreados, frontend Samsung intacto;
+  smoke **10/10 PASS**, SQLite 0014 íntegra, ningún torrent iniciado.
+- [x] Jackett read-only: «Vengadores: Doomsday» 6 búsquedas,
+  10 respuestas, **0 válidas** (sin falsos positivos);
+  «Ocho apellidos vascos» 2 consultas, 173 respuestas, sólo
+  **3 coincidencias por texto/año** sin verificar metainfo.
+- [ ] **Validación funcional del propietario:** elegir otra carátula
+  desde la PWA, crear solicitud y revisar la lista antes de escoger
+  fuente. No prometer que Jackett tendrá todas las películas.
+  No confundir coincidencia de nombre/año con película verificable.
+- [ ] **Siguiente tarea expresamente autorizada pero aplazada:**
+  app Samsung instalada con diseño profesional, carátulas a color,
+  mandos y reproducción; descrita en `docs/BACKLOG.md`. El
+  enlace `/tv.html` ya arranca según confirmación del usuario.
+
+Informe: [AVANCE-COHESION-CARATULA-TMDB-0014-20261122.md](AVANCE-COHESION-CARATULA-TMDB-0014-20261122.md).

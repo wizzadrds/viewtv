@@ -1,0 +1,11 @@
+# Worker 0014: misma revisión Alembic, modelo y lógica de identidad de la API.
+FROM viewtv:busqueda-tmdb-worker-0013
+COPY backend/migrations/versions/0014_identidad_tmdb_solicitud.py /opt/viewtv/backend/migrations/versions/
+COPY backend/app/models.py /opt/viewtv/backend/app/models.py
+COPY backend/app/titulo_cohesion.py /opt/viewtv/backend/app/titulo_cohesion.py
+COPY backend/app/relevancia_resultado.py /opt/viewtv/backend/app/relevancia_resultado.py
+COPY backend/app/solicitudes.py /opt/viewtv/backend/app/solicitudes.py
+COPY backend/app/descubrir.py /opt/viewtv/backend/app/descubrir.py
+COPY worker/processor.py /opt/viewtv/worker/processor.py
+RUN cd /opt/viewtv/backend && alembic heads | grep 0014_identidad_tmdb_solicitud
+RUN python -m compileall -q /opt/viewtv/backend/app /opt/viewtv/worker/processor.py
