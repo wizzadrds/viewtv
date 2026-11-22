@@ -1,0 +1,4 @@
+# Superponer al mismo stack, solo API; worker y frontend sin recrear.
+services:
+  api:
+    image: viewtv:publicador-compatible-api-0016

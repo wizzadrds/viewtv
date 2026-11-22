@@ -260,3 +260,46 @@ VIEWTV que se implementen en el futuro. No afirmar borrado terminado.
 
 Informe completo:
 [AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md](AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md).
+
+## Gestión de espacio 0016: prueba real de retirada y bloqueo (22/11/2026)
+
+**Se mantiene como tarea prioritaria anterior a Samsung.**
+Informe:
+[AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md](AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md).
+
+- [x] **Corregido bloqueo real del publicador Windows** tras
+  Alembic 0014/0015: `organization_windows_cli` reconoce revisiones
+  0013/0014/0015 si el contrato de columnas está intacto, y rechaza
+  otras. API actualizada **solo ella** a
+  `viewtv:publicador-compatible-api-0016`. Estado `listo`,
+  preflight Windows **PASS**, smoke **10/10 PASS**.
+- [x] Auditoría Windows real, **sin escritura**: dos diarios
+  y hardlinks NTFS válidos con hashes de manifiesto correctos;
+  **una carpeta de películas no tiene diario verificable** y queda
+  excluida; un diario pertenece al histórico ≤3.
+- [x] Cruce exacto Jellyfin por ID y ruta, no nombre:
+  **dos** rutas de películas corresponden sin ambigüedad a los
+  vídeos de esos dos diarios. Los registros antiguos no tienen
+  enlace directo único en SQLite con `medio.id`.
+- [x] qBittorrent solo GET: ambos torrents organizados pertenecen
+  a ViewTV, pero **los dos estaban en uso y ninguno detenido** al
+  comprobarlo. La regla de seguridad rechaza torrentes activos,
+  ajenos o ambiguos y exige autorización posterior.
+- [x] Sandbox Windows separado con enlace NTFS ficticio: se
+  rechazó inspección durante bloqueo de archivo y se probó
+  borrar **solo la copia ficticia**, conservando su origen;
+  cero películas/torrents reales tocados.
+- [ ] **Bloqueo antes de la app:** construir autoridad Windows
+  de retirada bajo autorización específica del administrador,
+  vinculando los tres orígenes en un preflight único, deteniendo
+  primero solo torrents propios autorizados, excluyendo reproducciones,
+  otros enlaces/perfiles y cambios concurrentes. Probar
+  recuperación tras fallo y contabilizar **bytes físicos** liberados.
+  No interpretar un clic en «vista» como permiso de borrar ni
+  llamar «eliminado» a una solicitud pendiente.
+- [ ] Gestionar efectivamente cuota de caché propia cuando existan
+  escritores de temporales; no tocar caché Jellyfin.
+
+**No se activó ningún endpoint ni tarea que borre películas**.
+El botón actual sigue siendo «Solicitar retirada» hasta que se
+demuestre el circuito completo. Mantener PR #2 OPEN/DRAFT.

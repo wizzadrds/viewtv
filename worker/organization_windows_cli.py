@@ -31,10 +31,39 @@ from app.qbittorrent import QBittorrentClient
 
 
 def _schema_0013() -> None:
+    """El contrato del publicador 0013 persiste tras migraciones aditivas.
+
+    Solo aceptar revisiones verificadas: nunca un esquema desconocido.
+    No se modifican los datos en este preflight.
+    """
+    accepted = {
+        "0013_cola_organizacion",
+        "0014_identidad_tmdb_solicitud",
+        "0015_gestion_espacio_vistas",
+    }
+    required = {
+        "descarga": {
+            "id", "solicitud_id", "estado", "estado_verificacion",
+            "qbittorrent_hash", "organizacion_estado", "organizacion_intentos",
+            "organizacion_locked_by", "organizacion_locked_until",
+        },
+        "solicitud": {"id", "titulo", "tipo_medio", "anio"},
+        "medio": {"id", "jellyfin_id", "disponible_en_jellyfin"},
+    }
     with engine.connect() as connection:
-        version = connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
-    if version != "0013_cola_organizacion":
-        raise ValueError("La base de datos no tiene el esquema 0013.")
+        revision = connection.exec_driver_sql(
+            "SELECT version_num FROM alembic_version"
+        ).scalar()
+        if revision not in accepted:
+            raise ValueError("La revisión SQLite no está autorizada para el publicador.")
+        for table, columns in required.items():
+            available = {
+                row[1] for row in connection.exec_driver_sql(
+                    f"PRAGMA table_info({table})"
+                ).fetchall()
+            }
+            if not columns.issubset(available):
+                raise ValueError("El esquema no conserva el contrato del publicador.")
 
 
 def _in_policy(download_id: int, policy) -> None:

@@ -1,0 +1,5 @@
+# Conserva API/BD/usuario 0015; solo corrige compatibilidad del publicador.
+FROM viewtv:gestion-espacio-api-0015
+COPY worker/organization_windows_cli.py /opt/viewtv/worker/organization_windows_cli.py
+RUN python -m py_compile /opt/viewtv/worker/organization_windows_cli.py
+RUN cd /opt/viewtv/backend && alembic heads | grep 0015_gestion_espacio_vistas

@@ -932,3 +932,25 @@ Informe: [AVANCE-COHESION-CARATULA-TMDB-0014-20261122.md](AVANCE-COHESION-CARATU
   después: feed futuro «VIEWTV Momentos».
 
 Informe: [AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md](AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md).
+
+## Seguimiento de espacio 0016 (22/11/2026)
+
+- [x] Corregir compatibilidad del publicador con base 0015 sin
+  relajar validación de versiones desconocidas (preflight Windows PASS).
+- [x] Validar huella de los diarios, hardlinks NTFS y ubicación
+  exacta Jellyfin en producción (2 publicaciones coincidentes).
+- [x] Detectar material no demostrablemente propio (1 carpeta
+  sin diario) y fuentes aún activas (2 torrents propios en uso);
+  **ninguno es borrable automáticamente**.
+- [x] Prueba de retirada **exclusiva del sandbox Windows**,
+  manteniendo el original; regresiones de propiedad/estados
+  qBit y compatibilidad de esquema.
+- [ ] Implementar en tarea posterior el administrador y
+  ejecutor seguro de retirada, autorización por título/ID,
+  bloqueo de qBit/seeding/streaming y journal de recuperación.
+  No borrar material existente sin aprobación concreta.
+- [ ] Cuota/caducidad efectiva de caché de escritura propia.
+- [ ] **Después:** app Samsung instalable a color; después
+  «VIEWTV Momentos».
+
+Informe: [AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md](AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md).

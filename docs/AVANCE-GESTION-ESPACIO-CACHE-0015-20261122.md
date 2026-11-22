@@ -115,3 +115,14 @@ El usuario pide **eliminar realmente películas vistas para liberar espacio**. H
 **Supuestos:** los tamaños del sistema operativo son tamaños lógicos. Distintos hardlinks pueden compartir bytes físicos. Una película marcada como vista lo está porque el usuario lo indica manualmente; no se infiere de Jellyfin.
 
 **Pendiente:** ejecución física autorizada en Windows, cuota de caché efectiva, prueba manual autenticada y futura integración en app Samsung. Estos puntos siguen abiertos en BACKLOG y no se reportan como completados.
+
+## Seguimiento 0016 (22/11/2026)
+
+La fase posterior confirmó dos publicaciones propias con diario,
+huella y hardlink NTFS válidos, dos rutas exactas de Jellyfin
+y dos torrents qBittorrent aún **en uso**; hay una carpeta
+sin diario verificable que no debe tocarse. Se corrigió
+además el rechazo del publicador Windows ante Alembic 0015.
+No se han borrado películas.
+
+Ver [AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md](AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md).
