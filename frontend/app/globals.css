@@ -596,3 +596,17 @@ button:disabled { cursor: wait; opacity: .55; }
   .viewtv-update-notice { flex-direction: column; align-items: stretch; gap: 12px; }
   .viewtv-update-action { width: 100%; }
 }
+
+.tv-boot-fallback {
+  margin-top: 34px; padding: 15px 22px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  font-size: 13px; color: #c9bfd9;
+}
+.tv-boot-fallback a {
+  display: inline-block; padding: 12px 17px;
+  border: 2px solid rgba(195,165,250,.8); border-radius: 10px;
+  text-decoration: none; background: #342450; color: #fff; font-weight: 700;
+}
+.tv-boot-fallback a:focus-visible,.tv-boot-fallback a:hover {
+  outline: 3px solid #fff; outline-offset: 4px; background: #6242a4;
+}

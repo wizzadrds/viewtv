@@ -81,13 +81,22 @@ export default function ViewTVApp() {
   useSpatialNavigation((view === "catalog" || view === "discover" || view === "login" || view === "requests" || view === "downloads") && !playbackUrl);
 
   const loadProfiles = useCallback(async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
     try {
-      const data = await apiRequest<{ perfiles: Profile[] }>("/auth/profiles");
+      const data = await apiRequest<{ perfiles: Profile[] }>(
+        "/auth/profiles", { signal: controller.signal },
+      );
       setProfiles(data.perfiles);
+      setLoginError("");
       setView("login");
     } catch {
-      setLoginError("No se puede conectar con VIEWTV. Comprueba que el servidor esté encendido.");
+      setLoginError(
+        "La televisión no pudo cargar los perfiles. Pulsa Reintentar o usa la versión Samsung compatible.",
+      );
       setView("login");
+    } finally {
+      window.clearTimeout(timeout);
     }
   }, []);
 
@@ -122,7 +131,9 @@ export default function ViewTVApp() {
 
   useEffect(() => {
     let active = true;
-    apiRequest<Session>("/auth/me")
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 10_000);
+    apiRequest<Session>("/auth/me", { signal: controller.signal })
       .then((session) => {
         if (!active) return;
         setProfile(session);
@@ -130,8 +141,13 @@ export default function ViewTVApp() {
       })
       .catch(() => {
         if (active) void loadProfiles();
-      });
-    return () => { active = false; };
+      })
+      .finally(() => window.clearTimeout(timer));
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [loadProfiles]);
 
   useEffect(() => {
@@ -353,7 +369,18 @@ export default function ViewTVApp() {
   }, [playbackUrl]);
 
   if (view === "loading") {
-    return <main className="boot-screen"><div className="brand-mark">V</div><p>Iniciando VIEWTV…</p></main>;
+    return (
+      <main className="boot-screen">
+        <div className="brand-mark">V</div>
+        <p>Iniciando VIEWTV…</p>
+        <div className="tv-boot-fallback">
+          <span>¿Tu Samsung no avanza de esta pantalla?</span>
+          <a href="/tv.html" data-spatial>
+            Abrir versión compatible con Samsung
+          </a>
+        </div>
+      </main>
+    );
   }
 
   if (view === "login") {
@@ -398,7 +425,18 @@ export default function ViewTVApp() {
               </button>
             </form>
           )}
-          {loginError && <p className="error-message" role="alert">{loginError}</p>}
+          {loginError && (
+            <div role="alert">
+              <p className="error-message">{loginError}</p>
+              <button className="quiet-button" type="button" data-spatial
+                onClick={() => { void loadProfiles(); }}>
+                Reintentar conexión
+              </button>
+              <a href="/tv.html" className="quiet-button" data-spatial>
+                Abrir versión Samsung compatible
+              </a>
+            </div>
+          )}
         </section>
         <p className="login-footer">Biblioteca multimedia privada · Red local</p>
       </main>

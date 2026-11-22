@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b12">
+<title>VIEWTV · Samsung compatible</title>
+<style>
+html,body{margin:0;min-height:100%;background:#0b0b18;color:#f6f4ff;font:18px Arial,sans-serif}
+*{box-sizing:border-box}button,input,select{font:inherit}
+header{position:sticky;top:0;z-index:8;background:#101023;border-bottom:1px solid #333047;padding:18px 4%;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+header strong{font-size:27px;letter-spacing:3px}header span{color:#b29df3;font-size:13px}
+nav{display:flex;gap:12px;flex-wrap:wrap}button{background:#272443;color:#fff;border:2px solid #564c79;border-radius:12px;padding:13px 20px;cursor:pointer}
+button:focus,button:hover,select:focus,input:focus{outline:4px solid #e4c7ff;outline-offset:4px;background:#5b4394}
+button.primary{background:#8059d5}button[disabled]{opacity:.55}
+main{padding:24px 4% 65px}h1{font-size:32px}h2{font-size:25px;margin:30px 0 10px}h3{font-size:19px}
+p{color:#c6c2d7;line-height:1.6}small,.muted{color:#a4a1b6;font-size:13px}
+#status{padding:9px 4%;background:#231b39;color:#eee2ff;min-height:36px}
+.row{display:flex;gap:17px;overflow-x:auto;padding:14px 3px 21px}
+.poster{display:block;flex:0 0 180px;width:180px;text-align:left;vertical-align:top;padding:8px;border-radius:12px;background:#1e1b32;white-space:normal}
+.poster img{display:block;width:100%;height:240px;object-fit:cover;border-radius:8px;background:#262039}
+.poster b{display:block;font-size:15px;line-height:1.3;padding:9px 0 3px}
+.poster small{display:block}
+.box{max-width:900px;padding:22px;margin:20px auto;background:#19172e;border-radius:18px;border:1px solid #4a3a6b}
+.box input{padding:14px 12px;background:#111122;border:2px solid #514876;border-radius:10px;color:white;max-width:260px}
+.box img.hero{width:min(220px,45vw);height:auto;float:left;margin:0 22px 18px 0;border-radius:9px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.episode{padding:15px;margin:10px 0;border:1px solid #4b4267;border-radius:10px}
+.episode img{width:200px;max-width:100%;border-radius:8px}.episode h3{margin:7px 0}
+video{width:100%;max-height:65vh;background:black}
+#update{display:none;position:fixed;z-index:9;bottom:12px;left:4%;right:4%;background:#352354;padding:18px;border-radius:12px;box-shadow:0 6px 24px #000}
+@media(max-width:700px){.poster{flex-basis:138px;width:138px}.poster img{height:190px}.box img.hero{float:none;display:block}header{position:relative}}
+</style>
+</head>
+<body>
+<header><div><strong>VIEWTV</strong> <span>Edición compatible con Samsung</span></div><nav id="nav"></nav></header>
+<div id="status" role="status">Conectando con ViewTV…</div>
+<main id="main"><h1>Iniciando ViewTV…</h1><p>Comprobando la conexión local.</p></main>
+<div id="update"><strong>Hay una actualización de ViewTV</strong> <button type="button" id="reload">Actualizar ahora</button></div>
+<script>
+(function(){
+"use strict";
+var api="/api/viewtv", main=document.getElementById("main"), status=document.getElementById("status"), nav=document.getElementById("nav");
+var version="", view="home", playing=false, lastAction=(new Date()).getTime(), loading=false;
+function el(tag,cls,text){var node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined&&text!==null)node.textContent=String(text);return node;}
+function button(text,action,cls){var b=el("button",cls||"",text);b.type="button";b.onclick=action;return b;}
+function append(parent,child){parent.appendChild(child);return child;}
+function clear(node){while(node.firstChild)node.removeChild(node.firstChild);}
+function report(message){status.textContent=message;}
+function error(message,retry){clear(main);append(main,el("h2","",message));if(retry)append(main,button("Volver a intentar",retry,"primary"));}
+function request(method,path,payload,done){
+ var xhr=new XMLHttpRequest(),finished=false;
+ try{
+ xhr.open(method,path.indexOf("/api/app-version")===0?path:api+path,true);
+ xhr.withCredentials=true;xhr.timeout=14000;xhr.setRequestHeader("Accept","application/json");
+ if(payload!==null)xhr.setRequestHeader("Content-Type","application/json");
+ xhr.onreadystatechange=function(){if(xhr.readyState!==4||finished)return;finished=true;
+ var data=null;try{data=JSON.parse(xhr.responseText||"null");}catch(ex){}
+ done(xhr.status,data);};
+ xhr.ontimeout=function(){if(!finished){finished=true;done(0,null);}};
+ xhr.onerror=function(){if(!finished){finished=true;done(0,null);}};
+ xhr.send(payload===null?null:JSON.stringify(payload));
+ }catch(e){if(!finished){finished=true;done(0,null);}}
+}
+function handle401(code){if(code===401){showProfiles();return true;}return false;}
+function topbar(logged){clear(nav);if(logged){
+ append(nav,button("Explorar",showExplore));append(nav,button("Biblioteca",showLibrary));
+ append(nav,button("Cambiar perfil",function(){request("POST","/auth/logout",null,showProfiles);}));
+ }}
+function showProfiles(){
+ view="login";playing=false;topbar(false);report("Elige tu perfil e introduce tu PIN.");
+ request("GET","/auth/profiles",null,function(code,data){
+ if(code!==200||!data||!data.perfiles){error("No se pudieron obtener los perfiles.",showProfiles);return;}
+ clear(main);append(main,el("h1","","¿Quién está viendo?"));
+ var list=append(main,el("div","box"));for(var i=0;i<data.perfiles.length;i++){
+ (function(profile){append(list,button(profile.nombre,function(){showPIN(profile);},"primary"));})(data.perfiles[i]);
+ }
+ });
+}
+function showPIN(profile){
+ clear(main);var box=append(main,el("div","box"));append(box,el("h2","","Perfil: "+profile.nombre));
+ var input=append(box,el("input"));input.type="password";input.placeholder="PIN (4–8 dígitos)";input.maxLength=8;input.setAttribute("inputmode","numeric");
+ append(box,button("Entrar",function(){
+ var pin=input.value;if(!/^[0-9]{4,8}$/.test(pin)){report("Introduce un PIN de 4 a 8 dígitos.");return;}
+ report("Comprobando acceso…");
+ request("POST","/auth/login",{nombre:profile.nombre,pin:pin},function(code){
+ input.value="";
+ if(code===200){showExplore();}else{report("No se pudo iniciar sesión. Revisa el PIN.");}
+ });
+ },"primary"));
+ append(box,button("Volver",showProfiles));
+}
+function showExplore(){
+ view="explore";playing=false;topbar(true);report("Carátulas del mismo catálogo ViewTV que en el ordenador.");
+ request("GET","/descubrir/filas",null,function(code,data){
+ if(handle401(code))return;if(code!==200||!data||!data.filas){error("No se pudo abrir Explorar.",showExplore);return;}
+ clear(main);append(main,el("h1","","Tu catálogo"));var shelves=data.filas;
+ for(var i=0;i<shelves.length;i++)(function(shelf){
+ var section=append(main,el("section"));append(section,el("h2","",shelf.titulo));
+ var row=append(section,el("div","row"));
+ request("GET","/descubrir/filas/"+encodeURIComponent(shelf.id),null,function(code,payload){
+ if(code!==200||!payload||!payload.elementos){append(row,el("p","","No disponible por ahora."));return;}
+ var items=payload.elementos;
+ for(var j=0;j<items.length;j++)(function(item){append(row,poster(item,openItem));})(items[j]);
+ if(items.length===0)append(row,el("p","","Todavía no hay títulos."));
+ });
+ })(shelves[i]);
+ });
+}
+function poster(item,onOpen){
+ var b=el("button","poster"),img=append(b,el("img"));
+ var src=item.imagen_portada;
+ if(src&&src.indexOf("/jellyfin/")===0)src=api+src;
+ if(src&&(src.indexOf("https://image.tmdb.org/")===0||src.indexOf(api+"/jellyfin/")===0))img.src=src;
+ img.alt="";append(b,el("b","",item.titulo));append(b,el("small","",item.anio||""));
+ b.onclick=function(){onOpen(item);};return b;
+}
+function openItem(item){
+ if(item.tipo==="serie"&&item.tmdb_id){showDetail("serie",item.tmdb_id);return;}
+ if(item.tipo==="pelicula"&&item.tmdb_id){showDetail("pelicula",item.tmdb_id);return;}
+ if(item.medio_id){showLibraryItem(item.medio_id);return;}
+ report("Esta ficha aún no tiene detalle disponible.");
+}
+function showDetail(kind,id){
+ view="detail";report("Consultando la ficha…");
+ request("GET","/descubrir/"+kind+"/"+id,null,function(code,item){
+ if(handle401(code))return;if(code!==200||!item){error("Ficha no disponible.",showExplore);return;}
+ clear(main);var box=append(main,el("div","box"));
+ var back=append(box,button("‹ Volver a Explorar",showExplore));
+ if(item.imagen_portada&&item.imagen_portada.indexOf("https://image.tmdb.org/")===0){
+ var image=append(box,el("img","hero"));image.src=item.imagen_portada;image.alt="";
+ }
+ append(box,el("h1","",item.titulo));append(box,el("p","",item.sinopsis||"Sinopsis no disponible."));
+ if(kind==="serie"){
+ append(box,el("h2","","Temporadas"));
+ var tabs=append(box,el("div","controls"));
+ var seasons=item.temporadas||[];
+ for(var i=0;i<seasons.length;i++)(function(season){
+ append(tabs,button(season.temporada===0?"Especiales":"Temporada "+season.temporada,function(){showSeason(box,id,season.temporada);}));
+ })(seasons[i]);
+ if(seasons.length)showSeason(box,id,seasons[0].temporada);else append(box,el("p","","No hay temporadas registradas."));
+ }else{
+ append(box,el("p","","Esta ficha no descarga vídeos por sí sola. Para solicitar, usa ViewTV desde el ordenador."));
+ }
+ });
+}
+function showSeason(box,id,num,page){
+ page=page||1;report("Cargando episodios…");
+ request("GET","/descubrir/serie/"+id+"/temporadas/"+num+"?pagina="+page,null,function(code,content){
+ if(handle401(code))return;if(code!==200||!content){report("No se pudo consultar la temporada.");return;}
+ var old=document.getElementById("season-content");if(old&&page===1)old.parentNode.removeChild(old);
+ var contentBox=old&&page>1?old:append(box,el("div","",null));
+ contentBox.id="season-content";
+ if(page===1)append(contentBox,el("h2","",content.titulo_temporada));
+ for(var i=0;i<content.episodios.length;i++){
+ var ep=content.episodios[i];var card=append(contentBox,el("div","episode"));
+ append(card,el("h3","","Episodio "+ep.episodio+" · "+ep.titulo));
+ if(ep.imagen&&ep.imagen.indexOf("https://image.tmdb.org/")===0){
+ var image=append(card,el("img"));image.src=ep.imagen;image.alt="";
+ }
+ append(card,el("p","",ep.sinopsis||"Sin sinopsis."));
+ append(card,el("small","",ep.solicitable?"Disponible para solicitud en la web principal":"Pendiente de estreno"));
+ }
+ if(page<content.paginas)append(contentBox,button("Ver más episodios",function(){showSeason(box,id,num,page+1);}));
+ report("Temporada "+num+": "+content.total+" capítulos · Solo metadatos");
+ });
+}
+function showLibrary(){
+ view="library";topbar(true);report("Biblioteca local de Jellyfin.");
+ request("GET","/jellyfin/catalog?limit=100",null,function(code,data){
+ if(handle401(code))return;if(code!==200||!data||!data.elementos){error("No se pudo abrir la biblioteca.",showLibrary);return;}
+ clear(main);append(main,el("h1","","Tu biblioteca"));
+ var row=append(main,el("div","row"));
+ for(var i=0;i<data.elementos.length;i++)(function(item){
+ append(row,poster({titulo:item.titulo,anio:item.anio,
+ imagen_portada:item.imagen_portada,medio_id:item.id,tipo:item.tipo},function(){showLibraryItem(item.id);}));
+ })(data.elementos[i]);
+ });
+}
+function showLibraryItem(id){
+ view="player";report("Comprobando la fuente de reproducción…");
+ request("POST","/jellyfin/media/"+id+"/playback-info",null,function(code,data){
+ if(handle401(code))return;if(code!==200||!data||!data.fuentes){error("No se pudo preparar la reproducción.",showLibrary);return;}
+ var found=null;
+ for(var i=0;i<data.fuentes.length;i++){
+ var source=data.fuentes[i];
+ if(source.url&&source.modo==="direct"&&source.url.indexOf("/jellyfin/media/"+id+"/stream?")===0){found=source;break;}
+ if(!found&&source.url&&source.modo==="hls"&&source.url.indexOf("/jellyfin/media/"+id+"/hls?token=")===0)found=source;
+ }
+ if(!found){error("No hay fuente de vídeo compatible.",showLibrary);return;}
+ clear(main);var box=append(main,el("div","box"));
+ append(box,button("‹ Volver a biblioteca",function(){playing=false;showLibrary();}));
+ var player=append(box,el("video"));player.controls=true;player.autoplay=false;player.setAttribute("playsinline","");player.src=api+found.url;
+ playing=true;append(box,el("p","","Si no se reproduce, este modelo de Samsung podría no soportar el formato de vídeo; comprueba imagen y sonido."));
+ report("Pulsa Play en el reproductor para iniciar la película.");
+ });
+}
+document.addEventListener("keydown",function(e){
+ lastAction=(new Date()).getTime();
+ var key=e.keyCode||e.which;
+ if(key===10009||key===27){if(playing){playing=false;showLibrary();}else if(view==="detail"){showExplore();}return;}
+ if(key===37||key===38||key===39||key===40){
+ var targets=document.querySelectorAll("button,input");
+ var nodes=[];for(var i=0;i<targets.length;i++)if(!targets[i].disabled&&targets[i].offsetWidth>0)nodes.push(targets[i]);
+ if(!nodes.length)return;
+ var active=document.activeElement,pos=-1;for(i=0;i<nodes.length;i++)if(nodes[i]===active){pos=i;break;}
+ var next=key===37||key===38?Math.max(0,pos-1):Math.min(nodes.length-1,pos+1);
+ nodes[next].focus();try{e.preventDefault();}catch(ex){}
+ }
+});
+document.addEventListener("click",function(){lastAction=(new Date()).getTime();});
+document.getElementById("reload").onclick=function(){window.location.reload();};
+request("GET","/api/app-version",null,function(code,data){if(code===200&&data)version=data.revision||"";});
+setInterval(function(){
+ request("GET","/api/app-version",null,function(code,data){
+ if(code!==200||!data||!data.revision||!version||data.revision===version)return;
+ document.getElementById("update").style.display="block";
+ if(!playing&&view!=="detail"&&(new Date()).getTime()-lastAction>90000)window.location.reload();
+ });
+},60000);
+request("GET","/auth/me",null,function(code){if(code===200)showExplore();else showProfiles();});
+})();
+</script>
+</body>
+</html>
