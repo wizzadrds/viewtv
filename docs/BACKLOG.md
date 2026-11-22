@@ -303,3 +303,11 @@ Informe:
 **No se activó ningún endpoint ni tarea que borre películas**.
 El botón actual sigue siendo «Solicitar retirada» hasta que se
 demuestre el circuito completo. Mantener PR #2 OPEN/DRAFT.
+
+## Cierre de jornada — 22/11/2026
+
+**Sesión detenida a las 23:19 (Madrid).** Resumen completo del
+estado desplegado, pruebas, límites de borrado, respaldos y primer
+trabajo para el lunes 23 de noviembre en
+[CIERRE-JORNADA-VIEWTV-20261122.md](CIERRE-JORNADA-VIEWTV-20261122.md).
+No iniciar la app Samsung antes de cerrar la gestión de almacenamiento.
