@@ -557,13 +557,26 @@ contenedores, pruebas de endpoints públicos o un prototipo sintético.
   previo al login ni cuenta Docker independiente.
   Informe:
   [AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md](AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md).
-- [ ] **Prueba E2E real de la siguiente película (ID futura >3)**:
-  el publicador está funcionando en vacío, no se ha creado una
-  nueva descarga para probar la publicación sin intervención.
-  El usuario debe seleccionar otra película válida en ViewTV.
-  Verificar con nueva ID: descarga, verificación, publicación NTFS,
-  escaneo Jellyfin completado, carátula ViewTV y reproducción.
-  Hasta entonces, no afirmar validación E2E de auto-publicación.
+- [x] **Tercera película real #4 publicada automáticamente**:
+  el programador Windows publicó la nueva descarga sin ejecución
+  manual y confirmó estado `organizada` con journal/recibo
+  Jellyfin. El usuario confirmó que aparecía en la biblioteca,
+  inicialmente **sin portada ni ficha enriquecida**.
+  Jellyfin ya tenía ambas imágenes, pero el primer sync de ViewTV
+  se adelantó a la llegada de los metadatos. Con copia SQLite
+  verificada y una sincronización transaccional de catálogo,
+  Medio #5 ya tiene título, sinopsis, año, géneros, portada y
+  fondo; ambas imágenes responden HTTP 200 desde el proxy.
+  El sistema repite `sync` cada 5 minutos, con actualización
+  eventual de metadatos posteriores al escaneo. No se tocó el
+  vídeo ni se recrearon contenedores. Informe:
+  [AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md](AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md).
+- [ ] **Cierre de prueba E2E para #4**:
+  falta que el usuario confirme portada/ficha tras recargar
+  ViewTV y que el vídeo **se ve y se oye**; la consulta técnica
+  de imágenes no prueba reproducción completa. Mejorar
+  experiencia de espera de metadatos solo si sigue suponiendo
+  un bloqueo visible.
 - [x] **Cola 0013 limitada a una sola ID de descarga**:
   `claim_next_organization(..., allowed_download_id=...)` selecciona
   y reserva solo esa ID **dentro de BEGIN IMMEDIATE**; el runner y

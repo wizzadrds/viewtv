@@ -46,6 +46,22 @@ El aislamiento de identidad Docker y ejecución anterior al login
 siguen como posibles mejoras futuras no validadas.
 Ver [AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md](AVANCE-PUBLICACION-AUTOMATICA-WINDOWS-LIMITADA-0013-20261122.md).
 
+**Seguimiento 22/11/2026 01:10 — descarga real #4:**
+publicador Windows periódico actuó sin intervención,
+SQLite #4 `completada`/`verificada`/`organizada`;
+el usuario confirmó presencia en biblioteca, pero
+sin carátula inicial. Se verificó que Jellyfin ya tenía
+portada y fondo mientras ViewTV conservaba metadatos
+sin enriquecer. Copia SQLite online consistente antes de
+un `sync` transaccional; después la ficha ViewTV tiene
+título coincidente, sinopsis, año, géneros, portada y
+fondo, ambos accesibles por proxy HTTP 200.
+La repetición automática de `sync` cada cinco minutos
+permite convergencia sin reinicios. **Pendiente confirmar
+visualización de la carátula y reproducción de #4 con
+el usuario**, no declarar E2E cerrado todavía.
+Ver [AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md](AVANCE-PELICULA-ID4-METADATOS-Y-CARATULAS-20261122.md).
+
 - Enlaces HTTP 404 de resultados de Jackett: diagnosticar y corregir solo si impiden obtener una descarga válida para el circuito principal.
 - Estado administrativo y fiabilidad del indexador configurado en Jackett: revisión aplazada salvo bloqueo demostrado de búsqueda/descarga.
 - Pruebas específicas del cierre de sesión, una vez que el circuito completo sea utilizable.
