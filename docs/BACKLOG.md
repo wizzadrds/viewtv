@@ -311,3 +311,44 @@ estado desplegado, pruebas, límites de borrado, respaldos y primer
 trabajo para el lunes 23 de noviembre en
 [CIERRE-JORNADA-VIEWTV-20261122.md](CIERRE-JORNADA-VIEWTV-20261122.md).
 No iniciar la app Samsung antes de cerrar la gestión de almacenamiento.
+
+## Gestión de espacio 0017: caché propia con cuota (26/11/2026)
+
+**Hito probado y desplegado en la instalación actual.**
+Informe: [AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md](AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md).
+
+- [x] Separar los temporales nuevos en **volumen Docker exclusivo de la API**
+  `viewtv_cache_propia_0017`, distinto de `/cache` en NTFS y de `/media`.
+  El volumen empieza vacío; no se tocaron medios/torrents ni la caché
+  heredada, Jellyfin o TMDB.
+- [x] Implementar escritor interno con límite de 80 GiB por defecto
+  **solo para los temporales que pasen por él**, límite por objeto
+  de 16 MiB, caducidad de 14 días y evicción de antiguos si falta cuota.
+  `flock` serializa inicio y borrado entre procesos.
+- [x] Validación de marcador, permisos, UID, inodo, enlace único y
+  nombre cerrado; se **bloquea** ante archivo no reconocido,
+  enlace simbólico o hardlink ajeno. Pruebas ficticias de
+  concurrencia y pérdida de confianza.
+- [x] Panel `Espacio` ampliado con tamaño de caché privada,
+  cuota parcial y botón `Vaciar caché privada` condicionado.
+  API con 401 sin sesión y confirmación exacta.
+- [x] **1054/1054 backend**, **18/18 frontend**, TypeScript,
+  ESLint, Ruff y build de producción; smoke posterior **10/10**;
+  API/frontend nuevas **healthy**, worker y Jellyfin sin recrear.
+  SQLite y preflight del publicador Windows intactos.
+- [x] Reversión de imágenes comprobada en preflight, sin ejecutarla
+  ni borrar el volumen.
+- [ ] **Pendiente real de caché:** integrar solo escritores de
+  temporales de ViewTV con la nueva función `guardar_temporal`
+  cuando se creen; no afirmar cuota global o espacio liberado
+  actualmente. La caché privada sigue vacía.
+- [ ] **Prioridad principal aún abierta antes de la app:** retirada
+  física por película con **autorización diferenciada de
+  administrador**, verificación conjunta de Jellyfin/diario
+  Windows/hardlinks/qBittorrent, exclusión de streams y
+  torrents en uso, fases recuperables y medición de bytes
+  realmente liberados. No activar borrado real ni detener
+  torrents basándose en un PIN de perfil o en que esté vista.
+
+Después de esta tarea de almacenamiento: app Samsung instalable;
+después, «VIEWTV Momentos». Mantener PR #2 **OPEN/DRAFT**.

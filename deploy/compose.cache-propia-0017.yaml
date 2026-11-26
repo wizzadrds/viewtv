@@ -1,0 +1,12 @@
+# Volumen privado nuevo, nunca /media o /cache compartida en NTFS.
+services:
+  api:
+    image: viewtv:cache-propia-api-0017
+    volumes:
+      - type: volume
+        source: viewtv_cache_propia_0017
+        target: /cache-gestionada
+  frontend:
+    image: viewtv-frontend:cache-propia-0017
+volumes:
+  viewtv_cache_propia_0017:

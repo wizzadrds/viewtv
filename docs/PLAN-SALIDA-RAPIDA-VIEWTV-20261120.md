@@ -954,3 +954,28 @@ Informe: [AVANCE-GESTION-ESPACIO-CACHE-0015-20261122.md](AVANCE-GESTION-ESPACIO-
   «VIEWTV Momentos».
 
 Informe: [AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md](AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md).
+
+## Actualización 26/11/2026 — caché privada 0017 instalada
+
+- [x] Crear zona de cache exclusivamente propia en volumen Docker
+  independiente, nunca en carpetas NTFS compartidas o de vídeo.
+- [x] Controlador con límite/TTL/evicción sobre el escritor propio,
+  bloqueo simultáneo, no-follow y denegación de archivos ajenos.
+- [x] Mostrar su ocupación y limpieza confirmada en pestaña
+  `Espacio` de la web principal; comprobar 401 sin sesión.
+- [x] Test **1054/1054 backend** y **18/18 frontend**;
+  build, TypeScript, ESLint, Ruff y smoke posterior **10/10**.
+  Backend y frontend actualizados sin recrear worker ni Jellyfin.
+- [ ] Integrar únicamente productores de temporales autorizados;
+  actualmente el volumen está **vacío**. **No** afirmar que la
+  cuota parcial de 80 GiB limite toda la biblioteca o Jellyfin.
+- [ ] Completar **antes de la app Samsung** la retirada física
+  de películas ya vistas: permisos de administrador, confirmación
+  concreta, identidad absoluta del archivo, control del torrent,
+  prevención de carreras, diario de recuperación y espacio
+  realmente liberado. **No hay borrado automático habilitado**.
+- [ ] Finalizar entonces la app Samsung profesional, y luego
+  el feed vertical «VIEWTV Momentos».
+
+Informe de esta fase:
+[AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md](AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md).

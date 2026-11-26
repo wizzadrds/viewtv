@@ -21,6 +21,8 @@ from app.almacenamiento_archivos import (
     volumen,
 )
 from app.auth import get_current_profile
+from app.cache_privada import CacheNoConfiable, estado_cache
+from app.cache_privada import limpiar_cache as limpiar_cache_propia
 from app.config import get_settings
 from app.database import get_session
 from app.models import (
@@ -30,6 +32,8 @@ from app.models import (
     SolicitudRetirada,
     utc_now,
 )
+
+CACHE_PROPIA_ROOT = Path("/cache-gestionada")
 
 router = APIRouter(prefix="/almacenamiento", tags=["almacenamiento"])
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -89,6 +93,9 @@ def resumen(profile: ProfileDep) -> dict:
         "descargas_temporales": tamanio_logico(Path("/media/descargas_temporales")),
         "cache_temporal": tamanio_logico(cache_root),
         "cache_gestionada": _cache_own_dir(cache_root) is not None,
+        "cache_propia": estado_cache(
+            CACHE_PROPIA_ROOT, settings.cache_quota_gb * 1024 ** 3,
+        ),
         "cache_cuota_configurada_bytes": settings.cache_quota_gb * (1024 ** 3),
         "cache_cuota_aplicada": False,
         "catalogo_tmdb_bytes": (
@@ -252,3 +259,20 @@ def limpiar_cache(payload: ConfirmacionCache, profile: ProfileDep) -> dict:
     if payload.confirmacion != "LIMPIAR TEMPORALES":
         raise HTTPException(status_code=422, detail="Confirmación inválida.")
     return limpiar_temporales(get_settings().cache_dir)
+
+
+@router.post("/cache/propia/limpiar")
+def limpiar_cache_viewtv(payload: ConfirmacionCache, profile: ProfileDep) -> dict:
+    """Solo volumen privado independiente, nunca medios ni caché compartida."""
+    _perfil_id(profile)
+    if payload.confirmacion != "LIMPIAR CACHE PROPIA":
+        raise HTTPException(status_code=422, detail="Confirmación inválida.")
+    try:
+        return limpiar_cache_propia(
+            CACHE_PROPIA_ROOT, get_settings().cache_quota_gb * 1024 ** 3,
+        )
+    except (CacheNoConfiable, OSError) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="La caché privada no supera las comprobaciones de seguridad.",
+        ) from exc

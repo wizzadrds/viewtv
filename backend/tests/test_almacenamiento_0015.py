@@ -247,3 +247,55 @@ def test_migracion_reversible_sin_datos_y_bloqueada_con_datos():
                 module.downgrade()
         assert conn.execute(text("PRAGMA integrity_check")).fetchone()[0] == "ok"
     engine.dispose()
+
+
+def test_endpoint_cuota_y_limpieza_de_cache_privada(laboratorio, tmp_path, monkeypatch):
+    from app.cache_privada import guardar_temporal
+
+    client, _, _ = laboratorio
+    monkeypatch.setattr(almacenamiento, "CACHE_PROPIA_ROOT", tmp_path)
+    summary = client.get("/almacenamiento/resumen")
+    assert summary.status_code == 200
+    own = summary.json()["cache_propia"]
+    assert own["estado"] == "vacia_sin_inicializar"
+    assert own["bytes"] == 0
+    assert own["cuota_efectiva_para_escritores_propios"] is True
+    assert summary.json()["cache_cuota_aplicada"] is False
+
+    assert client.post(
+        "/almacenamiento/cache/propia/limpiar",
+        json={"confirmacion": "LIMPIAR TEMPORALES"},
+    ).status_code == 422
+
+    guardar_temporal(tmp_path, b"solo propia", 80 * 1024**3)
+    updated = client.get("/almacenamiento/resumen").json()
+    assert updated["cache_propia"]["archivos"] == 1
+    assert updated["cache_propia"]["bytes"] == 11
+
+    result = client.post(
+        "/almacenamiento/cache/propia/limpiar",
+        json={"confirmacion": "LIMPIAR CACHE PROPIA"},
+    )
+    assert result.status_code == 200
+    assert result.json() == {"estado": "limpiada", "archivos": 1, "bytes": 11}
+    assert client.get("/almacenamiento/resumen").json()["cache_propia"]["bytes"] == 0
+
+
+def test_cache_privada_bloqueada_no_borra_ni_revela_rutas(
+    laboratorio, tmp_path, monkeypatch,
+):
+    from app.cache_privada import DIR_CACHE, guardar_temporal
+
+    client, _, _ = laboratorio
+    monkeypatch.setattr(almacenamiento, "CACHE_PROPIA_ROOT", tmp_path)
+    guardada = guardar_temporal(tmp_path, b"conservar", 80 * 1024**3)
+    folder = tmp_path / DIR_CACHE
+    (folder / "archivo-ajeno.mkv").write_bytes(b"pelicula")
+    response = client.post(
+        "/almacenamiento/cache/propia/limpiar",
+        json={"confirmacion": "LIMPIAR CACHE PROPIA"},
+    )
+    assert response.status_code == 409
+    assert str(tmp_path) not in str(response.json())
+    assert (folder / guardada).read_bytes() == b"conservar"
+    assert (folder / "archivo-ajeno.mkv").read_bytes() == b"pelicula"

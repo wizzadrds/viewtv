@@ -1,0 +1,6 @@
+# Reversión de lógica sin eliminar el volumen aislado ni otro dato.
+services:
+  api:
+    image: viewtv:publicador-compatible-api-0016
+  frontend:
+    image: viewtv-frontend:gestion-espacio-0015

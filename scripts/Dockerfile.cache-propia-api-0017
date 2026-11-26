@@ -1,0 +1,7 @@
+# Caché privada sin modificar reproductor, descargas ni esquema SQLite.
+FROM viewtv:publicador-compatible-api-0016
+COPY backend/app/config.py /opt/viewtv/backend/app/config.py
+COPY backend/app/almacenamiento.py /opt/viewtv/backend/app/almacenamiento.py
+COPY backend/app/cache_privada.py /opt/viewtv/backend/app/cache_privada.py
+RUN python -m py_compile /opt/viewtv/backend/app/config.py /opt/viewtv/backend/app/almacenamiento.py /opt/viewtv/backend/app/cache_privada.py
+RUN cd /opt/viewtv/backend && alembic heads | grep 0015_gestion_espacio_vistas

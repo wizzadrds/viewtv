@@ -4,12 +4,20 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 
 type Usage = { bytes: number; archivos: number; completo: boolean };
+type ManagedCache = {
+  estado: string;
+  archivos: number | null;
+  bytes: number | null;
+  cuota_bytes: number;
+  cuota_efectiva_para_escritores_propios: boolean;
+};
 type Summary = {
   disco: { total_bytes: number; libre_bytes: number; ocupado_en_volumen_bytes: number } | null;
   peliculas: Usage;
   descargas_temporales: Usage;
   cache_temporal: Usage;
   cache_gestionada: boolean;
+  cache_propia: ManagedCache;
   cache_cuota_configurada_bytes: number;
   cache_cuota_aplicada: boolean;
   catalogo_tmdb_bytes: number | null;
@@ -147,18 +155,19 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
   }
 
   async function clearCache() {
-    if (busy || !data?.cache_gestionada) return;
+    if (busy || !data || data.cache_propia.estado !== "disponible" ||
+        (data.cache_propia.archivos ?? 0) === 0) return;
     if (!window.confirm(
-      "¿Eliminar solo archivos temporales propios, identificados y sin enlaces duros? " +
-      "Nunca borra películas, torrents, metadatos TMDB ni la caché de Jellyfin.",
+      "¿Vaciar únicamente la caché privada del volumen dedicado a ViewTV? " +
+      "No afecta a películas, torrents, metadatos TMDB ni a Jellyfin.",
     )) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
       const result = await apiRequest<{ archivos: number; bytes: number }>(
-        "/almacenamiento/cache/limpiar",
-        { method: "POST", body: JSON.stringify({ confirmacion: "LIMPIAR TEMPORALES" }) },
+        "/almacenamiento/cache/propia/limpiar",
+        { method: "POST", body: JSON.stringify({ confirmacion: "LIMPIAR CACHE PROPIA" }) },
       );
       setNotice(`Limpieza terminada: ${result.archivos} archivos temporales; ${size(result.bytes)}.`);
       setReload((value) => value + 1);
@@ -207,23 +216,32 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
               <small>Nunca se limpian automáticamente desde aquí.</small>
             </div>
             <div className="storage-metric">
-              <span>Caché local de ViewTV</span>
-              <strong>{size(data.cache_temporal.bytes)}</strong>
-              <small>Cuota configurada {size(data.cache_cuota_configurada_bytes)}; todavía no se aplica a todos los programas.</small>
+              <span>Caché privada de ViewTV</span>
+              <strong>{size(data.cache_propia.bytes)}</strong>
+              <small>Cuota de {size(data.cache_propia.cuota_bytes)} exigida solo al escritor de esta zona. No limita Jellyfin ni las descargas.</small>
             </div>
           </div>
           <div className="storage-cache-actions">
             <div>
               <h2>Temporales y metadatos</h2>
-              <p>Las fichas TMDB ocupan {size(data.catalogo_tmdb_bytes)} y caducan de forma independiente. Jellyfin y sus transcodificaciones se conservan.</p>
+              <p>Fichas TMDB: {size(data.catalogo_tmdb_bytes)} · Caché heredada: {size(data.cache_temporal.bytes)}.
+                La caché privada se gestiona por límite y antigüedad al escribir; si está vacía no hay nada que eliminar.
+                Jellyfin y sus transcodificaciones se conservan.</p>
             </div>
-            <button className="quiet-button" data-spatial disabled={busy || !data.cache_gestionada}
+            <button className="quiet-button" data-spatial
+              disabled={busy || data.cache_propia.estado !== "disponible" ||
+                (data.cache_propia.archivos ?? 0) === 0}
               type="button" onClick={() => void clearCache()}>
-              Limpiar temporales propios
+              Vaciar caché privada
             </button>
           </div>
           <p className="storage-warning">{data.aviso}</p>
-          {!data.cache_gestionada && <p className="muted">No hay caché temporal gestionada que limpiar.</p>}
+          {data.cache_propia.estado === "no_confiable" && (
+            <p className="error-message">La caché privada no supera las comprobaciones de seguridad. Se ha desactivado su limpieza.</p>
+          )}
+          {data.cache_propia.estado === "vacia_sin_inicializar" && (
+            <p className="muted">Zona privada disponible, todavía sin temporales generados.</p>
+          )}
         </>
       )}
       <div className="storage-list-heading">

@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:////data/viewtv.db"
     data_dir: Path = Path("/data")
     cache_dir: Path = Path("/cache")
-    cache_quota_gb: int = 80
+    cache_quota_gb: int = Field(default=80, ge=1, le=512)
     timezone: str = Field(
         default="Europe/Madrid",
         validation_alias=AliasChoices("VIEWTV_TIMEZONE", "TIMEZONE"),
