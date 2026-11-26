@@ -399,3 +399,37 @@ Informe verificable:
 El preflight 0018 es un **script local manual de solo lectura**;
 no se añade un endpoint destructivo ni se altera el despliegue
 de API/frontend 0017. PR #2 se mantiene OPEN/DRAFT.
+
+## Gestión de espacio 0019 — autorización separada de administrador (26/11/2026)
+
+Informe: [AVANCE-AUTORIZACION-ADMINISTRADOR-RETIRADA-0019-20261126.md](AVANCE-AUTORIZACION-ADMINISTRADOR-RETIRADA-0019-20261126.md).
+
+- [x] Contrato de aprobación **offline** por película y descarga exactas,
+  distinto del PIN del perfil y de la autenticación web: HMAC-SHA256,
+  nonce de 128 bits, vencimiento a 10 minutos, confirmación explícita
+  del ID, validación de cambios de evidencia y registro de consumo único
+  en SQLite **de sandbox**.
+- [x] Requerir que el preflight 0018 no tenga más bloqueos que falta de
+  autorización administrativa antes de siquiera preparar un desafío.
+  La firma no concede autorización de borrado físico por sí sola.
+- [x] Pruebas sintéticas de falsificación de firma, caducidad,
+  identidad de película/descarga, cambio de pruebas, permisos de
+  secreto/diario, symlinks y 16 consumos concurrentes.
+  **94/94 pruebas específicas, 1148/1148 suite backend PASS**,
+  Ruff y smoke de solo lectura **10/10 PASS**.
+- [x] Verificación real read-only: **4 películas, 0 candidatas**,
+  **0 aprobaciones emitidas, 0 archivos y 0 torrents modificados**.
+  Los cuatro archivos qBit sin publicación acreditada continúan
+  protegidos; dos torrents siguen activos en la última lectura.
+- [ ] **Pendiente prioritario:** identidad de administrador real
+  custodiada fuera de API y navegador, alta y revocación segura,
+  comprobación atómica y locking Windows/qBit/Jellyfin,
+  diario durable, recuperación tras apagón, medición de espacio
+  realmente liberado y pruebas de sandbox antes de permitir
+  retiro real de una sola película específicamente aprobada.
+- [ ] Caché: conectar escritor real que use el volumen privado 0017.
+- [ ] Solo al cerrar la gestión de espacio: app Samsung profesional;
+  después ViewTV Momentos.
+
+No se despliega el módulo 0019 en la API ni se crea ninguna clave
+administrativa de producción. PR #2 sigue OPEN/DRAFT.

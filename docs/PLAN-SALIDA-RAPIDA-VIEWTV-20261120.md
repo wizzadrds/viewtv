@@ -1009,3 +1009,21 @@ Informe de esta fase:
 
 Informe:
 [AVANCE-PREFLIGHT-UNIFICADO-RETIRADA-0018-20261126.md](AVANCE-PREFLIGHT-UNIFICADO-RETIRADA-0018-20261126.md).
+
+## 0019 — autorización de administrador independiente (26/11/2026)
+
+- [x] Construida y probada una base local de firma HMAC-SHA256
+  por ID de película/descarga y huella íntegra de evidencia,
+  con nonce y expiración corta, ajena al PIN del perfil.
+- [x] Ejemplo de journal de consumo único y 16 intentos concurrentes,
+  solo SQLite sandbox; aprobación firmada no equivale a ejecutar.
+- [x] Preflight read-only en equipo real: 4 películas revisadas,
+  ninguna apta para aprobación, ninguna clave real creada,
+  ninguna película ni torrent tocados.
+- [ ] Enrolar administrador y proceso de revisión con secreto
+  exclusivo de host, permisos y revocación; no exponer en web.
+- [ ] Resolver extras qBit, bloqueo contra streams/publicador,
+  ejecutor seguro Windows, journal durable y medición física real.
+- [ ] Después: app Samsung instalable y luego VIEWTV Momentos.
+
+Informe [0019 autorización administrativa](AVANCE-AUTORIZACION-ADMINISTRADOR-RETIRADA-0019-20261126.md).
