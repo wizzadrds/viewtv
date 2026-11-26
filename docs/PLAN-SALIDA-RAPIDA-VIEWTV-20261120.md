@@ -979,3 +979,33 @@ Informe: [AVANCE-AUDITORIA-RETIRADA-SEGURA-0016-20261122.md](AVANCE-AUDITORIA-RE
 
 Informe de esta fase:
 [AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md](AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md).
+
+## Seguimiento 26/11/2026 — retirada 0018
+
+- [x] Reconstruir un solo preflight de coincidencia exacta
+  `medio.jellyfin_id` ↔ ruta Jellyfin ↔ diario Windows +
+  SHA-256 ↔ `descarga.id` ↔ qBit; revalidar las pruebas
+  Windows antes/después y **nunca ejecutar eliminación**.
+- [x] Bloquear material sin diario (dos películas de cuatro),
+  torrents activos (dos), datos qBit no verificables,
+  perfiles que no han marcado «vista» y falta de peticiones.
+- [x] Probar en Windows directorio ficticio nuevo:
+  bloqueo por lector abierto, protección de tercer enlace,
+  recuperación de publicación tras interrupción y retirada
+  final de las dos referencias **solo de sandbox**.
+- [x] **55/55 tests** del evaluador puro, Ruff PASS,
+  **suite general 1109/1109 PASS**. El diagnóstico GET muestra
+  6 archivos en torrents frente a 2 publicados, con **4
+  adicionales** que impiden liberar originales sin reconciliar.
+- [ ] Añadir rol/credencial independiente de **administrador**,
+  autorización por película, exclusión concurrente
+  qBittorrent/Windows/Jellyfin, journal durable y contabilidad
+  de bytes efectivamente liberados antes de permitir una
+  retirada física. No tocar torrents activos.
+- [ ] Conectar autores de temporales propios a caché 0017
+  cuando exista una necesidad real.
+- [ ] Continuar **después** con app Samsung y luego
+  «VIEWTV Momentos».
+
+Informe:
+[AVANCE-PREFLIGHT-UNIFICADO-RETIRADA-0018-20261126.md](AVANCE-PREFLIGHT-UNIFICADO-RETIRADA-0018-20261126.md).

@@ -352,3 +352,50 @@ Informe: [AVANCE-CACHE-PRIVADA-CUOTA-0017-20261126.md](AVANCE-CACHE-PRIVADA-CUOT
 
 Después de esta tarea de almacenamiento: app Samsung instalable;
 después, «VIEWTV Momentos». Mantener PR #2 **OPEN/DRAFT**.
+
+## Retirada segura de películas — preflight unificado 0018 (26/11/2026)
+
+Informe verificable:
+[AVANCE-PREFLIGHT-UNIFICADO-RETIRADA-0018-20261126.md](AVANCE-PREFLIGHT-UNIFICADO-RETIRADA-0018-20261126.md).
+
+- [x] Implementar decisión **solo lectura** de SQLite,
+  marcas de «vista» y solicitudes pendientes por perfil,
+  ID/ruta Jellyfin, diario Windows, dos hardlinks NTFS,
+  estado/archivos qBittorrent y aislamiento de descargas.
+  Correlación por `descarga.id`, huella del diario y ruta exacta,
+  sin confiar en títulos como permiso.
+- [x] Auditar la biblioteca real sin escritura: **4 películas
+  revisadas, 2 publicaciones NTFS válidas, 4 retiradas bloqueadas,
+  2 torrents activos/incompletos, cero solicitudes pendientes,
+  cero marcas de visto y cero borrados**. No asumir que los
+  archivos extra/no verificables de qBit puedan borrarse.
+- [x] Exigir perfiles activos completamente marcados como «vista»
+  y petición pendiente válida **además** de permiso específico
+  de administrador aún no implementado. Ante fuentes ausentes,
+  versiones ambiguas o huellas diferentes, bloquear y no
+  liberar ningún archivo.
+- [x] Ensayo NTFS **100 % ficticio** en Windows:
+  lector abierto y tercer hardlink bloqueados, interrupción
+  recuperable y retirada de ambas referencias del mismo archivo
+  en directorio GUID privado; producción no modificada.
+- [x] Pruebas de identidad y denegación 0018 **55/55 PASS**,
+  Ruff PASS; suite backend completa **1109/1109 PASS**.
+  Diagnóstico qBit GET: 6 archivos, pero solo 2 incluidos
+  en diarios de publicación, **4 archivos extra a proteger**;
+  ningún torrent fue manipulado.
+- [ ] **PRÓXIMO ANTES DE SAMSUNG:** autoridad independiente
+  del administrador, consentimiento explícito por película,
+  reserva atómica frente al publicador y qBit, protección
+  de reproducciones de Jellyfin y enlaces ajenos, journal
+  durable con pruebas de interrupción real, ejecutor Windows
+  limitado a un ID y medición física del espacio recuperado.
+  **No ejecutar borrados reales** sin película concreta
+  autorizada y todas las comprobaciones positivas.
+- [ ] Cache 0017: integrar escritores reales propios cuando
+  existan y conservar el límite solo para ese volumen; no
+  confundirlo con cuota global de caché.
+- [ ] App Samsung instalable y después «VIEWTV Momentos».
+
+El preflight 0018 es un **script local manual de solo lectura**;
+no se añade un endpoint destructivo ni se altera el despliegue
+de API/frontend 0017. PR #2 se mantiene OPEN/DRAFT.
