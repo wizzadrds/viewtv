@@ -1027,3 +1027,26 @@ Informe:
 - [ ] Después: app Samsung instalable y luego VIEWTV Momentos.
 
 Informe [0019 autorización administrativa](AVANCE-AUTORIZACION-ADMINISTRADOR-RETIRADA-0019-20261126.md).
+
+## Estado 26/11/2026 — preflight y recuperación NTFS 0020
+
+- [x] Identificados los cuatro ficheros extras de qBit por
+  clase: **4 metadatos**, 488 bytes lógicos, 2 nombres no
+  normalizables por las reglas conservadoras. Todos protegidos.
+- [x] Ensayo Windows dentro de carpeta TEMP de GUID nuevo:
+  diario write-through por fases, corte simulado después de
+  primer unlink, recuperación por **otro proceso**,
+  repetición idempotente y eliminación final **solo de
+  hardlinks ficticios**, sin borrar películas ni torrents reales.
+- [x] Inventario privado agregado, 11/11 pruebas específicas,
+  **1159/1159 backend** y **10/10 smoke**; auditoría NTFS posterior
+  sigue con 2 diarios válidos y cero borrados reales.
+- [ ] Aún no se admite borrar películas reales: falta autoridad
+  admin operativa, congelar streams/publicador/torrents y
+  consumos de aprobación, recuperar ante fallos de energía,
+  conservar archivos qBit adicionales y **medir bloques NTFS**
+  físicamente recuperados.
+- [ ] Después de la seguridad de espacio: Samsung Tizen,
+  luego VIEWTV Momentos.
+
+[Informe de 0020](AVANCE-INVENTARIO-QBIT-DIARIO-RETIRADA-0020-20261126.md).

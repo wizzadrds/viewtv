@@ -433,3 +433,37 @@ Informe: [AVANCE-AUTORIZACION-ADMINISTRADOR-RETIRADA-0019-20261126.md](AVANCE-AU
 
 No se despliega el módulo 0019 en la API ni se crea ninguna clave
 administrativa de producción. PR #2 sigue OPEN/DRAFT.
+
+## Gestión de espacio 0020 — inventario qBit y diario NTFS recuperable (26/11/2026)
+
+Informe: [AVANCE-INVENTARIO-QBIT-DIARIO-RETIRADA-0020-20261126.md](AVANCE-INVENTARIO-QBIT-DIARIO-RETIRADA-0020-20261126.md).
+
+- [x] Revisar exclusivamente por GET la totalidad de archivos
+  de los dos torrents publicados. Seis archivos: dos coinciden
+  con sus diarios; cuatro extras son **metadatos** y suman
+  **488 bytes lógicos**, con dos nombres fuera de las reglas
+  estrictas de normalización. Mantener los cuatro protegidos.
+  No autorizan eliminar ni los originales ni el torrent.
+- [x] Motor puro que clasifica inventarios y falla ante tamaños
+  diferentes, archivos repetidos, datos incompletos o rutas
+  inesperadas, sin crear nunca planes de borrado.
+- [x] Windows: ensayo **solo sandbox** con diario write-through,
+  un reinicio simulado en proceso PowerShell independiente
+  después de retirar un enlace, restauración verificada,
+  recuperación **idempotente** y finalización repetible.
+  Se retiraron solo los dos enlaces **ficticios**; directorio
+  GUID temporal limpiado.
+- [x] Pruebas nuevas del inventario **11/11 PASS**, Ruff PASS;
+  **suite backend completa 1159/1159 PASS**; smoke de solo lectura
+  **10/10 PASS** y auditoría NTFS posterior **2/2 PASS**.
+- [ ] Antes de una retirada real: enrolamiento admin,
+  autorización concreta de película, examen de los metadatos
+  qBit extra, reserva Windows/qBit/Jellyfin, streams inactivos,
+  apagones simulados más exhaustivos, journal autenticado
+  y medición física real de espacio libre.
+- [ ] Actualizar futura caché solo con productores de temporales
+  exclusivamente propios. No tocar caché Jellyfin.
+- [ ] Primero terminar la liberación segura de espacio;
+  **después** app Samsung y luego VIEWTV Momentos.
+
+No se modifica producción en 0020; PR #2 abierto/draft.
