@@ -1,3 +1,4 @@
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -48,7 +49,7 @@ def create_access_token(profile_id: int) -> str:
     now = datetime.now(UTC)
     expires_at = now + timedelta(minutes=settings.jwt_expire_minutes)
     return jwt.encode(
-        {"sub": str(profile_id), "iat": now, "exp": expires_at},
+        {"sub": str(profile_id), "iat": now, "exp": expires_at, "jti": secrets.token_hex(16)},
         settings.jwt_secret,
         algorithm="HS256",
     )
