@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from worker.publication_upgrade_gate_0023 import (  # noqa: E402
+from worker.publication_upgrade_gate_0023 import (
     InformeNoConfiable,
     evaluar_informe,
 )

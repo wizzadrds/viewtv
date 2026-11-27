@@ -801,3 +801,15 @@ Informe: [AVANCE-AUTENTICACION-DRENAJE-0029-20261127.md](AVANCE-AUTENTICACION-DR
   instalable y después VIEWTV Momentos.
 
 PR #2 sigue OPEN/DRAFT. Sin cambiar medios, torrents, perfiles ni servicios.
+
+## 0030 — Actualización supervisada Windows (27/11/2026)
+
+**Despliegue Windows realizado y verificado**: nueva versión 0022 del publicador y helper instalados con File.Replace, copia privada SHA-256 verificada, tarea deshabilitada y quietud comprobada dos veces; rollback probado en proceso independiente (sandbox), preflight real instalado correcto y tarea reactivada Limited/Interactive. Pasada `Once` real: resultado 0, `sin_trabajos`, catálogo sincronizado; sin servicio permanente. Auditoría posterior: **2/2 diarios NTFS verificados**, **4/4 películas bloqueadas**, 0 retiradas, 0 torrents modificados. Conservados los cuatro metadatos de qBit, carpeta sin diario y cachés originales. Informe: [AVANCE-ACTUALIZACION-SUPERVISADA-PUBLICADOR-0030-20261127.md](AVANCE-ACTUALIZACION-SUPERVISADA-PUBLICADOR-0030-20261127.md).
+
+**Reserva de calidad abierta:** suite backend 1528/1528, TypeScript, ESLint y smoke 10/10 aprobados; Ruff de los módulos del gate de actualización 0023 limpio. La comprobación Ruff global sobre `backend worker scripts` **todavía falla por hallazgos heredados fuera de 0030**. No se declara el repositorio completamente verde ni se amplía la intervención a esos ficheros ajenos. Resolver esta reserva antes de empezar la implementación de cualquier hito nuevo.
+
+**Hito 2 pendiente — no desplegado:** capacidades HLS firmadas por perfil, sesión autenticada y generación de drenaje; revocación y validación en master, variantes, segmentos, claves y Range; pruebas entre perfiles y sobre tokens previos al drenaje. Diseño y matriz: [DISENO-HLS-PERFIL-SESION-GENERACION-PENDIENTE.md](DISENO-HLS-PERFIL-SESION-GENERACION-PENDIENTE.md).
+
+**Hito 3 pendiente — no desplegado:** bloquear vías alternativas de Jellyfin, escrituras de qBittorrent y lectores NTFS con evidencia de puerto, handles, reinicio y autoridad por descarga. El mutex 0030 **no** cubre esas vías. Diseño y matriz: [DISENO-AISLAMIENTO-JELLYFIN-QBIT-NTFS-PENDIENTE.md](DISENO-AISLAMIENTO-JELLYFIN-QBIT-NTFS-PENDIENTE.md).
+
+**Hitos 4/5 permanecen bloqueados:** sin administrador enrolado ni aprobación por película; ni un solo archivo real retirado. No pausar torrents, no borrar medios ni alterar caché Jellyfin u originales compartidos. PR #2 se mantiene en borrador y sin fusionar.

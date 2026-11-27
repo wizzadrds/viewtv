@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Este generador usa CommonJS (.cjs). */
 /* Identificador reproducible de cada versión del frontend. */
 const fs = require("node:fs");
 const path = require("node:path");
