@@ -695,3 +695,40 @@ Informe: [AVANCE-CUSTODIA-ESTADO-QBIT-0026-20261127.md](AVANCE-CUSTODIA-ESTADO-Q
   posteriormente VIEWTV Momentos.
 
 PR #2 OPEN/DRAFT, sin merge. Cero archivos/torrents reales alterados.
+
+## Seguridad de reproducción 0027 — admisión y drenaje, SOLO laboratorio (27/11/2026)
+
+Informe: [AVANCE-ADMISION-REPRODUCCION-0027-20261127.md](AVANCE-ADMISION-REPRODUCCION-0027-20261127.md).
+
+- [x] Identificadas **3 rutas distintas** de reproducción VIEWTV:
+  `playback-info`, streaming directo y playlists/segmentos
+  HLS. Los tokens HLS vigentes alcanzan **4 horas**;
+  negar solo el botón «Reproducir» deja lecturas posibles.
+- [x] El puerto Docker publicado de Jellyfin solo aparece
+  en loopback `127.0.0.1:8097`, **sin demostrar** ausencia
+  de accesos por redes locales de contenedores u otros canales.
+- [x] Protocolo **solo para pruebas** de admisión y drenaje por
+  película con SQLite privado en TEMP GUID, `BEGIN IMMEDIATE`
+  y `synchronous=FULL`: al comenzar drenaje bloquea nuevas
+  sesiones y espera a que terminen también los streams en vuelo.
+- [x] Concurrencia ensayada con 16 clientes y caída de otro
+  proceso: sesiones abandonadas **permanecen bloqueantes**;
+  nunca se libera por timeout ni se emite permiso físico.
+- [x] **43/43 pruebas específicas 0027 PASS**, Ruff PASS,
+  smoke **10/10 PASS** y suite backend **1467/1467 PASS**.
+  Auditoría final NTFS de solo lectura, sin borrados.
+- [ ] **NO CONECTADO EN PRODUCCIÓN**: controlar todas las
+  rutas reales (también cada segmento HLS), ligarlas a
+  identidad de sesión/perfil/medio y cerrar el contador
+  solo cuando acaba el iterador HTTP. No abrir acceso
+  a contenido en retirada.
+- [ ] Excluir accesos directos a Jellyfin y escrituras qBit,
+  actualizar publicador antiguo bajo mantenimiento supervisado
+  y consumir aprobación admin estricta de una sola película,
+  con diario NTFS y prueba de espacio liberado.
+- [ ] Primero espacio y seguridad; después app Samsung Tizen
+  profesional y finalmente VIEWTV Momentos.
+
+Sin cambiar reproducción real, Jellyfin, qBit, perfiles,
+tarea programada Windows, SQLite de producción ni películas.
+PR #2 continúa OPEN/DRAFT.

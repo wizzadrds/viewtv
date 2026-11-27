@@ -1194,3 +1194,26 @@ Informe:
   después VIEWTV Momentos.
 
 [Informe 0026](AVANCE-CUSTODIA-ESTADO-QBIT-0026-20261127.md).
+
+## 0027 — Evitar iniciar stream durante revisión (27/11/2026)
+
+- [x] Rutas reales auditadas: `playback-info`, direct stream
+  y HLS playlist/segmento. 4 h de token HLS firmado. Jellyfin
+  publicado solo en loopback, pero vías internas no excluidas.
+- [x] Prototipo sin despliegue con DB privada TEMP y estado
+  libre → drenando → listo_para_preflight; nueva sesión se
+  rechaza tras inicio atómico de drenaje y una petición de
+  vídeo sigue contada hasta cerrarse realmente.
+- [x] Carrera de 16 clientes, caída de proceso y tokens
+  cerrados ensayados. **43/43 pruebas** nuevas, Ruff PASS,
+  smoke **10/10** y backend general **1467/1467 PASS**.
+- [ ] NO desplegar el gate solo en `playback-info`:
+  incluir direct stream y todas las solicitudes HLS,
+  impedir acceso por Jellyfin externo y aislar lectores
+  Windows/qBit antes de autorización administrativa de
+  retirada.
+- [ ] Solo después cerrar almacenamiento y avanzar a
+  Samsung Tizen y VIEWTV Momentos.
+
+Informe:
+[AVANCE-ADMISION-REPRODUCCION-0027-20261127.md](AVANCE-ADMISION-REPRODUCCION-0027-20261127.md).
