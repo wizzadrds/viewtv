@@ -549,3 +549,44 @@ Informe: [AVANCE-MUTEX-COMPARTIDO-RETIRADA-0022-20261127.md](AVANCE-MUTEX-COMPAR
 
 No hay migraciones ni cambios de contenedores en el hito 0022.
 PR #2 sigue OPEN/DRAFT.
+
+## Gestión de espacio 0023 — auditoría del publicador instalado (27/11/2026)
+
+Informe:
+[AVANCE-PREFLIGHT-ACTUALIZACION-PUBLICADOR-0023-20261127.md](AVANCE-PREFLIGHT-ACTUALIZACION-PUBLICADOR-0023-20261127.md).
+
+- [x] **Diagnóstico de instalación real exclusivamente de lectura**:
+  tarea periódica `READY` (habilitada), cuenta `Limited`,
+  wrapper coincide con fuente, 0 procesos publicadores detectados
+  en la instantánea, 0 servicios SCM duplicados; **publicador
+  instalado antiguo** y **helper mutex 0022 no instalado**.
+  No puede afirmarse exclusión productiva ni quietud durable.
+- [x] Barrera local que acepta solo campos conocidos de auditoría
+  y **bloquea** ante versiones incompatibles, tarea habilitada,
+  fuente ambigua, permisos, servicios/procesos extra o cualquier
+  afirmación de operación destructiva. Resultado real:
+  **4 motivos de bloqueo; permiso automático de actualizar NO**.
+- [x] Ensayo de instalación/recuperación/rollback con fuentes
+  reales **copiadas, pero jamás ejecutadas**, dentro de
+  directorio TEMP GUID con scripts y mutex ficticios:
+  `File.Replace` con backup, interrupción entre script/helper,
+  recuperación y rollback por otro proceso, reintentos idempotentes,
+  comprobación SHA-256 y limpieza no recursiva.
+- [x] **48/48 pruebas específicas** de barrera y runner, Ruff
+  PASS, smoke real **10/10 PASS**; backend completo **1269/1269 PASS**.
+  No se instalaron nuevos archivos en el publicador activo.
+- [ ] **SIGUIENTE:** acordar ventana y aprobación de administrador
+  para respaldar y deshabilitar temporalmente la tarea habilitada,
+  confirmar que no hay ningún trabajo activo y reemplazar
+  script+helper como pareja coherente en el directorio
+  protegido. **No realizar la sustitución automáticamente.**
+- [ ] El mutex sigue siendo cooperativo: faltan exclusión de
+  qBit/Jellyfin, protección de sesiones y archivos abiertos,
+  ticket de autorización por película, diario durable de
+  retirada y comprobación de bytes realmente liberados.
+  Los cuatro metadatos qBit y la carpeta sin diario no se borran.
+- [ ] Una vez concluida la seguridad del espacio: Samsung Tizen
+  instalable; después VIEWTV Momentos.
+
+No se alteraron el publicador productivo ni las tareas, películas,
+SQLite, torrents o servicios del equipo. PR #2 OPEN/DRAFT.

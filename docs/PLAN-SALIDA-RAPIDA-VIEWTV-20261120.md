@@ -1105,3 +1105,30 @@ Informe detallado:
   Momentos.
 
 Informe [Mutex compartido 0022](AVANCE-MUTEX-COMPARTIDO-RETIRADA-0022-20261127.md).
+
+## 0023 — Preparar actualización supervisada del publicador (27/11/2026)
+
+- [x] Auditoría local Windows `read-only` con hashes de script
+  y helper, identidad y estado de tarea, versión del wrapper
+  y procesos. Se confirmó **tarea READY habilitada**,
+  publicador instalado antiguo y mutex ausente; 4 bloqueos.
+- [x] Contrato de informe con rechazo de estados inconsistentes
+  o respuestas con permisos de escritura; ninguna opción de
+  activar automáticamente el reemplazo o borrado de películas.
+- [x] Sandbox de Windows TEMP para instalación ficticia
+  del script más el helper 0022 con backup SHA, corte simulado,
+  recuperación y rollback idempotentes en procesos distintos.
+- [x] **48/48 pruebas específicas**, Ruff, smoke **10/10**
+  y backend completo **1269/1269 PASS**.
+- [ ] Ventana supervisada y aprobada por administrador: backup
+  privado de los archivos y configuración instalados,
+  deshabilitar tarea, confirmar parada/quiescencia,
+  reemplazar pareja script+mutex, verificar ACL/hash y
+  reactivar solo tras preflight. **Aún NO realizado.**
+- [ ] Eliminar la carrera real de reproducciones Jellyfin
+  y escrituras qBit, aprobar por película y medir blocks NTFS.
+- [ ] App Samsung y posteriormente Momentos solo tras
+  completar espacio/retirada segura.
+
+Informe:
+[AVANCE-PREFLIGHT-ACTUALIZACION-PUBLICADOR-0023-20261127.md](AVANCE-PREFLIGHT-ACTUALIZACION-PUBLICADOR-0023-20261127.md).
