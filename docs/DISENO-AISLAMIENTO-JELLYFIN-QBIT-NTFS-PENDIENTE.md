@@ -1,6 +1,6 @@
 # Diseño pendiente — cerrar accesos Jellyfin, escrituras qBittorrent y lectores NTFS (futuro hito 3)
 
-**Estado: DISEÑO Y MATRIZ DE PRUEBAS; NO IMPLEMENTADO NI DESPLEGADO.** No se pausa ni detiene ningún torrent. El mutex productivo del 0030 solo cubre procesos que lo adquieren: el publicador sí, Jellyfin, qBittorrent y otros lectores no.
+**Estado: DISEÑO Y MATRIZ DE PRUEBAS; NO IMPLEMENTADO NI DESPLEGADO.** El 0032 ha añadido evidencia de red y firewall de Windows de solo lectura, descrita en [AVANCE-HLS-RUTAS-REALES-AISLAMIENTO-0032-20261127.md](AVANCE-HLS-RUTAS-REALES-AISLAMIENTO-0032-20261127.md): Jellyfin nativo escuchando en `0.0.0.0:8096` con reglas `Allow` en Private/Public (TCP/UDP, puertos y origen `Any`), Jellyfin Docker en `127.0.0.1:8097`, y qBittorrent nativo `[::]:8080` también con reglas de entrada `Allow` Private/Public. No se ha probado aún acceso LAN efectivo ni si Jellyfin nativo comparte película concreta; no cambiar reglas sin valorar clientes. No se pausa ni detiene ningún torrent. El mutex productivo del 0030 solo cubre procesos que lo adquieren: el publicador sí, Jellyfin, qBittorrent y otros lectores no.
 
 ## Principio
 

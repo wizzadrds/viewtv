@@ -1,6 +1,6 @@
 # Diseño pendiente — HLS ligado a perfil, sesión y generación (futuro hito 2)
 
-**Estado actualizado a 0031:** este diseño inicial ya tiene un contrato HLS v2 y autoridad SQLite IMPLEMENTADOS SOLO EN LABORATORIO, descritos en [AVANCE-CAPACIDADES-HLS-0031-20261127.md](AVANCE-CAPACIDADES-HLS-0031-20261127.md). **No integrados en `app.main`, no desplegados**, sin reemplazar tokens HLS v1 productivos ni habilitar retiradas. 0031 introduce `jti` en los JWT nuevos del código de la rama, pero no modifica el servicio activo. Ruff global de 0030 sigue pendiente; sin él no hay gate de despliegue.
+**Estado actualizado a 0031/0032:** este diseño inicial ya tiene un contrato HLS v2 y autoridad SQLite IMPLEMENTADOS SOLO EN LABORATORIO, descritos en [AVANCE-CAPACIDADES-HLS-0031-20261127.md](AVANCE-CAPACIDADES-HLS-0031-20261127.md). **0032 añade puntos de integración a los handlers reales y los prueba inyectando la barrera ASGI solo en TestClient, pero no está activada en `app.main` ni desplegada**, sin reemplazar tokens HLS v1 productivos ni habilitar retiradas. 0031 introduce `jti` en los JWT nuevos del código de la rama, pero no modifica el servicio activo. Ruff global de 0030 sigue pendiente; sin él no hay gate de despliegue.
 
 ## Problema constatado
 

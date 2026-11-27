@@ -4,7 +4,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote, urlsplit
 
 import httpx
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
@@ -20,6 +20,11 @@ from app.jellyfin_hls import (
     verify_hls_token,
 )
 from app.models import Medio, Perfil
+from app.retirement_hls_bridge_contract_0032 import (
+    HLSAdmissionClosed0032,
+    HLSBridge0032,
+    get_hls_bridge_0032,
+)
 
 router = APIRouter(prefix="/jellyfin", tags=["reproducción"])
 VIDEO_DEVICE_PROFILE: dict[str, Any] = {
@@ -249,7 +254,12 @@ class JellyfinPlaybackClient:
         return client, response
 
 
-def _public_playback_info(data: dict[str, Any], media_id: int) -> dict[str, Any]:
+def _public_playback_info(
+    data: dict[str, Any], media_id: int, *,
+    hls_bridge: HLSBridge0032 | None = None,
+    profile: Perfil | None = None,
+    request: Request | None = None,
+) -> dict[str, Any]:
     sources: list[dict[str, Any]] = []
     raw_sources = data.get("MediaSources")
     if isinstance(raw_sources, list):
@@ -267,14 +277,21 @@ def _public_playback_info(data: dict[str, Any], media_id: int) -> dict[str, Any]
                 and isinstance(transcoding_uri, str)
                 and transcoding_uri.split("?", 1)[0].lower().endswith(".m3u8")
             )
-            playback_url = (
-                f"/jellyfin/media/{media_id}/stream"
-                f"?media_source_id={quote(source_id, safe='')}"
-                if direct_play
-                else local_hls_url(transcoding_uri, media_id, get_settings())
-                if has_hls
-                else None
-            )
+            if direct_play:
+                playback_url = (
+                    f"/jellyfin/media/{media_id}/stream"
+                    f"?media_source_id={quote(source_id, safe='')}"
+                )
+            elif has_hls and hls_bridge is not None:
+                if request is None or profile is None:
+                    raise JellyfinError("No hay sesión de perfil para HLS.")
+                playback_url = hls_bridge.issue(
+                    transcoding_uri, media_id, profile, request, get_settings(),
+                )
+            elif has_hls:
+                playback_url = local_hls_url(transcoding_uri, media_id, get_settings())
+            else:
+                playback_url = None
             sources.append(
                 {
                     "id": source_id,
@@ -297,10 +314,17 @@ def _public_playback_info(data: dict[str, Any], media_id: int) -> dict[str, Any]
 @router.post("/media/{media_id}/playback-info")
 def get_media_playback_info(
     media_id: int,
+    request: Request,
     _profile: Perfil = Depends(get_current_profile),
     session: Session = Depends(get_session),
     start_time_ticks: int = Query(default=0, ge=0),
+    hls_bridge: HLSBridge0032 | None = Depends(get_hls_bridge_0032),
 ) -> dict[str, Any]:
+    if hls_bridge is not None:
+        try:
+            hls_bridge.require_admitted(request)
+        except HLSAdmissionClosed0032:
+            raise HTTPException(status_code=423, detail="Reproducción no disponible.") from None
     media = session.get(Medio, media_id)
     if media is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Elemento no encontrado.")
@@ -311,18 +335,32 @@ def get_media_playback_info(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from None
-    return _public_playback_info(data, media_id)
+    try:
+        return _public_playback_info(
+            data, media_id, hls_bridge=hls_bridge, profile=_profile, request=request,
+        )
+    except HLSAdmissionClosed0032:
+        raise HTTPException(status_code=423, detail="Reproducción no disponible.") from None
+    except JellyfinError:
+        raise HTTPException(status_code=503, detail="No se pudo proteger el enlace HLS.") from None
 
 
 @router.get("/media/{media_id}/stream")
 def stream_media(
     media_id: int,
+    request: Request,
     _profile: Perfil = Depends(get_current_profile),
     session: Session = Depends(get_session),
     media_source_id: str | None = Query(default=None, max_length=128, pattern=r"^[A-Za-z0-9-]+$"),
     range_header: str | None = Header(default=None, alias="Range", max_length=128),
     if_range: str | None = Header(default=None, alias="If-Range", max_length=256),
+    hls_bridge: HLSBridge0032 | None = Depends(get_hls_bridge_0032),
 ) -> StreamingResponse:
+    if hls_bridge is not None:
+        try:
+            hls_bridge.require_admitted(request)
+        except HLSAdmissionClosed0032:
+            raise HTTPException(status_code=423, detail="Reproducción no disponible.") from None
     media = session.get(Medio, media_id)
     if media is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Elemento no encontrado.")
@@ -383,10 +421,12 @@ def stream_media(
 @router.get("/media/{media_id}/hls")
 def stream_hls(
     media_id: int,
+    request: Request,
     token: str = Query(min_length=40, max_length=8192),
     _profile: Perfil = Depends(get_current_profile),
     session: Session = Depends(get_session),
     range_header: str | None = Header(default=None, alias="Range", max_length=128),
+    hls_bridge: HLSBridge0032 | None = Depends(get_hls_bridge_0032),
 ) -> Response:
     """Proxy privado de playlists/fragmentos con token de ruta firmado.
 
@@ -396,15 +436,27 @@ def stream_hls(
     if media is None or not media.disponible_en_jellyfin:
         raise HTTPException(status_code=404, detail="Vídeo no disponible.")
     settings = get_settings()
+    lease: object | None = None
     try:
-        uri = verify_hls_token(token, media_id, settings)
+        if hls_bridge is None:
+            uri = verify_hls_token(token, media_id, settings)
+        else:
+            uri, lease = hls_bridge.reserve(
+                token, media_id, _profile, request, settings,
+            )
     except JellyfinError:
         raise HTTPException(status_code=403, detail="Enlace HLS no válido o caducado.") from None
+    except HLSAdmissionClosed0032:
+        raise HTTPException(status_code=423, detail="Reproducción no disponible.") from None
 
     try:
         upstream_client, upstream = open_hls_upstream(uri, settings, range_header)
-    except JellyfinError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from None
+    except BaseException as exc:
+        if hls_bridge is not None and lease is not None:
+            hls_bridge.finish(lease)
+        if isinstance(exc, JellyfinError):
+            raise HTTPException(status_code=503, detail=str(exc)) from None
+        raise
 
     if uri.split("?", 1)[0].lower().endswith(".m3u8"):
         try:
@@ -413,7 +465,11 @@ def stream_hls(
                 chunks.extend(chunk)
                 if len(chunks) > MAX_PLAYLIST_BYTES:
                     raise JellyfinError("Lista HLS demasiado grande.")
-            playlist = rewrite_hls_playlist(bytes(chunks), uri, media_id, settings)
+            playlist = (
+                hls_bridge.rewrite(bytes(chunks), uri, lease, settings)
+                if hls_bridge is not None and lease is not None
+                else rewrite_hls_playlist(bytes(chunks), uri, media_id, settings)
+            )
         except (httpx.HTTPError, JellyfinError):
             raise HTTPException(
                 status_code=503, detail="Jellyfin no pudo generar la lista HLS."
@@ -421,6 +477,8 @@ def stream_hls(
         finally:
             upstream.close()
             upstream_client.close()
+            if hls_bridge is not None and lease is not None:
+                hls_bridge.finish(lease)
         return Response(
             content=playlist,
             media_type="application/vnd.apple.mpegurl",
@@ -441,6 +499,8 @@ def stream_hls(
         finally:
             upstream.close()
             upstream_client.close()
+            if hls_bridge is not None and lease is not None:
+                hls_bridge.finish(lease)
 
     return StreamingResponse(
         hls_chunks(),

@@ -114,6 +114,9 @@ class AuthenticatedPlaybackGateLab0029:
             await self._reply(send, 423)
             return
 
+        # Señal de admisión emitida únicamente TRAS autenticar y reservar
+        # lectura en la SQLite TEMP. Nunca confiar en cabeceras del cliente.
+        scope["viewtv.retirement.admitted_0029"] = True
         try:
             await self.app(scope, receive, send)
         finally:
