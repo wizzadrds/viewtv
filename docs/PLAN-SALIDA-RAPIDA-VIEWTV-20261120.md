@@ -1242,3 +1242,24 @@ Informe:
   después de completar retirada/almacenamiento seguro.
 
 [Informe 0028](AVANCE-CAPA-ASGI-REPRODUCCION-0028-20261127.md).
+
+## 0029 — Probar autenticación previa a drenaje (27/11/2026)
+
+- [x] Gate de pruebas comprueba `get_current_profile` y perfil
+  activo ANTES de leer si una película está en retirada:
+  401 uniforme sin sesión, caducada o perfil inactivo.
+- [x] Cada lectura registrada con perfil, medio y sesión bajo
+  transacción TEMP; el streaming real de FastAPI se verifica
+  con TestClient sin acceder a Jellyfin productivo.
+- [x] **38/38 pruebas específicas, Ruff PASS, backend 1528/1528
+  PASS y smoke 10/10 PASS**. Sin cambios productivos.
+- [ ] Los enlaces HLS todavía son transferibles entre perfiles
+  autenticados; firmar perfil+sesión+generación, prever revocación
+  de URLs previas y evaluar cierre de streams reales antes de
+  desplegar las barreras.
+- [ ] Completar aislamiento Jellyfin/qBit/Windows, permiso
+  administrativo por título, journal y medición NTFS física.
+- [ ] Samsung Tizen profesional y luego VIEWTV Momentos
+  únicamente después de terminar espacio/retirada segura.
+
+[Informe 0029](AVANCE-AUTENTICACION-DRENAJE-0029-20261127.md).

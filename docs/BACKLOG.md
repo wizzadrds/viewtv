@@ -773,3 +773,31 @@ Informe:
 
 Sin detener procesos, cambiar API/frontend productivos ni
 eliminar películas o torrents. PR #2 OPEN/DRAFT.
+
+## Retirada 0029 — autenticar perfiles ANTES de consultar drenaje (27/11/2026)
+
+Informe: [AVANCE-AUTENTICACION-DRENAJE-0029-20261127.md](AVANCE-AUTENTICACION-DRENAJE-0029-20261127.md).
+
+- [x] Laboratorio HTTP 0029 llama a `get_current_profile` real,
+  con JWT, cookie y SQLite **en memoria** antes de consultar
+  estado de retirada. Sin sesión, JWT caducado/falso o perfil
+  inactivo devuelve siempre 401, incluso en drenaje.
+- [x] Una nueva tabla TEMP registra el propietario **perfil + medio**
+  de cada sesión en la misma transacción SQLite; otro perfil
+  no puede consumir ni terminar las lecturas ajenas.
+- [x] TestClient sobre negociación, stream directo, playlist y
+  segmentos HLS con Jellyfin ficticio; 423 tras autenticación,
+  sin llamar upstream. **38/38 pruebas PASS**, Ruff PASS,
+  backend **1528/1528 PASS**, smoke real **10/10 PASS**.
+- [x] Comprobado explícitamente que los HLS firmados actuales
+  **son transferibles entre perfiles autenticados**: falta
+  firmar identidad y generación de sesión y revocar tokens
+  previos antes de poder desplegar este protocolo.
+- [ ] **No desplegado**: resolver HLS por perfil y sesión,
+  aislar accesos directos Jellyfin, qBit y lectores NTFS,
+  actualizar publicador con mutex de modo supervisado y
+  obtener aprobación administrativa por película.
+- [ ] Tras liberación física segura de espacio, app Tizen Samsung
+  instalable y después VIEWTV Momentos.
+
+PR #2 sigue OPEN/DRAFT. Sin cambiar medios, torrents, perfiles ni servicios.
