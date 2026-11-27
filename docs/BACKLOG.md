@@ -732,3 +732,44 @@ Informe: [AVANCE-ADMISION-REPRODUCCION-0027-20261127.md](AVANCE-ADMISION-REPRODU
 Sin cambiar reproducción real, Jellyfin, qBit, perfiles,
 tarea programada Windows, SQLite de producción ni películas.
 PR #2 continúa OPEN/DRAFT.
+
+## Retirada segura 0028 — barrera ASGI integrada SOLO en TestClient (27/11/2026)
+
+Informe:
+[AVANCE-CAPA-ASGI-REPRODUCCION-0028-20261127.md](AVANCE-CAPA-ASGI-REPRODUCCION-0028-20261127.md).
+
+- [x] Implementado en **archivo nuevo, NO registrado en
+  `app.main`**, el wrapper ASGI que deniega las tres rutas
+  reales de reproducción durante drenaje: `playback-info`,
+  `stream`, y todas las playlists/fragmentos HLS en `hls`.
+  Incluye tokens HLS firmados antes del comienzo del drenaje.
+- [x] Antes de cada handler abre un registro en la SQLite
+  TEMP GUID del laboratorio 0027 y lo conserva hasta el
+  `finally` que cubre también streaming/cancelación.
+  Rechaza rutas no canónicas, futuras rutas de medios sin
+  inventario y peticiones cuando la DB no es confiable.
+- [x] Ensayo real **FastAPI TestClient** sobre las rutas
+  productivas, pero con base en memoria y fuente Jellyfin
+  ficticias, demuestra 423 **antes de contactar con Jellyfin**.
+  Nunca se accede a la SQLite ni a los medios productivos.
+- [x] Pruebas de streaming en vuelo, cancelación y aislamiento
+  entre películas; **23/23 tests específicos PASS**,
+  Ruff PASS, smoke web/API **10/10 PASS** y suite backend
+  completa **1490/1490 PASS**. Auditoría NTFS 2/2 sin borrados.
+- [ ] **PROHIBIDO DESPLEGAR ESTE WRAPPER**: todavía actúa
+  antes de autenticar el perfil, podría revelar por 423
+  el estado de drenaje a un cliente anónimo y no liga
+  capacidades HLS a una sesión durable autenticada.
+- [ ] Integrar autenticación y duración efectiva de streams
+  en las rutas, limitar clientes Jellyfin externos y
+  accesos NTFS/qBit ajenos. La barrera 0028 solo protege
+  las peticiones que atraviesan el wrapper en pruebas.
+- [ ] Publicador Windows instalado necesita upgrade
+  supervisado 0023; permiso por película 0019 y preflight
+  de todos los perfiles/archivos, journal de retirada
+  durable y medición física de bloques aún pendientes.
+- [ ] Terminar espacio seguro antes de Samsung Tizen;
+  luego VIEWTV Momentos.
+
+Sin detener procesos, cambiar API/frontend productivos ni
+eliminar películas o torrents. PR #2 OPEN/DRAFT.

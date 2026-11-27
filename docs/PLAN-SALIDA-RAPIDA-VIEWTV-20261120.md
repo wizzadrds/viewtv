@@ -1217,3 +1217,28 @@ Informe:
 
 Informe:
 [AVANCE-ADMISION-REPRODUCCION-0027-20261127.md](AVANCE-ADMISION-REPRODUCCION-0027-20261127.md).
+
+## 0028 — Gate ASGI para streaming directo y HLS en tests (27/11/2026)
+
+- [x] Capa ASGI de laboratorio, no incorporada a `app.main`,
+  que contabiliza cada solicitud de negociación, vídeo
+  directo y HLS completa hasta el final de su respuesta.
+- [x] Drenaje atómico del laboratorio devuelve 423 a nuevas
+  peticiones y bloquea incluso enlaces HLS firmados aún
+  vigentes; otro medio y rutas de imágenes/salud siguen
+  accesibles.
+- [x] Integración probada sobre las rutas reales FastAPI
+  con TestClient, memoria SQLite y Jellyfin sintéticos;
+  peticiones denegadas ANTES de llamar al upstream.
+  **23/23 pruebas específicas**, Ruff PASS, smoke **10/10**,
+  backend general **1490/1490 PASS** y NTFS 2/2 validado.
+- [ ] No desplegar: la capa se ejecuta antes de la
+  autenticación y no cubre Jellyfin externo ni lectores
+  NTFS/qBit. Falta vincular sesión, perfil y generación HLS.
+- [ ] Combinar con publicador Windows actualizado de forma
+  autorizada, aprobación admin por película, hardlinks,
+  journal y medida real de espacio recuperado.
+- [ ] Samsung instalable y VIEWTV Momentos solamente
+  después de completar retirada/almacenamiento seguro.
+
+[Informe 0028](AVANCE-CAPA-ASGI-REPRODUCCION-0028-20261127.md).
