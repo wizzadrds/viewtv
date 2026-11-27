@@ -1152,3 +1152,23 @@ Informe:
   cerrar retirada física segura y gestión de espacio.
 
 [Informe 0024](AVANCE-REVISION-RETIRADA-SOLICITADA-0024-20261127.md).
+
+## 0025 — Comparar doble snapshot de qBit/Jellyfin/NTFS (27/11/2026)
+
+- [x] Revisión por película 0024 endurecida: **dos consultas
+  completas** SQLite/Jellyfin/qBittorrent, dos diarios y
+  dos pruebas NTFS; cualquier cambio detectado deniega.
+  No se atribuye a los dos GET ninguna garantía de locking.
+- [x] Caso real solicitado y pendiente conservado: se observa
+  una solicitud válida, un perfil que aún no marcó «vista»,
+  torrent activo y archivos extras protegidos; **sin permiso
+  de borrado ni aprobación administrativa**.
+- [x] **91/91 pruebas combinadas**, Ruff, smoke **10/10**
+  y backend completo **1360/1360 PASS**.
+- [ ] Resolver inmovilización atómica de nuevos streams Jellyfin,
+  qBit y publicador Windows (incluida actualización supervisada
+  del servicio activo), autorización del administrador y
+  ejecutor NTFS con auditoría y medida física real.
+- [ ] Solo entonces la app Tizen Samsung; luego VIEWTV Momentos.
+
+[Informe 0025](AVANCE-DOBLE-SNAPSHOT-RETIRADA-0025-20261127.md).

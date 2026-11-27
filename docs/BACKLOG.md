@@ -624,3 +624,41 @@ Informe: [AVANCE-REVISION-RETIRADA-SOLICITADA-0024-20261127.md](AVANCE-REVISION-
 - [ ] Solo después: app Samsung Tizen profesional; luego Momentos.
 
 PR #2 continúa abierto/draft. No se ha eliminado ninguna película.
+
+## Gestión de espacio 0025 — doble snapshot integral de retirada (27/11/2026)
+
+Informe: [AVANCE-DOBLE-SNAPSHOT-RETIRADA-0025-20261127.md](AVANCE-DOBLE-SNAPSHOT-RETIRADA-0025-20261127.md).
+
+- [x] Detectada una brecha en el preflight por película 0024:
+  solo se comparaban dos lecturas de solicitudes y NTFS,
+  pero **una** instantánea de qBit/Jellyfin/descargas SQL.
+- [x] Nueva barrera pura 0025 que exige **dos snapshots
+  completos idénticos** SQL/Jellyfin/qBit, **dos lecturas
+  completas de diarios** Windows y **dos auditorías NTFS**,
+  siempre sin permisos de borrado ni bloqueo transaccional.
+  Rechaza cambios incluso en otra película durante la consulta.
+- [x] Tests sintéticos de cambios de torrent (estado, progreso,
+  tags, path, hash), ficheros, ruta Jellyfin, vistas y peticiones,
+  fuentes incompletas, diario y NTFS no concordantes.
+  **91/91 pruebas combinadas 0024/0025 PASS**, Ruff PASS.
+- [x] Consulta read-only de película con retirada pendiente:
+  **2 snapshots coincidentes**, 1 solicitud válida,
+  1/2 perfiles «vista», torrent activo o incompleto para la
+  política, archivos qBit adicionales protegidos y
+  **borrado físico NO**. /Sessions Jellyfin 0 reproducciones
+  observadas, sin garantizar inactividad posterior.
+- [x] Smoke web/API solo lectura **10/10 PASS**;
+  backend total **1360/1360 PASS**, dos advertencias externas;
+  auditoría NTFS final sin medios borrados.
+- [ ] **Importante:** dos lecturas iguales no constituyen una
+  reserva atómica. Falta impedir nuevos streams de Jellyfin,
+  qBit activo y cambios de publicación Windows antes de
+  otorgar una autorización ejecutable por título.
+- [ ] El publicador instalado aún no usa mutex 0022; requiere
+  mantenimiento supervisado, comprobaciones de servicio,
+  respaldo y validación de instalación (0023).
+- [ ] Concluir eliminación y medición NTFS por título seguro
+  antes de la app Samsung instalable; después Momentos.
+
+No se modificaron perfiles, SQLite, medios, torrents ni
+servicios productivos. PR #2 sigue OPEN/DRAFT.

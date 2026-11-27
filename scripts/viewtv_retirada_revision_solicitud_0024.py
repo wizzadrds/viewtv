@@ -22,6 +22,10 @@ from viewtv_retirada_preflight_0018 import (  # noqa: E402
     _evidence_windows,
     _journals_readonly,
 )
+from worker.retirement_evidence_stability_0025 import (  # noqa: E402
+    EvidenciaInestable,
+    certificar_doble_lectura,
+)
 from worker.retirement_preflight_0018 import evaluar_retiradas  # noqa: E402
 from worker.retirement_request_review_0024 import (  # noqa: E402
     RevisionNoConfiable,
@@ -63,15 +67,29 @@ def revisar(titulo: str, anio: int) -> dict:
 
     first_windows = _evidence_windows()
     first_detail = _detalle_api(titulo, anio)
-    snapshot = _api_snapshot()
-    journals = _journals_readonly()
+    first_snapshot = _api_snapshot()
+    first_journals = _journals_readonly()
+    # La consulta completa Jellyfin + qBit no es atómica.
+    # Dos fotografías sirven para detectar drift; NO congelan los servicios.
+    last_snapshot = _api_snapshot()
+    last_journals = _journals_readonly()
     last_detail = _detalle_api(titulo, anio)
     last_windows = _evidence_windows()
-    if first_windows != last_windows or first_detail != last_detail:
-        raise RevisionNoConfiable("Las evidencias cambiaron durante la consulta.")
+    if first_detail != last_detail:
+        raise RevisionNoConfiable("La petición cambió durante la consulta.")
+    try:
+        certificar_doble_lectura(
+            first_snapshot, last_snapshot,
+            first_journals, last_journals,
+            first_windows, last_windows,
+        )
+    except EvidenciaInestable as exc:
+        raise RevisionNoConfiable(
+            "Evidencias de la película cambiaron entre consultas."
+        ) from exc
 
-    rows = evaluar_retiradas(snapshot, journals, last_windows)
-    result = resumir_revision(snapshot, rows, last_detail)
+    rows = evaluar_retiradas(last_snapshot, last_journals, last_windows)
+    result = resumir_revision(last_snapshot, rows, last_detail)
     if result["autoriza_borrado_fisico"] is not False:
         raise RevisionNoConfiable("Preflight devolvió permiso inesperado.")
     return result
@@ -96,6 +114,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print("REVISION_SOLICITUD_0024=SOLO_LECTURA")
     print("ESTADO=" + info["estado"].upper())
+    print("DOBLE_SNAPSHOT_SQL_JELLYFIN_QBIT=COINCIDENTE")
+    print("DOBLE_INVENTARIO_DIARIOS_NTFS=COINCIDENTE")
+    print("EXCLUSION_TRANSACCIONAL_QBIT_JELLYFIN=NO")
     print("MEDIO_ID=" + str(info["medio_id"]))
     print("PERFILES_ACTIVOS=" + str(info["perfiles_activos"]))
     print("PERFILES_CON_VISTO=" + str(info["perfiles_con_visto"]))
