@@ -357,6 +357,17 @@ function Retry-PendingScans($Policy) {
     }
 }
 function Process-One {
+    # 0022: no reclamar, reconciliar, publicar ni escanear mientras una
+    # retirada u otro publicador posea la exclusion Windows compartida.
+    # Solo se carga en una EJECUCION real; Mode=Library/Preflight
+    # no modifica ni exige archivos de bloqueo de produccion.
+    $guardLibrary=Join-Path $PSScriptRoot 'viewtv_windows_media_lock_0022.ps1'
+    if(-not [IO.File]::Exists($guardLibrary)) {
+        throw 'Falta protocolo de exclusion 0022: no publicar.'
+    }
+    . $guardLibrary
+    $exclusive=Enter-ViewtvMediaExclusion0022 -Proposito 'publicador'
+    try {
     $policy=Get-ViewtvPolicy
     Retry-PendingScans $policy
     $claim=Invoke-ViewtvAuthority 'claim'
@@ -414,6 +425,9 @@ function Process-One {
     [IO.Directory]::Move($stage,$final)
     Complete-Publication $id $attempt $intent $folder
     return 'publicada'
+    } finally {
+        Exit-ViewtvMediaExclusion0022 -Mutex $exclusive
+    }
 }
 
 function Assert-AuthorityReady($Policy) {

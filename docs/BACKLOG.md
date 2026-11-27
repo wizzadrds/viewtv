@@ -508,3 +508,44 @@ Informe: [AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md](AVANCE-SESION
 
 Sin migraciones, despliegues ni cambios en medios de producción en 0021.
 PR #2 sigue abierto y en borrador.
+
+## Retirada segura 0022 — mutex Windows compartido (27/11/2026)
+
+Informe: [AVANCE-MUTEX-COMPARTIDO-RETIRADA-0022-20261127.md](AVANCE-MUTEX-COMPARTIDO-RETIRADA-0022-20261127.md).
+
+- [x] Implementar en el código fuente del publicador 0013 una
+  exclusión nativa Windows por mutex **Global fijo**, adquirida
+  **antes del claim** y mantenida hasta cerrar reconciliación,
+  hardlinks, confirmación y escaneo. Liberación segura en
+  `finally`; falta de biblioteca o mutex ocupado/abandonado
+  impide continuar.
+- [x] Auditoría NTFS de retirada **sin borrados** que obtiene
+  el mismo mutex y devuelve explícitamente que no coordina
+  qBittorrent ni nuevos streams Jellyfin.
+- [x] Ensayo en Windows con **dos procesos ficticios**:
+  exclusión efectiva, nombre productivo no personalizable,
+  recuperación después de finalizar abruptamente solo el
+  proceso de sandbox, sin medios tocados.
+- [x] Ensayo del propio `Process-One` con mocks: ningún
+  claim ni publicación real, retorno `sin_trabajos` y
+  bloqueo ante error simulado del broker.
+- [x] Tests de regresión **15/15 PASS**, Ruff PASS,
+  backend general **1221/1221 PASS**, smoke 10/10 PASS;
+  auditoría NTFS 2/2 verificada y preflight 4/4 películas
+  bloqueadas sin cambios productivos.
+- [ ] **NO SE HA DESPLEGADO EL PUBLICADOR CON NUEVO MUTEX**:
+  validar y respaldar el script de servicio Windows,
+  programar actualización supervisada tras comprobar que
+  no procesa trabajo, mantener un único proceso activo,
+  verificar ACL y rollback. La versión vieja NO participa
+  en este mutex.
+- [ ] El mutex no inmoviliza qBittorrent ni streams Jellyfin.
+  Crear reserva/bloqueo efectivamente compartido, revalidación
+  atómica, permisos de administrador 0019, journal 0020 y
+  medición física 0021. No borrar películas reales sin
+  autorización específica por título ni detener torrents.
+- [ ] Después de gestión de espacio completa: app Samsung
+  instalable; luego VIEWTV Momentos.
+
+No hay migraciones ni cambios de contenedores en el hito 0022.
+PR #2 sigue OPEN/DRAFT.

@@ -1077,3 +1077,31 @@ Informe [0019 autorización administrativa](AVANCE-AUTORIZACION-ADMINISTRADOR-RE
 
 Informe detallado:
 [AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md](AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md).
+
+## 0022 — Exclusión Windows publicador/retirada (27/11/2026)
+
+- [x] Helper de mutex global único para operaciones de
+  publicación y futura retirada; fallar cerrado ante ocupación,
+  abandono y ausencia del protocolo. Código fuente del
+  publicador adquiere antes de reclamar tareas y libera en
+  finally, sin desplegar el servicio activo.
+- [x] Auditoría NTFS de retirada bajo el mismo mutex,
+  exclusivamente lectura, sin activar borrado.
+- [x] Tests Windows con dos procesos aislados y broker ficticio:
+  exclusión efectiva, reentrada tras caída del hijo de prueba
+  y sin operaciones productivas. 15 pruebas Python PASS.
+- [x] Smoke de solo lectura **10/10 PASS** y backend
+  general **1221/1221 PASS**, Ruff PASS; preflight real
+  mantiene 4 películas bloqueadas y los 2 diarios NTFS
+  verificados, sin archivos reales alterados.
+- [ ] **Primero** actualizar el publicador viejo de forma
+  supervisada y verificable; un mutex nuevo no protege contra
+  procesos todavía ejecutando el código anterior.
+- [ ] Añadir sincronización con qBittorrent, arranque de
+  streams Jellyfin y posterior autoridad de retirada que
+  consuma aprobación independiente; auditorías y diario
+  no sustituyen el bloqueo transaccional.
+- [ ] Solo después cerrar espacio y pasar a Samsung, luego
+  Momentos.
+
+Informe [Mutex compartido 0022](AVANCE-MUTEX-COMPARTIDO-RETIRADA-0022-20261127.md).
