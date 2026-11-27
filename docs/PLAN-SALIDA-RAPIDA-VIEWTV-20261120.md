@@ -1050,3 +1050,30 @@ Informe [0019 autorización administrativa](AVANCE-AUTORIZACION-ADMINISTRADOR-RE
   luego VIEWTV Momentos.
 
 [Informe de 0020](AVANCE-INVENTARIO-QBIT-DIARIO-RETIRADA-0020-20261126.md).
+
+## 27/11/2026 — sesiones Jellyfin y recuperación física NTFS 0021
+
+- [x] Guardia de solo lectura Jellyfin `GET /Sessions` con
+  sesiones de película reproduciéndose/pausadas, identificación
+  estricta, fallos conservadores, salida agregada sin datos
+  privados, sin instalar código en el contenedor. Consulta real:
+  **cero sesiones reportadas** en dos lecturas; no equivale
+  a exclusión del reproductor ni a permiso de borrar.
+- [x] Sandbox Windows en TEMP mismo volumen que los medios:
+  archivo ficticio 8 MiB y dos hardlinks. Primera retirada
+  **0 bytes** de espacio global recuperado; retirada de
+  último link **+8 MiB observados**. Ninguna película real
+  ni torrent modificado.
+- [x] 47 pruebas nuevas del guard y runner, Ruff PASS;
+  **suite backend 1206/1206 PASS**, smoke de solo lectura
+  **10/10 PASS**, preflight 4/4 películas bloqueadas,
+  auditoría Windows 2/2 diarios válidos.
+- [ ] Todavía necesario inmovilizar reproducción y publicación
+  Windows/qBit, autorizar película concreta con credencial
+  administrativa, vincular journal durable y medir el delta
+  del volumen real tras una retirada expresamente aprobada.
+- [ ] Conectar productores seguros a caché privada de ViewTV.
+- [ ] Después: app Samsung Tizen y finalmente ViewTV Momentos.
+
+Informe detallado:
+[AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md](AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md).

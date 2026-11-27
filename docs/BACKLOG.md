@@ -467,3 +467,44 @@ Informe: [AVANCE-INVENTARIO-QBIT-DIARIO-RETIRADA-0020-20261126.md](AVANCE-INVENT
   **después** app Samsung y luego VIEWTV Momentos.
 
 No se modifica producción en 0020; PR #2 abierto/draft.
+
+## Retirada segura 0021 — sesiones Jellyfin y medición NTFS (27/11/2026)
+
+Informe: [AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md](AVANCE-SESIONES-JELLYFIN-MEDICION-NTFS-0021-20261127.md).
+
+- [x] Crear **guard puro** de sesiones Jellyfin que bloquea películas
+  reproduciéndose o pausadas y falla de forma conservadora con ítems
+  incompletos, sesiones duplicadas, transcodificación sin identidad
+  o consultas inválidas. **Siempre** devuelve
+  `habilita_borrado_fisico=false`; no implementa endpoint destructor.
+- [x] Dos consultas reales `GET /Sessions` desde API existente,
+  ejecutando código 0021 temporalmente en memoria sin cambiar
+  imagen/SQLite/servicios. **4 películas consultadas; 0 sesiones
+  reportadas**. Es una observación, NO exclusión de nuevos streams
+  ni permiso para retirar películas.
+- [x] Ensayo **exclusivamente ficticio de 8 MiB** en carpeta GUID
+  del TEMP Windows, mismo volumen que medios, con dos hardlinks
+  NTFS, Win32 `GetDiskFreeSpaceExW` y recuento nativo de enlaces.
+  Delta al retirar primer link **0 bytes** y al retirar último
+  **+8 MiB observados**. No atribuir este resultado a ninguna
+  película real; el disco puede cambiar por otros procesos.
+- [x] **47/47 pruebas específicas de sesiones y privacidad PASS**,
+  Ruff PASS; **suite backend 1206/1206 PASS**, smoke 10/10 PASS
+  y auditoría posterior de Windows 2/2 diarios válidos.
+- [x] Preflight real 0018 sigue con **4/4 películas bloqueadas**,
+  dos torrents activos, dos publicaciones verificadas y cero
+  archivos reales borrados.
+- [ ] **ANTES DE ELIMINAR:** bloquear realmente nuevas
+  reproducciones/transcodificaciones y archivos abiertos,
+  coordinar publicación Windows y qBit en un lock común,
+  resolver los 4 metadatos protegidos, activar identidad
+  administrativa separada, unir el diario recuperable a una
+  autorización consumida y medir espacio libre antes/después.
+  No detener torrents ni borrar películas sin aprobación concreta.
+- [ ] Conectar escritores propios a caché privada de 0017, sin
+  tocar caché Jellyfin ni originales compartidos.
+- [ ] Solo después de gestión segura: app Samsung Tizen instalable;
+  finalmente VIEWTV Momentos.
+
+Sin migraciones, despliegues ni cambios en medios de producción en 0021.
+PR #2 sigue abierto y en borrador.
