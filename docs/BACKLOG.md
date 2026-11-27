@@ -662,3 +662,36 @@ Informe: [AVANCE-DOBLE-SNAPSHOT-RETIRADA-0025-20261127.md](AVANCE-DOBLE-SNAPSHOT
 
 No se modificaron perfiles, SQLite, medios, torrents ni
 servicios productivos. PR #2 sigue OPEN/DRAFT.
+
+## Seguridad de retirada 0026 — custodia qBit sin pausar torrents (27/11/2026)
+
+Informe: [AVANCE-CUSTODIA-ESTADO-QBIT-0026-20261127.md](AVANCE-CUSTODIA-ESTADO-QBIT-0026-20261127.md).
+
+- [x] Nuevo evaluador puro para verificar cada torrent publicado
+  por **hash, etiqueta VIEWTV exclusiva, raíz Windows y diario**,
+  sin confundir esa identidad con propiedad de archivos extras.
+- [x] Se distingue **reposo reportado + 100 %** de cualquier
+  actividad / comprobación / transferencia: en producción,
+  **2/2 torrents NO están en reposo**. Pausarlos o detenerlos
+  para convertirlos en candidatos está prohibido.
+- [x] Recuento completo qBit: **6 archivos, 2 manifiestos
+  correlacionados y 4 extras custodiados** (metadatos,
+  488 bytes lógicos; 2 nombres no normalizables).
+  Ninguno se elimina, excluye o modifica automáticamente.
+- [x] Orquestador de solo lectura con **dos instantáneas completas
+  SQL/Jellyfin/qBit, dos lecturas de diarios y dos auditorías NTFS**.
+  Cualquier cambio detectado exige abortar sin permiso de borrar.
+- [x] **64/64 pruebas específicas 0026**, Ruff PASS; smoke
+  real de solo lectura **10/10 PASS** y backend **1424/1424 PASS**.
+  Los contadores no exponen rutas, perfiles ni hashes.
+- [ ] El mutex 0022 **no está en el publicador instalado**:
+  falta intervención supervisada 0023, sin detener tarea o
+  torrents desde la auditoría.
+- [ ] Hace falta exclusión efectiva de nuevos streams Jellyfin,
+  de qBit y Windows, protección de extras y aprobación del
+  administrador por película antes de retirar hardlinks con
+  recuperación durable y medir bytes NTFS liberados.
+- [ ] Después de terminar espacio: app Samsung Tizen;
+  posteriormente VIEWTV Momentos.
+
+PR #2 OPEN/DRAFT, sin merge. Cero archivos/torrents reales alterados.

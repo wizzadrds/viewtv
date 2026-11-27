@@ -1172,3 +1172,25 @@ Informe:
 - [ ] Solo entonces la app Tizen Samsung; luego VIEWTV Momentos.
 
 [Informe 0025](AVANCE-DOBLE-SNAPSHOT-RETIRADA-0025-20261127.md).
+
+## 0026 — Custodia estricta de torrents y archivos adicionales (27/11/2026)
+
+- [x] Estado real qBit por GET doble: **dos torrents publicados,
+  ninguno en reposo reportado**. No cambiarlos ni detenerlos.
+- [x] Seis archivos qBit: dos publicados, **cuatro metadatos
+  extra protegidos** (488 bytes lógicos y dos nombres fuera de
+  la normalización estricta). No confundir tamaño lógico con
+  espacio real liberable.
+- [x] Nueva barrera pura por hash, tag, ruta, diario y todos los
+  archivos qBit; diferencia actividad, extras, tamaños, progreso,
+  prioridades y nombres peligrosos sin conceder nunca permisos.
+- [x] Dos snapshots integrales, diarios y NTFS; **64/64
+  pruebas específicas PASS**, Ruff, smoke **10/10 PASS** y
+  backend general **1424/1424 PASS**.
+- [ ] Siguiente: protocolo coordinado que evite nuevos streams
+  Jellyfin y actividad qBit durante una retirada autorizada,
+  con el publicador actualizado de forma supervisada.
+- [ ] Solo tras seguridad de espacio completa: Samsung Tizen;
+  después VIEWTV Momentos.
+
+[Informe 0026](AVANCE-CUSTODIA-ESTADO-QBIT-0026-20261127.md).
