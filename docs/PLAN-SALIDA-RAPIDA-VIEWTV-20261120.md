@@ -1132,3 +1132,23 @@ Informe [Mutex compartido 0022](AVANCE-MUTEX-COMPARTIDO-RETIRADA-0022-20261127.m
 
 Informe:
 [AVANCE-PREFLIGHT-ACTUALIZACION-PUBLICADOR-0023-20261127.md](AVANCE-PREFLIGHT-ACTUALIZACION-PUBLICADOR-0023-20261127.md).
+
+## 0024 — Primera solicitud real y revisión por película (27/11/2026)
+
+- [x] Confirmación read-only de una solicitud pendiente de
+  retirada de un perfil que marcó la película como vista;
+  biblioteca con dos perfiles y uno todavía sin marcarla vista.
+  La solicitud está registrada y el archivo permanece intacto.
+- [x] Nuevo evaluador por película exacta y año, que valida
+  dos lecturas del estado SQLite y dos del inventario Windows
+  con preflight SQL/Jellyfin/qBit: **permiso de borrado NO**.
+- [x] Pruebas específicas **43/43 PASS**, Ruff PASS,
+  smoke **10/10 PASS** y backend general **1312/1312 PASS**.
+- [ ] No cambiar marcas «vista» ajenas, solicitud o torrents
+  para forzar condiciones. Completar autoridad admin por título
+  y seguridad transaccional de publicador, qBit, Jellyfin,
+  hardlinks y medición de espacio real.
+- [ ] App Samsung Tizen y VIEWTV Momentos esperan hasta
+  cerrar retirada física segura y gestión de espacio.
+
+[Informe 0024](AVANCE-REVISION-RETIRADA-SOLICITADA-0024-20261127.md).

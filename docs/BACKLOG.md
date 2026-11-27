@@ -590,3 +590,37 @@ Informe:
 
 No se alteraron el publicador productivo ni las tareas, películas,
 SQLite, torrents o servicios del equipo. PR #2 OPEN/DRAFT.
+
+## Gestión de espacio 0024 — solicitud de retirada por película verificada (27/11/2026)
+
+Informe: [AVANCE-REVISION-RETIRADA-SOLICITADA-0024-20261127.md](AVANCE-REVISION-RETIRADA-SOLICITADA-0024-20261127.md).
+
+- [x] Verificar por lectura SQL **la solicitud real de un perfil**,
+  tras marcar una película como vista, mediante identidad exacta
+  de título/año, sin registrar nombres, IDs de perfiles o rutas
+  en la documentación. Estado observado `pendiente_revision`
+  con archivo intacto, un perfil aún sin marcar vista y
+  **ninguna autorización administrativa**.
+- [x] Nueva revisión local read-only que cruza **dos consultas
+  SQL** de la película con el snapshot qBit/Jellyfin/SQLite y
+  **dos inventarios NTFS Windows**; denegar si cambian las
+  solicitudes, marcas, identidad o diarios durante la evaluación.
+- [x] Evaluador puro que respeta los perfiles independientes:
+  solicitud válida de un perfil no autoriza borrar la biblioteca,
+  cancelación implica falta de petición y todos los perfiles
+  vistos **tampoco** equivale a autorización admin.
+- [x] **43/43 pruebas específicas y Ruff PASS**, smoke de
+  solo lectura **10/10 PASS**, backend general **1312/1312 PASS**.
+  Sin nuevos endpoints destructivos,
+  migraciones ni cambios de servicios/media/torrents.
+- [ ] Las **cuatro películas siguen bloqueadas** por preflight:
+  no alterar marcas de otros perfiles ni parar torrents para
+  superar barreras. Metadatos qBit extras protegidos.
+- [ ] Desplegar bajo mantenimiento supervisado la versión del
+  publicador Windows con mutex; bloquear realmente la
+  concurrencia Jellyfin/qBit, activar autorización administrativa
+  independiente por película y journal transaccional durable,
+  luego medir bytes físicos realmente recuperados.
+- [ ] Solo después: app Samsung Tizen profesional; luego Momentos.
+
+PR #2 continúa abierto/draft. No se ha eliminado ninguna película.
