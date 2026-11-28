@@ -49,6 +49,36 @@ public static class ViewtvDistinctSidsTest {
 }
 '@
 }
+if(-not ('ViewtvHardlinkSid0037' -as [type])){
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+public static class ViewtvHardlinkSid0037 {
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true,
+      EntryPoint="CreateHardLinkW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool Make(string newName,string existingName,
+                                    IntPtr security);
+
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true,
+      EntryPoint="CreateFileW")]
+    public static extern SafeFileHandle OpenForDelete(
+        string name, uint access, uint sharing, IntPtr security,
+        uint creation, uint flags, IntPtr template);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FileDisposition {
+        public uint Flags;
+    }
+
+    [DllImport("kernel32.dll", SetLastError=true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetFileInformationByHandle(
+        SafeFileHandle handle,int infoClass,ref FileDisposition info,uint size);
+}
+'@
+}
 function New-Secret {
     $bytes=New-Object byte[] 32
     $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
@@ -275,6 +305,137 @@ try {
     $held=$null
     As-User $tokenBroker {[IO.Directory]::Move($stage2,$escrow2)} | Out-Null
     $results['cierre_voluntario']='move_correcto'
+
+    # 0037: probar la diferencia entre leer bytes de un hardlink y poder
+    # añadir OTRA referencia NTFS en un directorio distinto y escribible.
+    # Todo bajo este mismo sandbox GUID; ninguna ruta de medios reales.
+    $readOnly=Join-Path $root 'media-0037-ficticia'
+    $writable=Join-Path $root 'trabajo-propio-0037'
+    [IO.Directory]::CreateDirectory($readOnly)|Out-Null
+    [IO.Directory]::CreateDirectory($writable)|Out-Null
+    Protect-TestItem $readOnly $true $read $full
+    Protect-TestItem $writable $true $modify $full
+    $source=Join-Path $readOnly 'video-0037-ficticio.bin'
+    [IO.File]::WriteAllText($source,'VIDEO_SINTETICO_0037')
+    Protect-TestItem $source $false $read $full
+    $payload=As-User $tokenCopy {[IO.File]::ReadAllText($source)}
+    Check ($payload -ceq 'VIDEO_SINTETICO_0037') 'El lector no puede leer con ACL Read.'
+    $blockedPath=Join-Path $readOnly 'nuevo-link-0037.bin'
+    $inProtected=As-User $tokenCopy {
+        [ViewtvHardlinkSid0037]::Make($blockedPath,$source,[IntPtr]::Zero)
+    }
+    if($inProtected) {
+        throw 'El SID lector creó un enlace dentro del directorio sellado.'
+    }
+    $results['lector_lee_sin_escribir_en_directorio_sellado']='PASS'
+    $external=Join-Path $writable 'tercer-hardlink-0037.bin'
+    $canRelink=As-User $tokenCopy {
+        [ViewtvHardlinkSid0037]::Make($external,$source,[IntPtr]::Zero)
+    }
+    if($canRelink) {
+        Check ([IO.File]::Exists($external)) 'Hardlink externo no verificable.'
+        Check ([IO.File]::ReadAllText($external) -ceq 'VIDEO_SINTETICO_0037') (
+            'El tercer hardlink ficticio tiene contenido inesperado.'
+        )
+        $results['lector_crea_link_desde_directorio_propio']='POSIBLE'
+        [IO.File]::Delete($external)
+    } else {
+        Check (-not [IO.File]::Exists($external)) (
+            'La API declaró denegación pero dejó un enlace creado.'
+        )
+        $results['lector_crea_link_desde_directorio_propio']='DENEGADO'
+    }
+    $authorized=Join-Path $writable 'broker-link-0037.bin'
+    $brokerCreated=As-User $tokenBroker {
+        [ViewtvHardlinkSid0037]::Make($authorized,$source,[IntPtr]::Zero)
+    }
+    Check $brokerCreated 'El broker no pudo crear un enlace de ensayo.'
+    Check ([IO.File]::ReadAllText($authorized) -ceq 'VIDEO_SINTETICO_0037') (
+        'El link del broker no corresponde al origen.'
+    )
+    [IO.File]::Delete($authorized)
+    $results['broker_distinto_sid_crea_link_de_ensayo']='PASS'
+
+    # 0037: eliminación de DOS nombres ficticios con identidad BROKER
+    # realmente distinta; mientras ambos handles estén retenidos, el
+    # lector sigue sin FILE_WRITE_ATTRIBUTES sobre el File ID protegido.
+    $published=Join-Path $readOnly 'publicado-0037-ficticio.bin'
+    $createdPublished=As-User $tokenBroker {
+        [ViewtvHardlinkSid0037]::Make($published,$source,[IntPtr]::Zero)
+    }
+    Check $createdPublished 'El broker no creó la pareja NTFS de sandbox.'
+    Check ((As-User $tokenCopy {
+        [IO.File]::ReadAllText($published)
+    }) -ceq 'VIDEO_SINTETICO_0037') (
+        'El lector legítimo no pudo reproducir la copia ficticia.'
+    )
+    $one=$null
+    $two=$null
+    try {
+        $one=As-User $tokenBroker {
+            [ViewtvHardlinkSid0037]::OpenForDelete(
+                $source,[uint32]0x10080,[uint32]4,[IntPtr]::Zero,
+                [uint32]3,[uint32]0,[IntPtr]::Zero
+            )
+        }
+        Check ($null -ne $one -and -not $one.IsInvalid) (
+            'Broker no adquirió handle DELETE de origen.'
+        )
+        $two=As-User $tokenBroker {
+            [ViewtvHardlinkSid0037]::OpenForDelete(
+                $published,[uint32]0x10080,[uint32]4,[IntPtr]::Zero,
+                [uint32]3,[uint32]0,[IntPtr]::Zero
+            )
+        }
+        Check ($null -ne $two -and -not $two.IsInvalid) (
+            'Broker no adquirió segundo handle DELETE.'
+        )
+        $cannotRead=$false
+        try {
+            $opened=As-User $tokenCopy {
+                [IO.File]::Open(
+                    $published,[IO.FileMode]::Open,[IO.FileAccess]::Read,
+                    [IO.FileShare]::ReadWrite
+                )
+            }
+            if($null -ne $opened){$opened.Dispose()}
+        } catch [IO.IOException] {$cannotRead=$true}
+        Check $cannotRead 'Lector pudo abrir bajo la reserva Win32.'
+        $foreignDuring=Join-Path $writable 'enlace-durante-0037.bin'
+        $canRelinkDuring=As-User $tokenCopy {
+            [ViewtvHardlinkSid0037]::Make(
+                $foreignDuring,$source,[IntPtr]::Zero
+            )
+        }
+        Check (-not $canRelinkDuring -and
+               -not [IO.File]::Exists($foreignDuring)) (
+            'Lector pudo crear un tercer enlace durante el commit.'
+        )
+        $results['lector_no_relink_durante_handles_delete']='PASS'
+        $disposition=[ViewtvHardlinkSid0037+FileDisposition]::new()
+        $disposition.Flags=[uint32]3
+        $firstDeleted=As-User $tokenBroker {
+            [ViewtvHardlinkSid0037]::SetFileInformationByHandle(
+                $one,21,[ref]$disposition,[uint32]4
+            )
+        }
+        Check $firstDeleted 'Fallo primer unlink del broker en sandbox.'
+        $secondDeleted=As-User $tokenBroker {
+            [ViewtvHardlinkSid0037]::SetFileInformationByHandle(
+                $two,21,[ref]$disposition,[uint32]4
+            )
+        }
+        Check $secondDeleted 'Fallo segundo unlink del broker en sandbox.'
+    } finally {
+        if($null -ne $two){$two.Dispose()}
+        if($null -ne $one){$one.Dispose()}
+    }
+    Check (-not [IO.File]::Exists($source) -and
+           -not [IO.File]::Exists($published)) (
+        'La retirada ficticia de broker no terminó ambos nombres.'
+    )
+    $results['doble_unlink_broker_sid_aislado']='PASS'
+    $results['ninguna_acl_ni_cuenta_productiva_modificada']='SI'
     $results | ConvertTo-Json -Compress
 } finally {
     if($held -ne $null){$held.Dispose()}
