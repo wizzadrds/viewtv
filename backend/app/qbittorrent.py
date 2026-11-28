@@ -149,6 +149,26 @@ class QBittorrentClient:
             data={"hashes": torrent_hash},
         )
 
+    def stop_torrent(self, torrent_hash: str) -> None:
+        """Detiene solamente el hash indicado; nunca admite all ni listas.
+
+        Esta operación no certifica inmovilidad. El futuro broker debe
+        comprobar el torrent después y retener la custodia kernel.
+        """
+        import re
+
+        if not isinstance(torrent_hash, str) or re.fullmatch(
+            r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}",
+            torrent_hash,
+        ) is None:
+            raise ValueError("El hash del torrent no es válido.")
+
+        self._request(
+            "POST",
+            "/api/v2/torrents/stop",
+            data={"hashes": torrent_hash},
+        )
+
     def add_torrent(
         self,
         url: str,
