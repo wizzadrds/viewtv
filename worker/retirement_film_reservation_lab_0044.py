@@ -21,6 +21,7 @@ import httpx
 
 from worker.retirement_authorization_0019 import (
     AutorizacionDenegada,
+    consumir_en_transaccion_0045,
     huella_evidencias_completas,
     verificar_ticket,
 )
@@ -153,6 +154,41 @@ class ReservaFilmFicticia0044:
                 "estado='reservada_no_ejecutable'),"
                 "PRIMARY KEY(medio,descarga))"
             )
+            self._verificar_esquema(conn)
+
+    @staticmethod
+    def _verificar_esquema(conn: sqlite3.Connection) -> None:
+        """Rechaza tablas heredadas que parezcan tener UNIQUE pero no lo tengan."""
+        cols = conn.execute(
+            "PRAGMA table_info('reservas_film_0044')"
+        ).fetchall()
+        required = (
+            "medio", "descarga", "torrent_hash", "nonce",
+            "proof", "file_id", "estado",
+        )
+        if tuple(col[1] for col in cols) != required:
+            raise ReservaRechazada("Esquema de reservas cambiado.")
+        indexes = conn.execute(
+            "PRAGMA index_list('reservas_film_0044')"
+        ).fetchall()
+        unique_cols: set[str] = set()
+        for item in indexes:
+            name = item[1]
+            if (
+                item[2] != 1 or item[4] != 0
+                or not isinstance(name, str)
+                or re.fullmatch(r"[A-Za-z0-9_]+", name) is None
+            ):
+                continue
+            members = conn.execute(
+                f"PRAGMA index_info('{name}')"
+            ).fetchall()
+            if len(members) == 1:
+                unique_cols.add(members[0][2])
+        if not {"medio", "descarga", "torrent_hash", "nonce", "file_id"}.issubset(
+            unique_cols
+        ):
+            raise ReservaRechazada("No hay unicidad completa en las reservas.")
 
     def reservar(
         self,
@@ -227,6 +263,7 @@ class ReservaFilmFicticia0044:
             # La misma BEGIN IMMEDIATE ordena reservar con el START del 0039,
             # el stop del 0038 y la tabla de consumo film-único.
             with self.custodia._tx() as conn:
+                self._verificar_esquema(conn)
                 row = conn.execute(
                     "SELECT medio,hash,huella,estado FROM custodia "
                     "WHERE descarga=?",
@@ -239,13 +276,22 @@ class ReservaFilmFicticia0044:
                     raise ReservaRechazada(
                         "qBit no está custodiado para exactamente este medio."
                     )
+                # Consumo HMAC y reserva de File ID bajo UN SOLO COMMIT.
+                # Si falla cualquiera de los dos INSERT, rollback de ambos.
+                consumir_en_transaccion_0045(
+                    conn, ticket, key,
+                    expected_medio=medio, expected_download=descarga,
+                    expected_proof=last, now=now,
+                )
                 conn.execute(
                     "INSERT INTO reservas_film_0044"
                     "(medio,descarga,torrent_hash,nonce,proof,file_id,estado)"
                     " VALUES(?,?,?,?,?,?,'reservada_no_ejecutable')",
                     (medio, descarga, torrent_hash, nonce, last, file_id),
                 )
-        except (sqlite3.Error, OSError, ParadaLabRechazada) as exc:
+        except (
+            sqlite3.Error, OSError, ParadaLabRechazada, AutorizacionDenegada
+        ) as exc:
             raise ReservaRechazada(
                 "Reserva ya consumida o diario privado no disponible."
             ) from exc
@@ -263,13 +309,39 @@ class ReservaFilmFicticia0044:
 
     def estado(self, medio_id: int) -> dict:
         medio = _id(medio_id)
-        with self.custodia._tx() as conn:
-            rows = conn.execute(
-                "SELECT estado FROM reservas_film_0044 WHERE medio=?",
-                (medio,),
-            ).fetchall()
-        if len(rows) != 1 or rows[0][0] != "reservada_no_ejecutable":
-            raise ReservaRechazada("Reserva no verificable.")
+        try:
+            with self.custodia._tx() as conn:
+                self._verificar_esquema(conn)
+                rows = conn.execute(
+                    "SELECT r.estado,r.descarga,r.torrent_hash,r.proof,"
+                    "r.nonce,c.medio_id,c.descarga_id,c.prueba_sha256 "
+                    "FROM reservas_film_0044 r "
+                    "LEFT JOIN consumos c ON c.nonce=r.nonce "
+                    "WHERE r.medio=?",
+                    (medio,),
+                ).fetchall()
+                if len(rows) != 1:
+                    raise ReservaRechazada("Reserva administrativa ausente.")
+                (
+                    state, download, torrent_hash, proof, _nonce,
+                    admin_media, admin_download, admin_proof,
+                ) = rows[0]
+                qbit = conn.execute(
+                    "SELECT medio,hash,estado FROM custodia WHERE descarga=?",
+                    (download,),
+                ).fetchone()
+                if (
+                    state != "reservada_no_ejecutable"
+                    or admin_media != medio or admin_download != download
+                    or admin_proof != proof or not isinstance(proof, str)
+                    or HEX.fullmatch(proof) is None
+                    or qbit != (medio, torrent_hash, "parada_observada")
+                ):
+                    raise ReservaRechazada(
+                        "Diario de retiro y consumo administrativo divergen."
+                    )
+        except (sqlite3.Error, OSError, ParadaLabRechazada) as exc:
+            raise ReservaRechazada("Reserva inconsistente en SQLite.") from exc
         return {
             "estado": "reservada_no_ejecutable",
             "autoriza_borrado_fisico": False,

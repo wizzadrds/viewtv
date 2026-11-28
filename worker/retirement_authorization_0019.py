@@ -323,6 +323,88 @@ def leer_clave_administrador(file: Path) -> bytes:
         raise AutorizacionDenegada("Clave administrativa inaccesible.") from exc
 
 
+def consumir_en_transaccion_0045(
+    db: sqlite3.Connection,
+    ticket: dict,
+    key: bytes,
+    *,
+    expected_medio: int,
+    expected_download: int,
+    expected_proof: str,
+    now: int,
+) -> None:
+    """Un solo consumo administrativo dentro de una transacción YA abierta.
+
+    Este contrato se comparte con la reserva qBit/NTFS 0044 en UNA SQLite
+    de laboratorio. No abre, confirma ni cancela transacciones; el llamador
+    es el único responsable de hacer COMMIT. NO otorga permiso físico.
+    """
+    verificar_ticket(
+        ticket, key,
+        expected_medio=expected_medio,
+        expected_download=expected_download,
+        expected_proof=expected_proof, now=now,
+    )
+    if not isinstance(db, sqlite3.Connection) or not db.in_transaction:
+        raise AutorizacionDenegada("No existe transacción de consumo.")
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS consumos (
+            nonce TEXT PRIMARY KEY,
+            medio_id INTEGER NOT NULL,
+            descarga_id INTEGER NOT NULL,
+            prueba_sha256 TEXT NOT NULL,
+            consumido_epoch INTEGER NOT NULL
+        )
+    """)
+    columns = db.execute("PRAGMA table_info('consumos')").fetchall()
+    expected = (
+        ("nonce", "TEXT", 0, 1),
+        ("medio_id", "INTEGER", 1, 0),
+        ("descarga_id", "INTEGER", 1, 0),
+        ("prueba_sha256", "TEXT", 1, 0),
+        ("consumido_epoch", "INTEGER", 1, 0),
+    )
+    if len(columns) != len(expected) or any(
+        (col[1], col[2], col[3], col[5]) != expected[index]
+        for index, col in enumerate(columns)
+    ):
+        raise AutorizacionDenegada("Tabla de consumo incompatible.")
+    # Los índices únicos son obligatorios incluso para una tabla anterior.
+    # CREATE falla cerrado si hay duplicados heredados; nunca los sanea.
+    db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS "
+        "consumos_medio_unico_0044 ON consumos(medio_id)"
+    )
+    db.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS "
+        "consumos_descarga_unica_0044 ON consumos(descarga_id)"
+    )
+    indexes = db.execute("PRAGMA index_list('consumos')").fetchall()
+    for name, column in (
+        ("consumos_medio_unico_0044", "medio_id"),
+        ("consumos_descarga_unica_0044", "descarga_id"),
+    ):
+        actual = [
+            row for row in indexes
+            if row[1] == name and row[2] == 1 and row[4] == 0
+        ]
+        members = db.execute(f"PRAGMA index_info('{name}')").fetchall()
+        if (
+            len(actual) != 1 or len(members) != 1
+            or members[0][2] != column
+        ):
+            raise AutorizacionDenegada(
+                "Indice de consumo único no verificable."
+            )
+    db.execute(
+        "INSERT INTO consumos VALUES (?, ?, ?, ?, ?)",
+        (
+            ticket["desafio"]["nonce"], expected_medio,
+            expected_download, expected_proof, now,
+        ),
+    )
+
+
 def consumir_ticket_una_vez(
     ticket: dict,
     key: bytes,
@@ -382,60 +464,16 @@ def consumir_ticket_una_vez(
             or info.st_nlink != 1
         ):
             raise AutorizacionDenegada("Diario de consumo no confiable.")
-    nonce = ticket["desafio"]["nonce"]
     try:
         with sqlite3.connect(path, timeout=5, isolation_level=None) as db:
             db.execute("PRAGMA busy_timeout=5000")
             db.execute("PRAGMA synchronous=FULL")
             db.execute("BEGIN IMMEDIATE")
-            db.execute("""
-                CREATE TABLE IF NOT EXISTS consumos (
-                    nonce TEXT PRIMARY KEY,
-                    medio_id INTEGER NOT NULL,
-                    descarga_id INTEGER NOT NULL,
-                    prueba_sha256 TEXT NOT NULL,
-                    consumido_epoch INTEGER NOT NULL
-                )
-            """)
-            # Defensa adicional 0044: el nonce por sí solo NO basta.
-            # Otra firma valida con nonce nuevo no puede rearmar un medio
-            # o reutilizar una descarga consumida. Si un diario antiguo
-            # contiene duplicados, CREATE UNIQUE INDEX falla CERRADO.
-            # Los índices se crean en la MISMA transacción que INSERT.
-            db.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS "
-                "consumos_medio_unico_0044 ON consumos(medio_id)"
-            )
-            db.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS "
-                "consumos_descarga_unica_0044 ON consumos(descarga_id)"
-            )
-            # No confiar solo en IF NOT EXISTS: un SQLite preexistente
-            # podria tener un indice NO unico o parcial con el mismo
-            # nombre. Exigir ambos indices reales, totales y de columna
-            # exacta antes de consumir un token administrativo.
-            indexes = db.execute("PRAGMA index_list('consumos')").fetchall()
-            for name, column in (
-                ("consumos_medio_unico_0044", "medio_id"),
-                ("consumos_descarga_unica_0044", "descarga_id"),
-            ):
-                actual = [
-                    row for row in indexes
-                    if row[1] == name and row[2] == 1 and row[4] == 0
-                ]
-                members = db.execute(
-                    f"PRAGMA index_info('{name}')"
-                ).fetchall()
-                if (
-                    len(actual) != 1 or len(members) != 1
-                    or members[0][2] != column
-                ):
-                    raise AutorizacionDenegada(
-                        "Indice de consumo unico no verificable."
-                    )
-            db.execute(
-                "INSERT INTO consumos VALUES (?, ?, ?, ?, ?)",
-                (nonce, expected_medio, expected_download, expected_proof, now),
+            consumir_en_transaccion_0045(
+                db, ticket, key,
+                expected_medio=expected_medio,
+                expected_download=expected_download,
+                expected_proof=expected_proof, now=now,
             )
             db.execute("COMMIT")
     except (sqlite3.Error, OSError) as exc:
