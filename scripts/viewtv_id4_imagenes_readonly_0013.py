@@ -2,10 +2,10 @@
 
 Solo lectura; no imprime imágenes, títulos ni identificadores de servicio.
 """
-from sqlmodel import Session, select
 from app.database import engine
 from app.jellyfin import JellyfinClient
-from app.models import Descarga, Solicitud, Medio
+from app.models import Descarga, Medio, Solicitud
+from sqlmodel import Session, select
 
 with Session(engine) as session:
     download = session.get(Descarga, 4)
@@ -38,9 +38,9 @@ print("ID4_IMAGENES_DISPONIBLES=SI")
 
 # Probar también el proxy autenticado de la aplicación. La dependencia de
 # sesión se sustituye SOLO en TestClient en memoria, nunca en API real.
-from fastapi.testclient import TestClient
 from app.auth import get_current_profile
 from app.main import app
+from fastapi.testclient import TestClient
 
 app.dependency_overrides[get_current_profile] = lambda: object()
 try:

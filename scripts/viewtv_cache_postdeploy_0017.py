@@ -4,7 +4,6 @@ import stat
 from pathlib import Path
 
 import httpx
-
 from app.cache_privada import estado_cache
 from app.config import get_settings
 

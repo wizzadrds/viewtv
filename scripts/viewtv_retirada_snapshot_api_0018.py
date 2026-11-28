@@ -6,8 +6,6 @@ No abre archivos de películas ni ejecuta POST, DELETE, INSERT ni UPDATE.
 """
 import json
 
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.jellyfin import JellyfinClient, JellyfinError
 from app.models import (
@@ -19,6 +17,7 @@ from app.models import (
     SolicitudRetirada,
 )
 from app.qbittorrent import QBittorrentClient, QBittorrentError
+from sqlmodel import Session, select
 
 
 def collect_movies() -> list[dict]:

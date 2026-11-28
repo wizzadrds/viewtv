@@ -6,14 +6,14 @@ import os
 import sqlite3
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, create_engine, select
-
 from app.auth import get_current_profile
 from app.database import get_session
 from app.main import app
 from app.models import Perfil, ResultadoBusqueda, Solicitud
+from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine, select
+
 
 def main():
     assert os.environ.get("VIEWTV_COPIA_SOLICITUDES_ONLY") == "1"

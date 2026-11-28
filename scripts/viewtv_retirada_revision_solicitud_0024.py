@@ -17,17 +17,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from viewtv_retirada_preflight_0018 import (  # noqa: E402
+from viewtv_retirada_preflight_0018 import (
     _api_snapshot,
     _evidence_windows,
     _journals_readonly,
 )
-from worker.retirement_evidence_stability_0025 import (  # noqa: E402
+
+from worker.retirement_evidence_stability_0025 import (
     EvidenciaInestable,
     certificar_doble_lectura,
 )
-from worker.retirement_preflight_0018 import evaluar_retiradas  # noqa: E402
-from worker.retirement_request_review_0024 import (  # noqa: E402
+from worker.retirement_preflight_0018 import evaluar_retiradas
+from worker.retirement_request_review_0024 import (
     RevisionNoConfiable,
     resumir_revision,
 )

@@ -7,15 +7,14 @@ import os
 import sqlite3
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, create_engine, select
-
+import app.solicitudes as routes
 from app.auth import get_current_profile
 from app.database import get_session
 from app.main import app
 from app.models import Descarga, Perfil, ResultadoBusqueda, Solicitud
-import app.solicitudes as routes
+from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine, select
 
 
 def main():

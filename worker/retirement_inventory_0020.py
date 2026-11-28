@@ -31,11 +31,11 @@ def _group(name: str) -> str:
 def analizar_inventario(snapshot: dict, journals: dict) -> dict:
     """Devuelve solo agregados, sin capacidad para autorizar retiradas."""
     if not isinstance(snapshot, dict) or not isinstance(journals, dict):
-        raise ValueError("Snapshot no verificable.")
+        raise ValueError("Snapshot no verificable.")  # noqa: TRY004 -- contrato ValueError público
     downloads = snapshot.get("descargas")
     qbit = snapshot.get("qbittorrent")
     if not isinstance(downloads, list) or not isinstance(qbit, dict):
-        raise ValueError("Datos incompletos.")
+        raise ValueError("Datos incompletos.")  # noqa: TRY004 -- contrato ValueError público
     stats = Counter()
     stats["descargas_analizadas"] = 0
     stats["con_archivos_no_publicados"] = 0
@@ -48,7 +48,7 @@ def analizar_inventario(snapshot: dict, journals: dict) -> dict:
     stats["suma_bytes_logicos_no_publicados"] = 0
     for download in downloads:
         if not isinstance(download, dict):
-            raise ValueError("Registro de descarga inválido.")
+            raise ValueError("Registro de descarga inválido.")  # noqa: TRY004 -- contrato ValueError público
         download_id = download.get("id")
         if type(download_id) is not int or download_id <= 0:
             raise ValueError("ID no válido.")
@@ -62,7 +62,7 @@ def analizar_inventario(snapshot: dict, journals: dict) -> dict:
         expected = {}
         for f in files:
             if not isinstance(f, dict):
-                raise ValueError("Archivo de manifiesto no verificable.")
+                raise ValueError("Archivo de manifiesto no verificable.")  # noqa: TRY004 -- contrato ValueError público
             name, size = f.get("source_relative"), f.get("size_bytes")
             if _valid_relative(name) is None or type(size) is not int or size <= 0:
                 raise ValueError("Ruta o tamaño de manifiesto no verificable.")
@@ -83,10 +83,10 @@ def analizar_inventario(snapshot: dict, journals: dict) -> dict:
         observed: set[str] = set()
         for f in rows:
             if not isinstance(f, dict):
-                raise ValueError("Archivo qBit no verificable.")
+                raise ValueError("Archivo qBit no verificable.")  # noqa: TRY004 -- contrato ValueError público
             name, size = f.get("name"), f.get("size")
             if not isinstance(name, str):
-                raise ValueError("Nombre qBit no verificable.")
+                raise ValueError("Nombre qBit no verificable.")  # noqa: TRY004 -- contrato ValueError público
             normalized = name.replace("\\", "/")
             key = normalized.casefold()
             stats["archivos_qbit"] += 1

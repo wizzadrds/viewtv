@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from worker.retirement_playback_surface_0027 import (  # noqa: E402
+from worker.retirement_playback_surface_0027 import (
     auditar_superficie,
 )
 

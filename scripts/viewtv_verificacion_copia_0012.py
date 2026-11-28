@@ -7,10 +7,11 @@ import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, create_engine
 from app.models import Descarga
 from app.queue import finish_claimed_verification
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine
+
 
 def main():
     assert os.environ.get("VIEWTV_VERIFICATION_COMPAT_SANDBOX") == "1"

@@ -9,10 +9,9 @@ from __future__ import annotations
 import json
 import sys
 
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.models import Medio, PeliculaVista, Perfil, SolicitudRetirada
+from sqlmodel import Session, select
 
 
 def consulta(titulo: str, anio: int) -> dict:

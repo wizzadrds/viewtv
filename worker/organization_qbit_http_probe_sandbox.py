@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import PureWindowsPath
 
 import httpx
+
 from worker.completed_files import COMPLETE_STATES
 
 _GUID = re.compile(r"[a-f0-9]{32}\Z")

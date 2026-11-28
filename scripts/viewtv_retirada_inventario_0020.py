@@ -10,8 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.viewtv_retirada_preflight_0018 import _api_snapshot, _journals_readonly  # noqa: E402
-from worker.retirement_inventory_0020 import analizar_inventario  # noqa: E402
+from scripts.viewtv_retirada_preflight_0018 import _api_snapshot, _journals_readonly
+from worker.retirement_inventory_0020 import analizar_inventario
 
 
 def main() -> int:

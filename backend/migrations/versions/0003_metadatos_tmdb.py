@@ -1,8 +1,7 @@
 """Añade metadatos de TMDB a los medios."""
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0003_metadatos_tmdb"
 down_revision = "0002_medio_disponible_en_jellyfin"

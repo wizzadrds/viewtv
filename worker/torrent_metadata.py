@@ -151,19 +151,25 @@ def obtener_metadatos_jackett(
     if not es_url_jackett_dl(url, jackett_base_url):
         raise TorrentMetadataError("Origen de metadatos torrent no autorizado.")
     try:
-        with httpx.Client(timeout=15, follow_redirects=False, trust_env=False, transport=transport) as client:
-            with client.stream("GET", url, headers={"Accept": "application/x-bittorrent"}) as response:
-                if response.status_code in (404, 410):
-                    raise TorrentMetadataNotFoundError(
-                        "Jackett ya no encuentra este resultado. Actualiza la búsqueda."
-                    )
-                if response.status_code != 200:
-                    raise TorrentMetadataError("Jackett no devolvió un .torrent válido.")
-                data = bytearray()
-                for chunk in response.iter_bytes(chunk_size=32768):
-                    if len(data) + len(chunk) > MAX_TORRENT_BYTES:
-                        raise TorrentMetadataError("Torrent demasiado grande para verificar.")
-                    data.extend(chunk)
+        with (
+            httpx.Client(
+                timeout=15, follow_redirects=False, trust_env=False, transport=transport
+            ) as client,
+            client.stream(
+                "GET", url, headers={"Accept": "application/x-bittorrent"}
+            ) as response,
+        ):
+            if response.status_code in (404, 410):
+                raise TorrentMetadataNotFoundError(
+                    "Jackett ya no encuentra este resultado. Actualiza la búsqueda."
+                )
+            if response.status_code != 200:
+                raise TorrentMetadataError("Jackett no devolvió un .torrent válido.")
+            data = bytearray()
+            for chunk in response.iter_bytes(chunk_size=32768):
+                if len(data) + len(chunk) > MAX_TORRENT_BYTES:
+                    raise TorrentMetadataError("Torrent demasiado grande para verificar.")
+                data.extend(chunk)
     except httpx.HTTPError as exc:
         raise TorrentMetadataError("No se pudo verificar Jackett; envío bloqueado.") from exc
     return interpretar_torrent(bytes(data))

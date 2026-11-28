@@ -3,9 +3,8 @@
 import logging
 from threading import Event, Thread
 
-from sqlmodel import Session
-
 from app.queue import renew_verification_lease
+from sqlmodel import Session
 
 logger = logging.getLogger("viewtv.verification_heartbeat")
 

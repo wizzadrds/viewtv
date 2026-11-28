@@ -5,9 +5,9 @@ import re
 from pathlib import PureWindowsPath
 from urllib.parse import urlsplit, urlunsplit
 
-from app.database import engine
 from app.config import get_settings
-from app.models import Descarga, ResultadoBusqueda, Solicitud
+from app.database import engine
+from app.models import Descarga, ResultadoBusqueda
 from app.qbittorrent import (
     QBittorrentAddPending,
     QBittorrentClient,
@@ -20,6 +20,7 @@ from app.queue import (
     record_download_attempt,
 )
 from sqlmodel import Session, select
+
 from worker.torrent_metadata import (
     TorrentMetadataError,
     es_url_jackett_dl,

@@ -5,11 +5,10 @@ no en el proceso que atiende al navegador. No imprime títulos ni secretos.
 """
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
 from app.auth import get_current_profile
 from app.catalogo_cache import status
 from app.main import app
+from fastapi.testclient import TestClient
 
 numbers = status()
 assert numbers["total"] >= 100

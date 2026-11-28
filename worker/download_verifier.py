@@ -3,14 +3,14 @@
 import logging
 from pathlib import Path
 
-from sqlmodel import Session, select
-from worker.completed_files import verify_completed_files
-from worker.file_validator import InvalidTorrentFiles
-from worker.verification_heartbeat import VerificationHeartbeat
-
 from app.database import engine
 from app.models import Descarga
 from app.qbittorrent import QBittorrentClient, QBittorrentError
+from sqlmodel import Session, select
+
+from worker.completed_files import verify_completed_files
+from worker.file_validator import InvalidTorrentFiles
+from worker.verification_heartbeat import VerificationHeartbeat
 
 logger = logging.getLogger("viewtv.download_verifier")
 

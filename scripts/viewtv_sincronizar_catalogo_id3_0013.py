@@ -5,10 +5,12 @@ falla cerrado si ID3 no está organizada o Jellyfin no contiene su título.
 No modifica torrents ni archivos, ni registra credenciales.
 """
 import unicodedata
-from sqlmodel import Session, select
+
 from app.database import engine
 from app.jellyfin import JellyfinClient, synchronize_catalog
-from app.models import Descarga, Solicitud, Medio
+from app.models import Descarga, Medio, Solicitud
+from sqlmodel import Session, select
+
 
 def norm(value: str) -> str:
     return unicodedata.normalize("NFKC", value).strip().casefold()

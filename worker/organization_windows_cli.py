@@ -10,15 +10,6 @@ import json
 import os
 import sys
 
-from sqlmodel import Session
-from worker.organization_windows_authority import (
-    BROKER_ID,
-    build_windows_publication_intent,
-    claim_for_windows,
-    publication_policy,
-    verify_windows_publication_sources,
-)
-
 from app.database import engine
 from app.jellyfin import JellyfinClient, synchronize_catalog
 from app.models import Descarga, Solicitud
@@ -28,6 +19,15 @@ from app.organization_queue import (
     renew_organization_lease,
 )
 from app.qbittorrent import QBittorrentClient
+from sqlmodel import Session
+
+from worker.organization_windows_authority import (
+    BROKER_ID,
+    build_windows_publication_intent,
+    claim_for_windows,
+    publication_policy,
+    verify_windows_publication_sources,
+)
 
 
 def _schema_0013() -> None:
@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.attempt is not None and not 1 <= args.attempt <= 3:
             raise ValueError("Intento inválido.")
         result = run(args.command, args.download_id, args.attempt)
-    except Exception:
+    except Exception:  # noqa: BLE001 -- límite de seguridad, sin fugas
         # No revelar rutas privadas, tokens de qBit o credenciales en stdout.
         print(json.dumps({"estado": "rechazada", "motivo": "validacion_o_servicio"}))
         return 2

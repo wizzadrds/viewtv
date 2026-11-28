@@ -5,15 +5,14 @@ La copia se clona en memoria: NO se modifican producción ni torrents.
 import os
 import sqlite3
 
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, create_engine
-
+import app.solicitudes as routes
 from app.auth import get_current_profile
 from app.database import get_session
 from app.main import app
 from app.models import Descarga, Perfil, Solicitud
-import app.solicitudes as routes
+from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine
 
 
 def main():

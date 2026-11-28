@@ -9,8 +9,9 @@ import time
 from app.database import engine
 from app.queue import get_queue_counts
 from sqlmodel import Session
-from worker.catalog_sync import CatalogSyncScheduler
+
 from worker.automatic_downloads import next_auto_download_id, parse_auto_floor
+from worker.catalog_sync import CatalogSyncScheduler
 from worker.download_monitor import monitor_downloads_once
 from worker.download_processor import STAGING_PATH, process_one_download
 from worker.download_starter import process_one_start

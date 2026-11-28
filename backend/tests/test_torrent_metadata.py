@@ -3,7 +3,6 @@ from hashlib import sha1
 
 import httpx
 import pytest
-
 from worker.torrent_metadata import (
     TorrentMetadataError,
     es_url_jackett_dl,
@@ -32,7 +31,10 @@ def _bencode(item):
 
 def _torrent(total):
     info = {b"name": b"Peliculaficticia.mkv", b"length": total}
-    return _bencode({b"announce": b"http://tracker.invalid/announce", b"info": info}), _bencode(info)
+    return (
+        _bencode({b"announce": b"http://tracker.invalid/announce", b"info": info}),
+        _bencode(info),
+    )
 
 
 def test_parse_single_file_exact_bytes_and_digest():
@@ -88,7 +90,9 @@ def test_stream_jackett_metainfo_without_redirect():
     seen = []
     def handler(request):
         seen.append(request.url.path)
-        return httpx.Response(200, headers={"content-type": "application/x-bittorrent"}, content=raw)
+        return httpx.Response(
+            200, headers={"content-type": "application/x-bittorrent"}, content=raw,
+        )
     meta = obtener_metadatos_jackett(URL, BASE, transport=httpx.MockTransport(handler))
     assert meta.size_bytes == 100_000_000
     assert seen == ["/dl/release-ficticia"]

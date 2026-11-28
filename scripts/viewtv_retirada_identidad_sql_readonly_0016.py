@@ -1,8 +1,7 @@
 """Cruce SQL de identidades sin revelar nombres ni hashes; solo lectura."""
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.models import Descarga, Medio, Solicitud
+from sqlmodel import Session, select
 
 with Session(engine) as db:
     downloads = db.exec(select(Descarga)).all()

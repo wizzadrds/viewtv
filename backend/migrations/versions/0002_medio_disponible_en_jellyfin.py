@@ -1,7 +1,7 @@
 """Añade el estado de disponibilidad de los medios en Jellyfin."""
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0002_medio_disponible_en_jellyfin"
 down_revision = "0001_initial"

@@ -2,11 +2,10 @@
 
 Salida agregada, sin nombres de archivos, rutas, IDs, títulos ni hashes.
 """
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.models import Descarga
 from app.qbittorrent import QBittorrentClient, QBittorrentError
+from sqlmodel import Session, select
 
 with Session(engine) as session:
     organized = session.exec(

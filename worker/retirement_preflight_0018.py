@@ -14,7 +14,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 HASH_RE = re.compile(r"(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})\Z")
 SHA_RE = re.compile(r"[a-f0-9]{64}\Z")
 LEAF_RE = re.compile(r"[A-Za-z0-9À-ÿ_.()\[\] +,'&-]{1,150}\Z")
-RESERVED_WINDOWS_RE = re.compile(r"(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", re.I)
+RESERVED_WINDOWS_RE = re.compile(r"(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", re.IGNORECASE)
 VIDEO_EXT = frozenset({".mkv", ".mp4", ".m4v", ".avi"})
 SUB_EXT = frozenset({".srt", ".ass", ".vtt"})
 TORRENT_ROOT = PureWindowsPath(r"C:\VIEWTV\media\descargas_temporales")
@@ -207,7 +207,7 @@ def evaluar_retiradas(
     Si una fuente no es verificable, se añaden motivos de denegación.
     """
     if not isinstance(snapshot, dict) or not isinstance(journals, dict):
-        raise ValueError("Entrada no verificable.")
+        raise ValueError("Entrada no verificable.")  # noqa: TRY004 -- contrato ValueError público
     movies = snapshot.get("peliculas")
     downloads = snapshot.get("descargas")
     profiles = snapshot.get("perfiles_activos")
@@ -218,7 +218,7 @@ def evaluar_retiradas(
         or not isinstance(profiles, list) or not isinstance(jellyfin, dict)
         or not isinstance(torrents, dict) or not isinstance(evidences, list)
     ):
-        raise ValueError("Fuentes de evidencia incompletas.")
+        raise ValueError("Fuentes de evidencia incompletas.")  # noqa: TRY004 -- contrato ValueError público
     active = {
         i for i in profiles if _bool_int(i)
     }

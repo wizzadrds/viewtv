@@ -2,11 +2,10 @@
 from urllib.parse import quote
 
 import httpx
-from sqlmodel import Session, select
-
 from app.config import get_settings
 from app.database import engine
 from app.models import Medio
+from sqlmodel import Session, select
 
 settings = get_settings()
 with Session(engine) as db:

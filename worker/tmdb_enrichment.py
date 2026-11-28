@@ -5,12 +5,11 @@ import re
 import unicodedata
 from datetime import UTC, datetime, timedelta
 
-from sqlmodel import Session, select
-
 from app.config import get_settings
 from app.database import engine
 from app.models import Medio
 from app.tmdb import TMDBClient, TMDBError
+from sqlmodel import Session, select
 
 logger = logging.getLogger("viewtv.worker.tmdb")
 BATCH_SIZE = 5

@@ -8,8 +8,6 @@ from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from urllib.parse import parse_qs, urlsplit
 
-from sqlmodel import Session
-
 from app.database import engine
 from app.jackett import JackettClient, JackettError
 from app.models import ResultadoBusqueda
@@ -20,6 +18,7 @@ from app.titulo_cohesion import (
     consultas_jackett,
     solicitud_sin_anio_ambigua,
 )
+from sqlmodel import Session
 
 logger = logging.getLogger("viewtv.worker.processor")
 

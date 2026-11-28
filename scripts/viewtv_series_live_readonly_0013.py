@@ -5,12 +5,11 @@ La API real que atiende al navegador conserva su autenticación sin cambios.
 """
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
 from app.auth import get_current_profile
 from app.catalogo_cache import status as catalog_status
 from app.main import app
 from app.relevancia_resultado import coincide_con_solicitud
+from fastapi.testclient import TestClient
 
 assert not coincide_con_solicitud(
     "Serie de prueba S01E02", "serie", None, "Serie.de.prueba.S01E01.1080p",

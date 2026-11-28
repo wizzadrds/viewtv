@@ -1,11 +1,10 @@
 """Compara IDs y rutas de catálogo con Jellyfin sin revelar contenido."""
 import re
 
-from sqlmodel import Session, select
-
 from app.database import engine
 from app.jellyfin import JellyfinClient, JellyfinError
 from app.models import Medio
+from sqlmodel import Session, select
 
 with Session(engine) as db:
     movies = db.exec(select(Medio).where(

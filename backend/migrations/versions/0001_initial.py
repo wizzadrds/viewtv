@@ -1,6 +1,6 @@
 """Esquema inicial de perfiles, catálogo y cola durable."""
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0001_initial"
 down_revision = None
@@ -33,7 +33,10 @@ def upgrade() -> None:
         sa.Column("generos", sa.JSON(), nullable=False),
         sa.Column("actualizado_en", sa.DateTime(timezone=True), nullable=False),
         sa.UniqueConstraint("jellyfin_id", name="uq_medio_jellyfin_id"),
-        sa.CheckConstraint("tipo IN ('pelicula', 'serie', 'temporada', 'episodio')", name="ck_medio_tipo"),
+        sa.CheckConstraint(
+            "tipo IN ('pelicula', 'serie', 'temporada', 'episodio')",
+            name="ck_medio_tipo",
+        ),
     )
     for column in ("jellyfin_id", "tipo", "titulo", "actualizado_en"):
         op.create_index(f"ix_medio_{column}", "medio", [column])
@@ -56,11 +59,18 @@ def upgrade() -> None:
         sa.Column("creado_en", sa.DateTime(timezone=True), nullable=False),
         sa.Column("actualizado_en", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["perfil_id"], ["perfil.id"]),
-        sa.CheckConstraint("estado IN ('pendiente', 'procesando', 'completada', 'fallida', 'cancelada', 'vigilando')", name="ck_solicitud_estado"),
+        sa.CheckConstraint(
+            "estado IN ('pendiente', 'procesando', 'completada', "
+            "'fallida', 'cancelada', 'vigilando')",
+            name="ck_solicitud_estado",
+        ),
         sa.CheckConstraint("intentos >= 0 AND max_intentos > 0", name="ck_solicitud_intentos"),
         sa.CheckConstraint("prioridad BETWEEN 0 AND 100", name="ck_solicitud_prioridad"),
     )
-    for column in ("perfil_id", "jellyfin_item_id", "estado", "prioridad", "disponible_desde", "locked_by", "locked_until", "creado_en"):
+    for column in (
+        "perfil_id", "jellyfin_item_id", "estado", "prioridad",
+        "disponible_desde", "locked_by", "locked_until", "creado_en",
+    ):
         op.create_index(f"ix_solicitud_{column}", "solicitud", [column])
 
 def downgrade() -> None:

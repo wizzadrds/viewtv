@@ -2,9 +2,9 @@
 import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
+from worker.automatic_downloads import next_auto_download_id, parse_auto_floor
 
 from app.models import Descarga, Perfil, ResultadoBusqueda, Solicitud
-from worker.automatic_downloads import next_auto_download_id, parse_auto_floor
 
 
 def make_engine():

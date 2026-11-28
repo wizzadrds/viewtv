@@ -9,16 +9,16 @@ from __future__ import annotations
 import json
 
 import httpx
+from app.config import get_settings
+from app.database import engine
+from app.models import Medio
 from sqlmodel import Session, select
+
 from worker.retirement_playback_guard_0021 import (
     SesionesNoConfiables,
     evaluar_sesiones,
     instantanea_sesiones,
 )
-
-from app.config import get_settings
-from app.database import engine
-from app.models import Medio
 
 
 def read_sessions(client: httpx.Client) -> list:

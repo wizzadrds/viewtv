@@ -3,7 +3,6 @@
 import sqlalchemy as sa
 from alembic import op
 
-
 revision = "0006_resultado_descarga"
 down_revision = "0005_resultados_busqueda"
 branch_labels = None

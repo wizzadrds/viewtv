@@ -3,8 +3,8 @@
 Solo lee la variable elegida para comprobar su presencia y formato,
 NUNCA imprime contenido, prefijos, longitudes, rutas de usuario o secretos.
 """
-from pathlib import Path
 import re
+from pathlib import Path
 
 file = Path("/home/viewtv/projects/viewtv/.env")
 if not file.is_file() or file.is_symlink():

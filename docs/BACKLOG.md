@@ -865,3 +865,13 @@ Informe: [AVANCE-HARDLINKS-KERNEL-0034-20261128.md](AVANCE-HARDLINKS-KERNEL-0034
 - [x] Auditoría Windows read-only: Jellyfin nativo y qBittorrent nativo comparten usuario con la sesión operadora de VIEWTV; una ACL que permita cambiar enlaces a esa identidad no discrimina entre ejecutor, Jellyfin y qBit. La separación requiere servicio/identidad propia y pruebas con SIDs diferentes.
 - [ ] Todavía faltan: bloqueo de acceso Jellyfin directo y HLS v1, custodia qBit por descarga, guardián NTFS con permisos kernel efectivos, alta admin real, diario/ejecutor privilegiado recuperable y autorización por una película concreta. **No se ha implementado ni desplegado el ejecutor productivo.**
 - [ ] PR #2 sigue OPEN/DRAFT y sin fusionar. Prioridad: terminar borrado seguro antes de Samsung y Momentos.
+
+## Retirada segura 0035 — gate Ruff global cerrado (28/11/2026)
+
+Informe: [AVANCE-CALIDAD-RUFF-0035-20261128.md](AVANCE-CALIDAD-RUFF-0035-20261128.md).
+
+- [x] **Reserva de calidad abierta desde 0030 resuelta:** Ruff global `backend worker scripts` → **0 hallazgos, All checks passed!**, frente a los **128 avisos históricos**. Reglas globales sin reducir ni desactivar.
+- [x] Respaldo privado previo fuera de Git: 267 fuentes Python versionadas, `/home/viewtv/viewtv-backups/0035-20261128/ruff_python_before.tar.gz`, SHA-256 `13c721efac07badd49335afacc3e8273fff47801b8bead8e94a34d1ea072cce4`. 76 ficheros históricos corregidos con Ruff y revisión AST para formato/restos.
+- [x] Contratos de denegación intactos: se conservan las `ValueError` esperadas por preflights y validadores; los casos excepcionales están justificados por línea, sin cambios a las reglas globales. Validación `git diff --check` PASS.
+- [x] **Backend completo 1572/1572 PASS** (2 advertencias externas), TypeScript PASS, ESLint PASS y smoke HTTP real de solo lectura **10/10 PASS**. Preflight real mantiene **4/4 películas bloqueadas**, **2/2 diarios NTFS verificados**, cero borrados y cero modificaciones de torrents.
+- [ ] El éxito de calidad NO da autorización física: 0034 demostró que `CreateHardLinkW` puede añadir enlaces durante los dos handles NTFS. HLS v2 y guard de admisión aún sin despliegue, Jellyfin/qBit nativos comparten identidad operadora, la custodia de torrent no es transaccional y no hay administrador real enrolado ni película apta. **No se ejecutará borrado real sin cerrar todas las barreras y aprobación individual.**

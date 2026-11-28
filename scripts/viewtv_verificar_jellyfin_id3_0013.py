@@ -2,10 +2,11 @@
 No muestra títulos, IDs Jellyfin, rutas privadas ni tokens.
 """
 import unicodedata
-from sqlmodel import Session, select
+
 from app.database import engine
 from app.jellyfin import JellyfinClient
-from app.models import Descarga, Solicitud, Medio
+from app.models import Descarga, Medio, Solicitud
+from sqlmodel import Session, select
 
 with Session(engine) as session:
     download = session.get(Descarga, 3)

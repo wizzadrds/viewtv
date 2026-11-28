@@ -2,12 +2,14 @@
 TestClient reemplaza SOLO la dependencia de autenticación en memoria local.
 """
 from urllib.parse import urlsplit
+
+from app.auth import get_current_profile
+from app.database import engine
+from app.main import app
+from app.models import Descarga, Medio, Solicitud
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
-from app.database import engine
-from app.models import Descarga, Solicitud, Medio
-from app.auth import get_current_profile
-from app.main import app
+
 
 def choose():
     with Session(engine) as s:
@@ -53,7 +55,7 @@ try:
         print(f"PROXY_PRIMER_FRAGMENTO_HTTP={s.status_code} TYPE={s.headers.get('content-type','').split(';')[0]} BYTES={len(s.content)}",flush=True)
         s.raise_for_status()
         print("API_HLS_ID3_CADENA_COMPLETA=SI",flush=True)
-except Exception as exc:
+except Exception as exc:  # noqa: BLE001 -- límite de diagnóstico HTTP
     print(f"API_HLS_ERROR_TIPO={type(exc).__name__}",flush=True)
 finally:
     app.dependency_overrides.clear()

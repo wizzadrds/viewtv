@@ -13,6 +13,7 @@ import re
 
 from app.config import get_settings
 from app.qbittorrent import QBittorrentClient, QBittorrentError
+
 from worker.download_processor import STAGING_PATH
 
 

@@ -12,6 +12,7 @@ from app.download_start_queue import (
 )
 from app.qbittorrent import QBittorrentClient, QBittorrentError
 from sqlmodel import Session
+
 from worker.download_processor import STAGING_PATH
 
 logger = logging.getLogger("viewtv.download_starter")

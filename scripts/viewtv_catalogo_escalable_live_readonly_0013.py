@@ -1,14 +1,17 @@
 """Smoke del catálogo 250k dentro de API actual; GET sin descargas."""
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
 from app.auth import get_current_profile
-from app.catalogo_cache import (
-    MAX_CACHE_DAYS, MAX_CATALOG, MAX_PAGE, open_reader, status,
-)
 from app.catalogador_cli import MAX_REQUESTS_PER_CYCLE
+from app.catalogo_cache import (
+    MAX_CACHE_DAYS,
+    MAX_CATALOG,
+    MAX_PAGE,
+    open_reader,
+    status,
+)
 from app.main import app
+from fastapi.testclient import TestClient
 
 assert MAX_CATALOG == 250_000, "La API no ha cargado el nuevo presupuesto."
 assert MAX_PAGE == 50_000

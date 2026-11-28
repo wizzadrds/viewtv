@@ -1,7 +1,7 @@
 """Pruebas del endpoint autenticado de creación de solicitudes."""
 
 from collections.abc import Generator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -285,7 +285,7 @@ def test_list_results_serializes_publication_datetime_without_500(
     with Session(engine) as session:
         resultado = session.get(ResultadoBusqueda, resultado_id)
         assert resultado is not None
-        resultado.publicado_en = datetime(2025, 8, 15, 17, 30, tzinfo=timezone.utc)
+        resultado.publicado_en = datetime(2025, 8, 15, 17, 30, tzinfo=UTC)
         session.add(resultado)
         session.commit()
 
@@ -898,8 +898,6 @@ def test_discard_requires_owner_profile(
 
 
 def _preparar_resultado_jackett_verificable(client, engine):
-    import app.solicitudes as routes
-    from types import SimpleNamespace
 
     created = client.post("/solicitudes", json={"medio_id": 1})
     assert created.status_code == 201
@@ -918,9 +916,11 @@ def _preparar_resultado_jackett_verificable(client, engine):
 def test_preselection_uses_real_size_even_when_jackett_is_wrong(
     solicitudes_context, monkeypatch
 ):
-    import app.solicitudes as routes
     from types import SimpleNamespace
+
     from worker.torrent_metadata import TorrentMetadata
+
+    import app.solicitudes as routes
 
     client, engine = solicitudes_context
     sid, rid = _preparar_resultado_jackett_verificable(client, engine)
@@ -959,9 +959,11 @@ def test_preselection_uses_real_size_even_when_jackett_is_wrong(
 def test_previous_discard_does_not_block_new_selection(
     solicitudes_context, monkeypatch
 ):
-    import app.solicitudes as routes
     from types import SimpleNamespace
+
     from worker.torrent_metadata import TorrentMetadata
+
+    import app.solicitudes as routes
 
     client, engine = solicitudes_context
     sid, rid = _preparar_resultado_jackett_verificable(client, engine)
@@ -1016,9 +1018,11 @@ def test_previous_discard_does_not_block_new_selection(
 def test_preselection_allows_matching_size_only_after_own_verification(
     solicitudes_context, monkeypatch
 ):
-    import app.solicitudes as routes
     from types import SimpleNamespace
+
     from worker.torrent_metadata import TorrentMetadata
+
+    import app.solicitudes as routes
 
     client, engine = solicitudes_context
     sid, rid = _preparar_resultado_jackett_verificable(client, engine)
@@ -1066,9 +1070,11 @@ def test_preselection_unknown_source_never_fetches_foreign_urls(
 def test_preselection_jackett_temporarily_unavailable_is_fail_closed(
     solicitudes_context, monkeypatch
 ):
-    import app.solicitudes as routes
     from types import SimpleNamespace
+
     from worker.torrent_metadata import TorrentMetadataError
+
+    import app.solicitudes as routes
 
     client, engine = solicitudes_context
     sid, rid = _preparar_resultado_jackett_verificable(client, engine)
@@ -1081,13 +1087,15 @@ def test_preselection_jackett_temporarily_unavailable_is_fail_closed(
     preview = client.get(f"/solicitudes/{sid}/resultados/{rid}/verificacion")
     assert preview.status_code == 200
     assert preview.json()["estado"] == "no_verificable"
-    assert client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid}).status_code == 409
+    assert (
+        client.post(f"/solicitudes/{sid}/seleccion", json={"resultado_id": rid}).status_code
+        == 409
+    )
 
 
 def test_preselection_is_private_and_only_for_waiting_selection(
     solicitudes_context, monkeypatch
 ):
-    import app.solicitudes as routes
     client, engine = solicitudes_context
     sid, rid = _preparar_resultado_jackett_verificable(client, engine)
     preview_url = f"/solicitudes/{sid}/resultados/{rid}/verificacion"
@@ -1192,7 +1200,9 @@ def test_preview_reports_stale_jackett_link_without_exposing_url(
     solicitudes_context, monkeypatch,
 ):
     from types import SimpleNamespace
+
     from worker.torrent_metadata import TorrentMetadataNotFoundError
+
     import app.solicitudes as routes
 
     client, engine = solicitudes_context

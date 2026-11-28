@@ -1,6 +1,6 @@
 """Revisa HTML Samsung y JS ES5 sin acceder a navegador, API ni red."""
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 path = Path("/home/viewtv/projects/viewtv-broker-0013-20261119/frontend/public/tv.html")
 text = path.read_text(encoding="utf-8")
@@ -21,8 +21,7 @@ check = subprocess.run(
         "docker", "run", "--rm", "--pull", "never", "--network", "none",
         "-i", "--entrypoint", "node", "node:22-bookworm-slim", "--check", "-",
     ],
-    input=script, text=True, stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE, timeout=20,
+    input=script, text=True, capture_output=True, check=False, timeout=20,
 )
 if check.returncode != 0:
     raise SystemExit("SAMSUNG_JS_SINTAXIS_FALLO: " + check.stderr[:400])

@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
+from app.qbittorrent import QBittorrentClient
+
 from worker.file_validator import (
     InvalidTorrentFiles,
     validate_torrent_files,
 )
-
-from app.qbittorrent import QBittorrentClient
 
 COMPLETE_STATES = {
     "stoppedUP",

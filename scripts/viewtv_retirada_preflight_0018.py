@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from worker.retirement_preflight_0018 import evaluar_retiradas  # noqa: E402
+from worker.retirement_preflight_0018 import evaluar_retiradas
 
 JOURNALS = Path("/mnt/c/VIEWTV/publicador/journal")
 PATTERN = re.compile(r"download-([1-9][0-9]*)\.json\Z")
@@ -46,7 +46,7 @@ def _api_snapshot() -> dict:
     output = _cmd(["docker", "exec", "-i", "viewtv-api-1", "python", "-"], source=source)
     data = json.loads(output)
     if not isinstance(data, dict):
-        raise ValueError("Instantánea SQL/Jellyfin/qBit no válida.")
+        raise ValueError("Instantánea SQL/Jellyfin/qBit no válida.")  # noqa: TRY004 -- contrato cerrado de preflight
     return data
 
 

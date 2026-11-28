@@ -7,6 +7,7 @@ import re
 
 from app.config import get_settings
 from app.jackett import JackettClient, JackettError
+
 from worker.processor import _to_database_results
 
 TERMS = (

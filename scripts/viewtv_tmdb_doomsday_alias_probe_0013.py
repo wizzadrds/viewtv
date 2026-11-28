@@ -1,6 +1,6 @@
 """Solo metadatos TMDB: comprobar Vengadores/Doomsday, nunca torrents."""
-from app.tmdb import TMDBClient, TMDBError
-from app.titulo_cohesion import tokens, _extract_aliases
+from app.titulo_cohesion import _extract_aliases, tokens
+from app.tmdb import TMDBClient
 
 client = TMDBClient()
 for query in ("Vengadores: Doomsday", "Avengers: Doomsday", "Doomsday"):

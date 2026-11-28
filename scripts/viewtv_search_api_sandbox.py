@@ -8,17 +8,17 @@ from __future__ import annotations
 import os
 
 import httpx
-import worker.processor as processor
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine, select
-
 from app.auth import get_current_profile
 from app.config import Settings
 from app.database import get_session
 from app.jackett import JackettClient
 from app.main import app
 from app.models import Descarga, Perfil, ResultadoBusqueda, Solicitud
+from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine, select
+
+from worker import processor
 
 XML = b"""<?xml version="1.0"?>
 <rss xmlns:torznab="http://torznab.com/schemas/2015/feed">

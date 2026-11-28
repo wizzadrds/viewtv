@@ -1,12 +1,12 @@
 """Comprobación GET de qBit, sin mostrar hashes/títulos/rutas ni escribir."""
 from pathlib import PureWindowsPath
 
-from sqlmodel import Session, select
-from worker.organization_torrent_guard import EXPECTED_SAVE_PATH
-
 from app.database import engine
 from app.models import Descarga
 from app.qbittorrent import QBittorrentClient, QBittorrentError
+from sqlmodel import Session, select
+
+from worker.organization_torrent_guard import EXPECTED_SAVE_PATH
 
 with Session(engine) as db:
     organized = db.exec(select(Descarga).where(

@@ -1,9 +1,11 @@
 """Solo lectura: relación Jellyfin ID4 -> registro ViewTV -> portada, sin nombres/IDs."""
-from sqlmodel import Session,select
+from unicodedata import normalize
+
 from app.database import engine
 from app.jellyfin import JellyfinClient
-from app.models import Descarga,Solicitud,Medio
-from unicodedata import normalize
+from app.models import Descarga, Medio, Solicitud
+from sqlmodel import Session, select
+
 
 def norm(x):
     return normalize('NFKC', x or '').strip().casefold()

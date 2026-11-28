@@ -16,11 +16,13 @@ if not source.is_file() or destination.exists():
 fd = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
 os.close(fd)
 try:
-    with sqlite3.connect(f"file:{source}?mode=ro", uri=True) as src:
-        with sqlite3.connect(str(destination)) as dst:
-            src.backup(dst)
-            assert dst.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-            assert dst.execute("PRAGMA foreign_key_check").fetchall() == []
+    with (
+        sqlite3.connect(f"file:{source}?mode=ro", uri=True) as src,
+        sqlite3.connect(str(destination)) as dst,
+    ):
+        src.backup(dst)
+        assert dst.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert dst.execute("PRAGMA foreign_key_check").fetchall() == []
     print("SQLITE_BACKUP=OK", flush=True)
     print("SQLITE_INTEGRITY=OK", flush=True)
     print("SQLITE_FK=OK", flush=True)

@@ -5,11 +5,10 @@ No modifica la autenticación de la aplicación que atiende al usuario.
 """
 from types import SimpleNamespace
 
-from fastapi.testclient import TestClient
-
 from app.auth import get_current_profile
 from app.config import get_settings
 from app.main import app
+from fastapi.testclient import TestClient
 
 if not get_settings().tmdb_api_key:
     raise RuntimeError("TMDB no está configurada en la API")

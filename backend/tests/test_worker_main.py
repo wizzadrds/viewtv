@@ -82,8 +82,8 @@ def test_submission_disabled_keeps_search_but_never_calls_qbittorrent(monkeypatc
 def test_automatic_worker_only_processes_new_selected_id(monkeypatch):
     """La ejecución real recibe UNA ID positiva y staging, nunca cola global."""
     from sqlmodel import Session
-    from worker.automatic_downloads import next_auto_download_id
     from test_worker_automatic_downloads import make_engine, seed
+    from worker.automatic_downloads import next_auto_download_id
 
     db = make_engine()
     with Session(db) as session:
@@ -112,8 +112,13 @@ def test_automatic_worker_only_processes_new_selected_id(monkeypatch):
         return True
     monkeypatch.setattr(worker_main, "process_one_download", fake_submission)
     monkeypatch.setattr(worker_main, "process_one_start", fake_start)
-    monkeypatch.setattr(worker_main, "process_one_request", lambda wid: events.append("buscar") or False)
-    monkeypatch.setattr(worker_main, "monitor_downloads_once", lambda: events.append("supervisar") or 0)
+    monkeypatch.setattr(
+        worker_main, "process_one_request", lambda wid: events.append("buscar") or False,
+    )
+    monkeypatch.setattr(
+        worker_main, "monitor_downloads_once",
+        lambda: events.append("supervisar") or 0,
+    )
     def stop(_seconds):
         raise KeyboardInterrupt()
     monkeypatch.setattr(worker_main.time, "sleep", stop)
@@ -135,8 +140,13 @@ def test_automatic_worker_without_valid_cutoff_cannot_submit(monkeypatch):
         AssertionError("no debe enviar torrents")))
     monkeypatch.setattr(worker_main, "process_one_start", lambda *a, **kw: (_ for _ in ()).throw(
         AssertionError("no debe iniciar torrents")))
-    monkeypatch.setattr(worker_main, "process_one_request", lambda wid: events.append("buscar") or True)
+    monkeypatch.setattr(
+        worker_main, "process_one_request", lambda wid: events.append("buscar") or True,
+    )
     monkeypatch.setattr(worker_main, "monitor_downloads_once", lambda: 0)
-    monkeypatch.setattr(worker_main.time, "sleep", lambda _s: (_ for _ in ()).throw(KeyboardInterrupt()))
+    monkeypatch.setattr(
+        worker_main.time, "sleep",
+        lambda _s: (_ for _ in ()).throw(KeyboardInterrupt()),
+    )
     worker_main.main()
     assert events == ["buscar"]

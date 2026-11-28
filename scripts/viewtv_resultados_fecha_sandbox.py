@@ -2,17 +2,16 @@
 
 Contenedor sin red, sin volúmenes de datos y con SQLite en memoria.
 """
-from datetime import datetime, timezone
 import os
-
-from fastapi.testclient import TestClient
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from datetime import UTC, datetime
 
 from app.auth import get_current_profile
 from app.database import get_session
 from app.main import app
 from app.models import Perfil, ResultadoBusqueda, Solicitud
+from fastapi.testclient import TestClient
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, SQLModel, create_engine
 
 
 def main():
@@ -39,7 +38,7 @@ def main():
         session.refresh(request)
         sid = request.id
         for key, date in (
-            ("con_fecha", datetime(2025, 8, 15, 17, 30, tzinfo=timezone.utc)),
+            ("con_fecha", datetime(2025, 8, 15, 17, 30, tzinfo=UTC)),
             ("sin_fecha", None),
         ):
             session.add(ResultadoBusqueda(

@@ -1,8 +1,9 @@
 """HTTP pruebas GET con copia real SQLite sólo lectura; sin imprimir contenido."""
 from types import SimpleNamespace
-from fastapi.testclient import TestClient
-from app.main import app
+
 from app.auth import get_current_profile
+from app.main import app
+from fastapi.testclient import TestClient
 
 with TestClient(app) as client:
     for path in ("/health", "/descubrir/filas", "/descubrir/filas/recientes"):

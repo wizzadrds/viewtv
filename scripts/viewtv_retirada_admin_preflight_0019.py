@@ -13,17 +13,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from scripts.viewtv_retirada_preflight_0018 import (  # noqa: E402
+from scripts.viewtv_retirada_preflight_0018 import (
     _api_snapshot,
     _evidence_windows,
     _journals_readonly,
 )
-from worker.retirement_authorization_0019 import (  # noqa: E402
+from worker.retirement_authorization_0019 import (
     AutorizacionDenegada,
     epoch_now,
     preparar_desafio_de_evidencias,
 )
-from worker.retirement_preflight_0018 import evaluar_retiradas  # noqa: E402
+from worker.retirement_preflight_0018 import evaluar_retiradas
 
 
 def main() -> int:

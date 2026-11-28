@@ -2,12 +2,14 @@
 Se introduce por STDIN en el contenedor API ya configurado: no escribe código allí.
 """
 from pathlib import Path
-from sqlmodel import Session
+
 from app.database import engine
 from app.models import Descarga, Solicitud
 from app.qbittorrent import QBittorrentClient
-from worker.organization_torrent_guard import verify_organization_torrent_identity
+from sqlmodel import Session
+
 from worker.organization_planner import plan_verified_media
+from worker.organization_torrent_guard import verify_organization_torrent_identity
 
 DOWNLOAD_ID = 3
 with Session(engine) as session:
@@ -27,14 +29,14 @@ with Session(engine) as session:
         sources = verify_organization_torrent_identity(
             QBittorrentClient(), row, source_root
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- diagnóstico privado, salida acotada
         print(f"ORIGEN_QBITTORRENT_VALIDO=NO;TIPO={type(exc).__name__}")
         raise SystemExit(2) from None
     print("ORIGEN_QBITTORRENT_VALIDO=SI")
     print(f"ORIGEN_ARCHIVOS={len(sources)}")
     try:
         plan = plan_verified_media(row, request, sources, source_root, media_root)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- diagnóstico privado, salida acotada
         print(f"PLAN_BIBLIOTECA_VALIDO=NO;TIPO={type(exc).__name__}")
         raise SystemExit(3) from None
     print("PLAN_BIBLIOTECA_VALIDO=SI")

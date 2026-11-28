@@ -1,14 +1,12 @@
 """Consulta solo lectura de indexadores Jackett, SIN búsquedas ni secretos."""
-from collections import Counter
 import re
-import xml.etree.ElementTree as ET
 
-from app.jackett import JackettClient, JackettError
+from app.jackett import JackettClient
 
 try:
     client = JackettClient()
     indexers = client.get_indexers()
-except (JackettError, Exception):
+except Exception:  # noqa: BLE001 -- nunca mostrar secretos de consulta
     print("JACKETT_INDEXERS_ERROR=NO_SE_PUDO_CONSULTAR")
     raise SystemExit(1)
 
