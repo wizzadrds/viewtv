@@ -841,3 +841,15 @@ Informe: [AVANCE-HLS-RUTAS-REALES-AISLAMIENTO-0032-20261127.md](AVANCE-HLS-RUTAS
 - [x] Preflight real solo lectura posterior: **4/4 películas bloqueadas**, **2/2 diarios NTFS verificados**, `PERMISO_DE_BORRADO_OTORGADO=NO`, cero archivos eliminados y cero torrents modificados.
 - [ ] **No desplegar**: falta unificar la barrera de todos los modos en `app.main`, persistir sesiones productivas, cerrar sesiones de reproducción de clientes, asegurar reinicio/abortos, migrar sin HLS v1 y verificar navegador/TV; siguen abiertas vías alternativas de Jellyfin, qBit y lectores NTFS, y Ruff global **128 avisos**.
 - [ ] Antes del borrado físico: aislamiento real de redes/handles y escrituras, autorización admin por película, journal y ejecutor Windows con rollback/medición. No detener torrents, tocar ACL/firewall/cachés ni retirar medios ahora. PR #2 OPEN/DRAFT, sin merge. Samsung después de espacio, Momentos después de Samsung.
+
+## Retirada segura 0033 — auditoría conservadora de accesos externos (28/11/2026)
+
+Informe: [AVANCE-BARRERA-ACCESOS-EXTERNOS-0033-20261128.md](AVANCE-BARRERA-ACCESOS-EXTERNOS-0033-20261128.md).
+
+- [x] Implementado `scripts/viewtv_windows_accesos_externos_readonly_0033.ps1`: inventario de listeners nativos asociados a proceso, puertos y reglas de entrada Windows `Allow` por aplicación; sin rutas, credenciales, IPs de clientes ni modificaciones. Auditoría real: Jellyfin nativo y qBittorrent escuchan externamente, reglas amplias `Allow` presentes, Jellyfin Docker observado solo en loopback.
+- [x] Implementado `worker/retirement_external_gate_0033.py`: contrato de informe estricto, dos observaciones, bloqueo por cambios o incoherencia; **nunca otorga permiso físico de borrado**, incluso si dejan de verse puertos.
+- [x] `scripts/viewtv_retirada_accesos_gate_0033.py`: dos consultas nativas WSL/Windows reales, resultado `ESTADO_RETIRADA_0033=BLOQUEADA`, `PERMISO_DE_BORRADO_OTORGADO=NO`, cero archivos eliminados y cero torrents modificados. Sin conexión al ejecutor físico ni al servicio de producción.
+- [x] **17/17 tests nuevos PASS** (parser, exposición, evidencia ausente, contradicción, manipulación). Ruff de nuevos archivos Python PASS; **backend íntegro 1572/1572 PASS** (2 advertencias externas), **TypeScript PASS**, **ESLint PASS**, smoke real read-only **10/10 PASS**.
+- [x] Preflight físico read-only posterior conserva **2/2 diarios NTFS verificados**, **4/4 películas bloqueadas**, **0 borrados**, **0 cambios qBit**.
+- [ ] Hito de aislamiento real pendiente: demostrar desde LAN los clientes autorizados y Jellyfin nativo, cerrar bypasses sin romper reproducción, inmovilizar un torrent exacto sin aceptar reanudación, excluir nuevas aperturas/handles por File ID NTFS, probar reinicios y carreras. Auditoría de puertos/firewall **no prueba quietud**.
+- [ ] Hitos finales: identidad administrativa independiente, autorización específica por película, ejecutor Windows duradero y bytes físicos liberados; sin eliminar ninguna película ahora. PR #2 permanece abierta y draft, sin fusionar. Ruff global **128 hallazgos históricos** sin resolver.
