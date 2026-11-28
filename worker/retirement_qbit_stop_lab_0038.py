@@ -26,6 +26,12 @@ from worker.retirement_qbit_custody_0026 import (
     _manifest,
     evaluar_custodia_qbit,
 )
+from worker.retirement_qbit_start_intent_lab_0046 import (
+    InicioAmbiguo0046,
+    comprobar_inicio_0046,
+    hubo_inicio_0046,
+    inicializar_inicio_0046,
+)
 
 STATES = frozenset({
     "registrada", "orden_pendiente", "orden_enviada",
@@ -112,11 +118,13 @@ class CustodiaQbitLab0038:
         self.root = root
         self.qbit = qbittorrent
         self.db = root / "qbit-custodia-0038.sandbox.db"
+        nueva_base = False
         if not self.db.exists():
             flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
             try:
                 fd = os.open(self.db, flags, 0o600)
                 os.close(fd)
+                nueva_base = True
             except FileExistsError:
                 pass
         with self._tx() as con:
@@ -130,6 +138,12 @@ class CustodiaQbitLab0038:
                 "('registrada','orden_pendiente','orden_enviada',"
                 "'parada_observada','bloqueada')))"
             )
+            # No crear una tabla de START desaparecida en una base vieja:
+            # hacerlo borraría la prueba de un START iniciado antes del crash.
+            if nueva_base:
+                inicializar_inicio_0046(con)
+            else:
+                comprobar_inicio_0046(con)
 
     def _check(self) -> None:
         _private_dir(self.root)
@@ -220,6 +234,15 @@ class CustodiaQbitLab0038:
             raise ParadaLabRechazada("Evidencia de origen incompleta.") from exc
 
         with self._tx() as con:
+            try:
+                if hubo_inicio_0046(con, hash_):
+                    raise ParadaLabRechazada(
+                        "START anterior: exige reconciliación antes de retirar."
+                    )
+            except InicioAmbiguo0046 as exc:
+                raise ParadaLabRechazada(
+                    "Bitácora START de laboratorio no verificable."
+                ) from exc
             if con.execute("SELECT 1 FROM custodia").fetchone() is not None:
                 raise ParadaLabRechazada("El laboratorio ya tiene una custodia.")
             con.execute(

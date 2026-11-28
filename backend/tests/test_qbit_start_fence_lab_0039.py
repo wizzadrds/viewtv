@@ -128,7 +128,7 @@ def test_inicio_fuera_del_hash_objetivo_no_se_bloquea(sandbox):
     assert starts == [HASH_B]
 
 
-def test_registrar_custodia_espera_a_un_start_que_ya_inicio(sandbox):
+def test_registrar_custodia_no_acepta_start_ya_emitido(sandbox):
     lab, snap, journals, fake, client = setup(sandbox)
     entered = threading.Event()
     resume = threading.Event()
@@ -150,8 +150,12 @@ def test_registrar_custodia_espera_a_un_start_que_ya_inicio(sandbox):
     gate = InicioCustodiadoLab0039(lab)
 
     def register():
-        lab.registrar(2, 8, snap, journals)
-        registered.set()
+        try:
+            lab.registrar(2, 8, snap, journals)
+            registered.set()
+        except ParadaLabRechazada:
+            return "bloqueada"
+        return "registrada"
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         future_start = pool.submit(gate.start_torrent, HASH_A)
@@ -162,11 +166,11 @@ def test_registrar_custodia_espera_a_un_start_que_ya_inicio(sandbox):
         finally:
             resume.set()
         future_start.result(timeout=3)
-        future_register.result(timeout=3)
+        assert future_register.result(timeout=3) == "bloqueada"
 
-    assert registered.is_set()
+    assert not registered.is_set()
     assert calls == ["START"]
-    assert lab.estado(8)["estado"] == "registrada"
+    assert gate.estado_intencion(HASH_A)["estado"] == "confirmada"
     with pytest.raises(ParadaLabRechazada):
         gate.start_torrent(HASH_A)
     assert calls == ["START"]

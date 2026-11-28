@@ -13,6 +13,12 @@ import sqlite3
 
 import httpx
 
+from worker.retirement_qbit_start_intent_lab_0046 import (
+    InicioAmbiguo0046,
+    comprobar_inicio_0046,
+    estado_inicio_0046,
+    hubo_inicio_0046,
+)
 from worker.retirement_qbit_stop_lab_0038 import (
     CustodiaQbitLab0038,
     ParadaLabRechazada,
@@ -43,11 +49,11 @@ class InicioCustodiadoLab0039:
         return self.qbit.torrents_info(hashes, tag=tag)
 
     def start_torrent(self, hash_: str) -> None:
-        """Serializa START con el alta del cerco en la misma base SQLite.
+        """Persistir intención de START ANTES del POST simulado.
 
-        Retiene la transacción hasta terminar el POST simulado. Cualquier
-        cierre de proceso durante el POST implica que hay que reconciliar
-        el resultado antes de operar; nunca se autoriza borrado.
+        Un cierre de proceso tras la intención y antes, durante o después
+        del POST deja entrada durable. Ninguna alta de custodia del MISMO
+        hash puede usar un snapshot anterior ni asumir quietud.
         """
         if not isinstance(hash_, str) or _HASH.fullmatch(hash_) is None:
             raise ParadaLabRechazada("Hash de inicio no verificable.")
@@ -55,23 +61,65 @@ class InicioCustodiadoLab0039:
             getattr(self.qbit, "_transport", None), httpx.MockTransport
         ):
             raise ParadaLabRechazada("Se ha cambiado el transporte ficticio.")
+        target = hash_.casefold()
         try:
             with self.custodia._tx() as conn:
-                # Rechazar incluso si otra fila/custodia aparece con una
-                # variante de mayúsculas del mismo hash.
+                comprobar_inicio_0046(conn)
                 blocked = conn.execute(
                     "SELECT COUNT(*) FROM custodia WHERE lower(hash)=?",
-                    (hash_.casefold(),),
+                    (target,),
                 ).fetchone()
                 if blocked is None or blocked[0] not in (0, 1):
                     raise ParadaLabRechazada("Diario inconsistente.")
-                if blocked[0] != 0:
+                if blocked[0] or hubo_inicio_0046(conn, target):
                     raise ParadaLabRechazada(
-                        "Inicio denegado por custodia de retirada."
+                        "START previo o custodia: se exige reconciliación."
                     )
-                self.qbit.start_torrent(hash_)
-        except sqlite3.Error as exc:
-            raise ParadaLabRechazada("Barrera SQLite no disponible.") from exc
+                # COMMIT de intención al cerrar _tx, ANTES de cualquier POST.
+                conn.execute(
+                    "INSERT INTO inicios_qbit_0046(hash,estado) "
+                    "VALUES(?,'pendiente')",
+                    (target,),
+                )
+            with self.custodia._tx() as conn:
+                comprobar_inicio_0046(conn)
+                row = conn.execute(
+                    "SELECT estado FROM inicios_qbit_0046 WHERE hash=?",
+                    (target,),
+                ).fetchone()
+                if row != ("pendiente",):
+                    raise ParadaLabRechazada(
+                        "Intención START distinta antes de POST."
+                    )
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM custodia WHERE lower(hash)=?",
+                    (target,),
+                ).fetchone()
+                if count != (0,):
+                    raise ParadaLabRechazada("Custodia apareció antes del POST.")
+                if not isinstance(
+                    getattr(self.qbit, "_transport", None),
+                    httpx.MockTransport,
+                ):
+                    raise ParadaLabRechazada("Transporte real no permitido.")
+                self.qbit.start_torrent(target)
+                conn.execute(
+                    "UPDATE inicios_qbit_0046 "
+                    "SET estado='confirmada' WHERE hash=? AND estado='pendiente'",
+                    (target,),
+                )
+        except (sqlite3.Error, InicioAmbiguo0046) as exc:
+            raise ParadaLabRechazada("Bitácora START no disponible.") from exc
+
+    def estado_intencion(self, hash_: str) -> dict:
+        """Consultar la barrera durable; NUNCA concede permiso de retirada."""
+        try:
+            with self.custodia._tx() as conn:
+                return estado_inicio_0046(conn, hash_)
+        except (sqlite3.Error, InicioAmbiguo0046) as exc:
+            raise ParadaLabRechazada(
+                "Intención START no verificable."
+            ) from exc
 
     def estado_custodia(self, descarga_id: int) -> dict:
         """Solo observación, jamás un permiso físico."""
