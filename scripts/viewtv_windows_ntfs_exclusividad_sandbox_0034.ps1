@@ -142,6 +142,11 @@ try {
     try { $null = Assert-TwoHardlinks0034 }
     catch { $thirdRejected = $true }
     if (-not $thirdRejected) { throw 'Tercer enlace no fue rechazado.' }
+    $auditRejected=$false
+    try { $null=Test-SameHardlink $origin $published $size }
+    catch { $auditRejected=$true }
+    if(-not $auditRejected) { throw 'Auditoría base aceptó un tercer hardlink.' }
+    Write-Output 'AUDITORIA_BASE_0016_RECHAZA_TERCERO=PASS'
     Assert-Sandbox0034
     [IO.File]::Delete($third)
     $null = Assert-TwoHardlinks0034

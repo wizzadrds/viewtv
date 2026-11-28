@@ -875,3 +875,12 @@ Informe: [AVANCE-CALIDAD-RUFF-0035-20261128.md](AVANCE-CALIDAD-RUFF-0035-2026112
 - [x] Contratos de denegación intactos: se conservan las `ValueError` esperadas por preflights y validadores; los casos excepcionales están justificados por línea, sin cambios a las reglas globales. Validación `git diff --check` PASS.
 - [x] **Backend completo 1572/1572 PASS** (2 advertencias externas), TypeScript PASS, ESLint PASS y smoke HTTP real de solo lectura **10/10 PASS**. Preflight real mantiene **4/4 películas bloqueadas**, **2/2 diarios NTFS verificados**, cero borrados y cero modificaciones de torrents.
 - [ ] El éxito de calidad NO da autorización física: 0034 demostró que `CreateHardLinkW` puede añadir enlaces durante los dos handles NTFS. HLS v2 y guard de admisión aún sin despliegue, Jellyfin/qBit nativos comparten identidad operadora, la custodia de torrent no es transaccional y no hay administrador real enrolado ni película apta. **No se ejecutará borrado real sin cerrar todas las barreras y aprobación individual.**
+
+## Retirada segura 0036 — recuento NTFS exacto frente a terceros enlaces (28/11/2026)
+
+Informe: [AVANCE-AUDITORIA-HARDLINKS-EXACTOS-0036-20261128.md](AVANCE-AUDITORIA-HARDLINKS-EXACTOS-0036-20261128.md).
+
+- [x] Endurecido `Test-SameHardlink` de la auditoría real **solo lectura** 0016: debe observar **exactamente 2 enlaces** en ambos nombres, mismo File ID/volumen y tamaño. Antes aceptaba 3 o más; el inventario 0018 ya exigía dos. Respaldo SHA256 privado previo fuera del repo.
+- [x] Prueba negativa Windows sobre 3 hardlinks TEMP ficticios invoca esa misma función de auditoría base; la suite 0034 rechaza el tercero y mantiene las pruebas de doble handle y recuperación: **2/2 suites PASS**.
+- [x] Auditoría bajo mutex 0022 en Windows real `DIARIOS_NTFS_VERIFICADOS=SI`, `AUTORIZA_ELIMINACION=NO`. Preflight integrado 0018: **2/2 diarios válidos**, **4/4 películas bloqueadas**, 0 borrados y 0 cambios de torrents.
+- [ ] **Esta comprobación no impide que se creen terceros enlaces después**: falta segregación real de identidad/ACL de metadatos, custodia qBit y cierre Jellyfin/HLS, aprobación administrativa única y ejecutor recuperable. No activar borrado de producción ni fusionar PR #2 hasta demostrar todas las barreras.

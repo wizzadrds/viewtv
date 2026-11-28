@@ -11,6 +11,7 @@ $tests = @(
         script='viewtv_windows_ntfs_exclusividad_sandbox_0034.ps1'
         lines=@(
             'LECTOR_PREEXISTENTE_BLOQUEA_EXCLUSION=PASS'
+            'AUDITORIA_BASE_0016_RECHAZA_TERCERO=PASS'
             'TERCER_HARDLINK_BLOQUEA_RETIRADA=PASS'
             'HARDLINKS_NTFS_NO_ADMITEN_LECTOR_NI_ESCRITOR_DURANTE_LOCK=PASS'
             'TERCER_HARDLINK_BAJO_FILESHARE_NONE=POSIBLE'

@@ -113,8 +113,8 @@ function Test-SameHardlink($Origin, $Published, [long]$Size) {
     $b=File-Fingerprint $Published
     if($a.bytes -ne $Size -or $b.bytes -ne $Size -or
        $a.volume -ne $b.volume -or $a.high -ne $b.high -or
-       $a.low -ne $b.low -or $a.links -lt 2 -or
-       $a.links -ne $b.links) {
+       $a.low -ne $b.low -or $a.links -ne 2 -or
+       $b.links -ne 2) {
        throw 'Origen y copia no son el mismo hardlink NTFS.'
     }
     return $a.links
