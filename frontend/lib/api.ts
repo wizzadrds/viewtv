@@ -4,6 +4,7 @@ export type MediaItem = {
   id: number;
   titulo: string;
   tipo: "pelicula" | "serie";
+  visto: boolean;
   sinopsis: string | null;
   anio: number | null;
   generos: string[];
@@ -12,6 +13,7 @@ export type MediaItem = {
 };
 
 export type CatalogResponse = {
+  perfil_id: number;
   elementos: MediaItem[];
   total: number;
   limit: number;

@@ -77,6 +77,7 @@ export default function ViewTVApp() {
   const [playbackBusy, setPlaybackBusy] = useState(false);
   const [playbackError, setPlaybackError] = useState("");
   const playbackRequest = useRef(0);
+  const profileGeneration = useRef(0);
   const pinRef = useRef<HTMLInputElement>(null);
 
   useSpatialNavigation((view === "catalog" || view === "discover" || view === "login" || view === "requests" || view === "downloads" || view === "storage") && !playbackUrl);
@@ -102,6 +103,10 @@ export default function ViewTVApp() {
   }, []);
 
   const handleSessionExpired = useCallback(() => {
+    profileGeneration.current += 1;
+    playbackRequest.current += 1;
+    setItems([]);
+    setTotal(0);
     setProfile(null);
     setSelectedProfile(null);
     setSelectedItem(null);
@@ -112,23 +117,37 @@ export default function ViewTVApp() {
   }, [loadProfiles]);
 
   const loadCatalog = useCallback(async () => {
+    const expectedProfileId = profile?.id;
+    if (expectedProfileId === undefined) return;
+    const generation = profileGeneration.current;
     setCatalogError("");
     try {
-      const query = filter === "todo" ? "" : `?tipo=${filter}`;
-      const data = await apiRequest<CatalogResponse>(`/jellyfin/catalog${query}`);
+      const query = new URLSearchParams({ perfil_id_esperado: String(expectedProfileId) });
+      if (filter !== "todo") query.set("tipo", filter);
+      const data = await apiRequest<CatalogResponse>(`/jellyfin/catalog?${query}`);
+      if (generation !== profileGeneration.current) return;
+      if (data.perfil_id !== expectedProfileId) {
+        throw new Error("La sesión ha cambiado de perfil.");
+      }
       setItems(data.elementos);
       setTotal(data.total);
     } catch (error) {
-      if ((error as Error & { status?: number }).status === 401) {
+      if (generation !== profileGeneration.current) return;
+      const status = (error as Error & { status?: number }).status;
+      if (status === 401 || status === 409) {
+        profileGeneration.current += 1;
+        playbackRequest.current += 1;
         setProfile(null);
         setSelectedProfile(null);
+        setItems([]);
+        setTotal(0);
         setPin("");
         await loadProfiles();
         return;
       }
       setCatalogError((error as Error).message || "No se pudo cargar el catálogo.");
     }
-  }, [filter, loadProfiles]);
+  }, [filter, loadProfiles, profile?.id]);
 
   useEffect(() => {
     let active = true;
@@ -198,6 +217,13 @@ export default function ViewTVApp() {
         method: "POST",
         body: JSON.stringify({ nombre: selectedProfile.nombre, pin }),
       });
+      profileGeneration.current += 1;
+      playbackRequest.current += 1;
+      setItems([]);
+      setTotal(0);
+      setSelectedItem(null);
+      setPlaybackUrl(null);
+      setPlaybackMode(null);
       setProfile(result.perfil);
       setPin("");
       setView("discover");
@@ -214,10 +240,16 @@ export default function ViewTVApp() {
     try {
       await apiRequest("/auth/logout", { method: "POST" });
     } finally {
+      profileGeneration.current += 1;
+      playbackRequest.current += 1;
       setProfile(null);
       setSelectedProfile(null);
+      setSelectedItem(null);
+      setPlaybackUrl(null);
+      setPlaybackMode(null);
       setPin("");
       setItems([]);
+      setTotal(0);
       await loadProfiles();
     }
   }
@@ -237,10 +269,12 @@ export default function ViewTVApp() {
   }
 
   async function handlePlay() {
-    if (!selectedItem || playbackBusy) return;
+    if (!selectedItem || playbackBusy || !profile) return;
 
     const id = selectedItem.id;
+    const expectedProfileId = profile.id;
     const requestId = ++playbackRequest.current;
+    const generation = profileGeneration.current;
     setPlaybackBusy(true);
     setPlaybackError("");
     setPlaybackUrl(null);
@@ -254,11 +288,11 @@ export default function ViewTVApp() {
           modo: "direct" | "hls" | null;
           url: string | null;
         }>;
-      }>(`/jellyfin/media/${id}/playback-info`, {
+      }>(`/jellyfin/media/${id}/playback-info?perfil_id_esperado=${expectedProfileId}`, {
         method: "POST",
       });
 
-      if (playbackRequest.current !== requestId) return;
+      if (playbackRequest.current !== requestId || generation !== profileGeneration.current) return;
 
       const direct = result.fuentes.find(
         (item) =>
@@ -283,13 +317,41 @@ export default function ViewTVApp() {
       setPlaybackMode(source.modo);
       setPlaybackUrl(apiPath(source.url));
     } catch (error) {
-      if (playbackRequest.current !== requestId) return;
+      if (playbackRequest.current !== requestId || generation !== profileGeneration.current) return;
       setPlaybackError(
         (error as Error).message || "No se pudo iniciar la reproducción."
       );
     } finally {
-      if (playbackRequest.current === requestId) {
+      if (playbackRequest.current === requestId && generation === profileGeneration.current) {
         setPlaybackBusy(false);
+      }
+    }
+  }
+
+  async function markMovieViewedAfterPlayback() {
+    const film = selectedItem;
+    const expectedProfileId = profile?.id;
+    if (film?.tipo !== "pelicula" || film.visto || expectedProfileId === undefined) return;
+    const generation = profileGeneration.current;
+    const requestId = playbackRequest.current;
+    try {
+      // Solo visionado privado del perfil activo. NO solicita retirada.
+      await apiRequest(`/almacenamiento/peliculas/${film.id}/visto`, {
+        method: "POST",
+        body: JSON.stringify({ visto: true, perfil_id_esperado: expectedProfileId }),
+      });
+      if (generation !== profileGeneration.current || requestId !== playbackRequest.current) return;
+      setItems((previous) => previous.map((entry) =>
+        entry.id === film.id ? { ...entry, visto: true } : entry));
+      setSelectedItem((previous) =>
+        previous?.id === film.id ? { ...previous, visto: true } : previous);
+    } catch (cause) {
+      if (generation !== profileGeneration.current || requestId !== playbackRequest.current) return;
+      const status = (cause as Error & { status?: number }).status;
+      if (status === 401 || status === 409) {
+        handleSessionExpired();
+      } else {
+        setPlaybackError("La reproducción terminó, pero no se pudo guardar «vista» en este perfil.");
       }
     }
   }
@@ -299,7 +361,11 @@ export default function ViewTVApp() {
     setFilter("todo");
     if (mediaId === undefined) return;
     try {
-      const catalog = await apiRequest<CatalogResponse>("/jellyfin/catalog?limit=100");
+      const id = profile?.id;
+      if (id === undefined) return;
+      const generation = profileGeneration.current;
+      const catalog = await apiRequest<CatalogResponse>(`/jellyfin/catalog?limit=100&perfil_id_esperado=${id}`);
+      if (generation !== profileGeneration.current || catalog.perfil_id !== id) return;
       const item = catalog.elementos.find((entry) => entry.id === mediaId);
       if (item) openDetails(item);
     } catch (cause) {
@@ -497,7 +563,7 @@ export default function ViewTVApp() {
         <div>
           <p className="eyebrow">TU BIBLIOTECA PERSONAL</p>
           <h1>Todo lo que te gusta,<br /><span>en un solo lugar.</span></h1>
-          <p className="welcome-copy">Tu colección, lista para disfrutar.</p>
+          <p className="welcome-copy">Tu colección sigue disponible en todos los perfiles. Solo cambia la marca de «vista» de cada uno.</p>
         </div>
         <div className="server-status"><span className="status-dot" /> Catálogo de tu biblioteca</div>
       </section>
@@ -545,7 +611,7 @@ export default function ViewTVApp() {
                 <span className="poster-overlay"><span>Ver detalles</span></span>
               </span>
               <span className="media-title">{item.titulo}</span>
-              <span className="media-meta">{item.anio ?? "Año desconocido"} · {item.tipo === "pelicula" ? "Película" : "Serie"}</span>
+              <span className="media-meta">{item.anio ?? "Año desconocido"} · {item.tipo === "pelicula" ? (item.visto ? "Vista en este perfil" : "Sin marcar en este perfil") : "Serie"}</span>
             </button>
           ))}
         </div>
@@ -571,7 +637,7 @@ export default function ViewTVApp() {
         <DownloadsPanel key={profile.id} onUnauthorized={handleSessionExpired} />
       )}
       {view === "storage" && profile && (
-        <StoragePanel key={profile.id} onUnauthorized={handleSessionExpired} />
+        <StoragePanel key={profile.id} profileId={profile.id} onUnauthorized={handleSessionExpired} />
       )}
 
       {selectedItem && !playbackUrl && (
@@ -597,6 +663,9 @@ export default function ViewTVApp() {
                   <h2 id="detail-title">{selectedItem.titulo}</h2>
                   <p className="detail-meta">{selectedItem.anio ?? "Año desconocido"}{selectedItem.generos.length ? ` · ${selectedItem.generos.join(" · ")}` : ""}</p>
                   <p className="detail-synopsis">{selectedItem.sinopsis || "No hay sinopsis disponible para este título."}</p>
+                  {selectedItem.tipo === "pelicula" && (
+                    <p className="muted">{selectedItem.visto ? "Vista en tu perfil" : "Pendiente en tu perfil"}. Verla no la retira de otros perfiles ni borra el archivo.</p>
+                  )}
                   {!playbackUrl && (
                     <button
                       className="primary-button compact"
@@ -649,6 +718,7 @@ export default function ViewTVApp() {
               playsInline
               preload="metadata"
               src={playbackMode === "direct" ? playbackUrl : undefined}
+              onEnded={() => { void markMovieViewedAfterPlayback(); }}
               onError={() => setPlaybackError("No se pudo reproducir este vídeo en el navegador.")}
             />
           </div>

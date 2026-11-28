@@ -3,14 +3,14 @@ from typing import Annotated, Literal
 from urllib.parse import quote
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.auth import get_current_profile
 from app.config import Settings, get_settings
 from app.database import get_session
-from app.models import Medio, Perfil
+from app.models import Medio, PeliculaVista, Perfil
 
 router = APIRouter(prefix="/jellyfin", tags=["Jellyfin"])
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -308,11 +308,20 @@ def media_image(
 def get_catalog(
     _profile: Annotated[Perfil, Depends(get_current_profile)],
     session: Annotated[Session, Depends(get_session)],
+    response: Response,
     tipo: Literal["pelicula", "serie"] | None = None,
     limit: int = 50,
     offset: int = 0,
+    perfil_id_esperado: int | None = Query(default=None, gt=0),
 ) -> dict[str, object]:
-    """Devuelve metadatos persistentes para la PWA, nunca rutas del servidor Jellyfin."""
+    """Catálogo compartido; marca 'vista' privada por perfil, sin ocultar películas."""
+    if _profile.id is None or not _profile.activo:
+        raise HTTPException(status_code=401, detail="Perfil no autenticado.")
+    if perfil_id_esperado is not None and perfil_id_esperado != _profile.id:
+        raise HTTPException(status_code=409, detail="La sesión ha cambiado de perfil.")
+    # Las marcas de perfil no deben almacenarse en cachés compartidas.
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     if not 1 <= limit <= 100:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -337,13 +346,24 @@ def get_catalog(
     medios = session.exec(
         statement.order_by(Medio.titulo, Medio.id).offset(offset).limit(limit)
     ).all()
+    # El catálogo es compartido; solo la marca de visionado depende del perfil.
+    # No confiar en UserData de Jellyfin con su usuario de servicio compartido.
+    ids = [medio.id for medio in medios if medio.id is not None]
+    vistos = set(session.exec(
+        select(PeliculaVista.medio_id).where(
+            PeliculaVista.perfil_id == _profile.id,
+            PeliculaVista.medio_id.in_(ids),
+        )
+    ).all()) if ids else set()
 
     return {
+        "perfil_id": _profile.id,
         "elementos": [
             {
                 "id": medio.id,
                 "titulo": medio.titulo,
                 "tipo": medio.tipo,
+                "visto": medio.tipo == "pelicula" and medio.id in vistos,
                 "sinopsis": medio.sinopsis,
                 "anio": medio.anio,
                 "generos": medio.generos,

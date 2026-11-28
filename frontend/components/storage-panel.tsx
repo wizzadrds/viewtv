@@ -32,7 +32,7 @@ type Film = {
   solicitud_retirada: string | null;
   eliminacion_automatica_disponible: boolean;
 };
-type FilmList = { elementos: Film[]; total: number; limit: number; offset: number };
+type FilmList = { perfil_id: number; elementos: Film[]; total: number; limit: number; offset: number };
 const PAGE_SIZE = 20;
 
 function size(bytes: number | null): string {
@@ -43,7 +43,7 @@ function size(bytes: number | null): string {
   return `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(bytes / divisor)} ${unit}`;
 }
 
-export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () => void }) {
+export default function StoragePanel({ profileId, onUnauthorized }: { profileId: number; onUnauthorized: () => void }) {
   const [data, setData] = useState<Summary | null>(null);
   const [films, setFilms] = useState<FilmList | null>(null);
   const [offset, setOffset] = useState(0);
@@ -61,17 +61,20 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
     Promise.all([
       apiRequest<Summary>("/almacenamiento/resumen", { signal: controller.signal }),
       apiRequest<FilmList>(
-        `/almacenamiento/peliculas?limit=${PAGE_SIZE}&offset=${offset}`,
+        `/almacenamiento/peliculas?limit=${PAGE_SIZE}&offset=${offset}&perfil_id_esperado=${profileId}`,
         { signal: controller.signal },
       ),
     ]).then(([summary, listing]) => {
       if (controller.signal.aborted) return;
+      if (listing.perfil_id !== profileId) throw new Error("La sesión ha cambiado de perfil.");
       setData(summary);
       setFilms(listing);
       setError("");
     }).catch((cause) => {
       if (controller.signal.aborted) return;
-      if ((cause as Error & { status?: number }).status === 401) {
+      if ([401, 409].includes((cause as Error & { status?: number }).status ?? 0)) {
+        setData(null);
+        setFilms(null);
         onUnauthorized();
         return;
       }
@@ -80,7 +83,7 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
       if (!controller.signal.aborted) setLoading(false);
     });
     return () => controller.abort();
-  }, [offset, onUnauthorized, reload]);
+  }, [offset, onUnauthorized, profileId, reload]);
 
   async function changeViewed(film: Film) {
     if (busy) return;
@@ -90,12 +93,12 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
     try {
       await apiRequest(`/almacenamiento/peliculas/${film.id}/visto`, {
         method: "POST",
-        body: JSON.stringify({ visto: !film.visto }),
+        body: JSON.stringify({ visto: !film.visto, perfil_id_esperado: profileId }),
       });
       setNotice(film.visto ? "Película desmarcada como vista." : "Marcada como vista en tu perfil.");
       setReload((value) => value + 1);
     } catch (cause) {
-      if ((cause as Error & { status?: number }).status === 401) onUnauthorized();
+      if ([401, 409].includes((cause as Error & { status?: number }).status ?? 0)) onUnauthorized();
       else setError((cause as Error).message || "No se pudo guardar el cambio.");
     } finally {
       setBusy(false);
@@ -123,12 +126,12 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
     try {
       const result = await apiRequest<{ mensaje: string }>(
         `/almacenamiento/peliculas/${film.id}/retirada`,
-        { method: "POST", body: JSON.stringify({ titulo: typed }) },
+        { method: "POST", body: JSON.stringify({ titulo: typed, perfil_id_esperado: profileId }) },
       );
       setNotice(result.mensaje);
       setReload((value) => value + 1);
     } catch (cause) {
-      if ((cause as Error & { status?: number }).status === 401) onUnauthorized();
+      if ([401, 409].includes((cause as Error & { status?: number }).status ?? 0)) onUnauthorized();
       else setError((cause as Error).message || "No se registró la petición.");
     } finally {
       setBusy(false);
@@ -141,13 +144,13 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
     setError("");
     setNotice("");
     try {
-      await apiRequest(`/almacenamiento/peliculas/${film.id}/retirada`, {
+      await apiRequest(`/almacenamiento/peliculas/${film.id}/retirada?perfil_id_esperado=${profileId}`, {
         method: "DELETE",
       });
       setNotice("Retirada cancelada. La película sigue en la biblioteca.");
       setReload((value) => value + 1);
     } catch (cause) {
-      if ((cause as Error & { status?: number }).status === 401) onUnauthorized();
+      if ([401, 409].includes((cause as Error & { status?: number }).status ?? 0)) onUnauthorized();
       else setError((cause as Error).message || "No se pudo cancelar.");
     } finally {
       setBusy(false);
@@ -248,8 +251,8 @@ export default function StoragePanel({ onUnauthorized }: { onUnauthorized: () =>
         <div>
           <h2>Películas de tu biblioteca</h2>
           <p className="muted">
-            Marcar «vista» es manual y exclusivo de este perfil. La retirada queda pendiente
-            hasta comprobar la propiedad de los archivos en Windows; no los borra todavía.
+            La marca «vista» pertenece únicamente a este perfil y no retira la película del otro.
+            La retirada requiere revisión y autorización separada; aquí no se borran archivos.
           </p>
         </div>
         <div className="storage-filters">

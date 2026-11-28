@@ -318,8 +318,12 @@ def get_media_playback_info(
     _profile: Perfil = Depends(get_current_profile),
     session: Session = Depends(get_session),
     start_time_ticks: int = Query(default=0, ge=0),
+    perfil_id_esperado: int | None = Query(default=None, gt=0),
     hls_bridge: HLSBridge0032 | None = Depends(get_hls_bridge_0032),
 ) -> dict[str, Any]:
+    # Si la cookie cambió en otra pestaña, no negociar un vídeo para el otro perfil.
+    if perfil_id_esperado is not None and perfil_id_esperado != _profile.id:
+        raise HTTPException(status_code=409, detail="La sesión ha cambiado de perfil.")
     if hls_bridge is not None:
         try:
             hls_bridge.require_admitted(request)

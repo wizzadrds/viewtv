@@ -8,9 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi import Path as ApiPath
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, StrictInt
 from sqlalchemy import func
 from sqlmodel import Session, select
 
@@ -42,10 +42,12 @@ ProfileDep = Annotated[Perfil, Depends(get_current_profile)]
 
 class EstadoVisto(BaseModel):
     visto: StrictBool
+    perfil_id_esperado: StrictInt | None = Field(default=None, gt=0)
 
 
 class ConfirmacionRetirada(BaseModel):
     titulo: str = Field(min_length=1, max_length=500)
+    perfil_id_esperado: StrictInt | None = Field(default=None, gt=0)
 
 
 class ConfirmacionCache(BaseModel):
@@ -56,6 +58,12 @@ def _perfil_id(profile: Perfil) -> int:
     if profile.id is None or not profile.activo:
         raise HTTPException(status_code=401, detail="Perfil no autenticado.")
     return profile.id
+
+
+def _exigir_perfil_esperado(perfil_id: int, esperado: int | None) -> None:
+    """Evita confundir dos perfiles que comparten cookies entre pestañas."""
+    if esperado is not None and esperado != perfil_id:
+        raise HTTPException(status_code=409, detail="La sesión ha cambiado de perfil.")
 
 
 def _pelicula(session: Session, media_id: int) -> Medio:
@@ -114,10 +122,15 @@ def resumen(profile: ProfileDep) -> dict:
 def peliculas(
     profile: ProfileDep,
     session: SessionDep,
+    response: Response,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0, le=100_000)] = 0,
+    perfil_id_esperado: Annotated[int | None, Query(gt=0)] = None,
 ) -> dict:
     perfil_id = _perfil_id(profile)
+    _exigir_perfil_esperado(perfil_id, perfil_id_esperado)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Vary"] = "Cookie"
     query = select(Medio).where(
         Medio.tipo == "pelicula", Medio.disponible_en_jellyfin.is_(True),
     )
@@ -142,6 +155,7 @@ def peliculas(
     seen = {row.medio_id: row for row in vistas}
     removal = {row.medio_id: row for row in retiradas}
     return {
+        "perfil_id": perfil_id,
         "total": count,
         "limit": limit,
         "offset": offset,
@@ -172,6 +186,7 @@ def cambiar_visto(
     session: SessionDep,
 ) -> dict:
     perfil_id = _perfil_id(profile)
+    _exigir_perfil_esperado(perfil_id, payload.perfil_id_esperado)
     _pelicula(session, media_id)
     mark = _vista(session, perfil_id, media_id)
     if payload.visto:
@@ -202,6 +217,7 @@ def solicitar_retirada(
     session: SessionDep,
 ) -> dict:
     perfil_id = _perfil_id(profile)
+    _exigir_perfil_esperado(perfil_id, payload.perfil_id_esperado)
     media = _pelicula(session, media_id)
     if payload.titulo.strip() != media.titulo:
         raise HTTPException(
@@ -240,8 +256,10 @@ def cancelar_retirada(
     media_id: Annotated[int, ApiPath(gt=0)],
     profile: ProfileDep,
     session: SessionDep,
+    perfil_id_esperado: Annotated[int | None, Query(gt=0)] = None,
 ) -> dict:
     perfil_id = _perfil_id(profile)
+    _exigir_perfil_esperado(perfil_id, perfil_id_esperado)
     _pelicula(session, media_id)
     removal = _retirada(session, perfil_id, media_id)
     if removal is None or removal.estado != "pendiente_revision":
