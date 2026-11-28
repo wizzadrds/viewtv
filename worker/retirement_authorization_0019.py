@@ -397,6 +397,42 @@ def consumir_ticket_una_vez(
                     consumido_epoch INTEGER NOT NULL
                 )
             """)
+            # Defensa adicional 0044: el nonce por sí solo NO basta.
+            # Otra firma valida con nonce nuevo no puede rearmar un medio
+            # o reutilizar una descarga consumida. Si un diario antiguo
+            # contiene duplicados, CREATE UNIQUE INDEX falla CERRADO.
+            # Los índices se crean en la MISMA transacción que INSERT.
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "consumos_medio_unico_0044 ON consumos(medio_id)"
+            )
+            db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "consumos_descarga_unica_0044 ON consumos(descarga_id)"
+            )
+            # No confiar solo en IF NOT EXISTS: un SQLite preexistente
+            # podria tener un indice NO unico o parcial con el mismo
+            # nombre. Exigir ambos indices reales, totales y de columna
+            # exacta antes de consumir un token administrativo.
+            indexes = db.execute("PRAGMA index_list('consumos')").fetchall()
+            for name, column in (
+                ("consumos_medio_unico_0044", "medio_id"),
+                ("consumos_descarga_unica_0044", "descarga_id"),
+            ):
+                actual = [
+                    row for row in indexes
+                    if row[1] == name and row[2] == 1 and row[4] == 0
+                ]
+                members = db.execute(
+                    f"PRAGMA index_info('{name}')"
+                ).fetchall()
+                if (
+                    len(actual) != 1 or len(members) != 1
+                    or members[0][2] != column
+                ):
+                    raise AutorizacionDenegada(
+                        "Indice de consumo unico no verificable."
+                    )
             db.execute(
                 "INSERT INTO consumos VALUES (?, ?, ?, ?, ?)",
                 (nonce, expected_medio, expected_download, expected_proof, now),

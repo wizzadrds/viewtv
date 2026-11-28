@@ -311,3 +311,149 @@ def test_desafio_y_ticket_ligados_a_la_misma_pelicula_y_pruebas():
         preparar_desafio_de_evidencias(
             snapshot, journals, ntfs, medio_id=2, descarga_id=8, now=NOW,
         )
+
+
+def test_0044_segunda_firma_con_otro_nonce_para_misma_pelicula_rechazada(
+    tmp_path,
+):
+    own = tmp_path / "admin-once"
+    own.mkdir(mode=0o700)
+    ledger = own / "consumos.db"
+    original, ticket = sample()
+    args = dict(
+        expected_medio=9, expected_download=8,
+        expected_proof=PROOF, now=NOW + 1,
+    )
+    assert consumir_ticket_una_vez(ticket, KEY, ledger, **args)[
+        "autoriza_borrado_fisico"
+    ] is False
+    repeat = deepcopy(original)
+    repeat["nonce"] = "e" * 32
+    signed = firmar_fuera_de_api(
+        repeat, KEY, "RETIRAR MEDIO 9 DESCARGA 8", now=NOW,
+    )
+    with pytest.raises(AutorizacionDenegada):
+        consumir_ticket_una_vez(signed, KEY, ledger, **args)
+
+
+def test_0044_descarga_usada_por_otro_medio_tambien_bloqueada(tmp_path):
+    own = tmp_path / "admin-once"
+    own.mkdir(mode=0o700)
+    ledger = own / "consumos.db"
+    original, ticket = sample()
+    consumir_ticket_una_vez(
+        ticket, KEY, ledger,
+        expected_medio=9, expected_download=8,
+        expected_proof=PROOF, now=NOW + 1,
+    )
+    altered = deepcopy(original)
+    altered["medio_id"] = 10
+    altered["nonce"] = "e" * 32
+    second = firmar_fuera_de_api(
+        altered, KEY, "RETIRAR MEDIO 10 DESCARGA 8", now=NOW,
+    )
+    with pytest.raises(AutorizacionDenegada):
+        consumir_ticket_una_vez(
+            second, KEY, ledger,
+            expected_medio=10, expected_download=8,
+            expected_proof=PROOF, now=NOW + 1,
+        )
+
+
+def test_0044_peliculas_y_descargas_distintas_no_se_bloquean_entre_si(
+    tmp_path,
+):
+    own = tmp_path / "admin-once"
+    own.mkdir(mode=0o700)
+    ledger = own / "consumos.db"
+    original, ticket = sample()
+    consumir_ticket_una_vez(
+        ticket, KEY, ledger, expected_medio=9,
+        expected_download=8, expected_proof=PROOF, now=NOW + 1,
+    )
+    altered = deepcopy(original)
+    altered["medio_id"] = 10
+    altered["descarga_id"] = 9
+    altered["nonce"] = "e" * 32
+    second = firmar_fuera_de_api(
+        altered, KEY, "RETIRAR MEDIO 10 DESCARGA 9", now=NOW,
+    )
+    result = consumir_ticket_una_vez(
+        second, KEY, ledger,
+        expected_medio=10, expected_download=9,
+        expected_proof=PROOF, now=NOW + 1,
+    )
+    assert result["estado"] == "consumida_para_ensayo"
+    assert not result["autoriza_borrado_fisico"]
+
+
+def test_0044_ledger_antiguo_con_dos_consumos_del_mismo_medio_falla_cerrado(
+    tmp_path,
+):
+    import sqlite3
+
+    own = tmp_path / "admin-once"
+    own.mkdir(mode=0o700)
+    ledger = own / "consumos.db"
+    # Datos sintéticos de migración anterior, deliberadamente duplicados.
+    # No se cambia ni se sanea automáticamente un diario existente.
+    with sqlite3.connect(ledger) as con:
+        con.execute(
+            "CREATE TABLE consumos("
+            "nonce TEXT PRIMARY KEY,medio_id INTEGER NOT NULL,"
+            "descarga_id INTEGER NOT NULL,prueba_sha256 TEXT NOT NULL,"
+            "consumido_epoch INTEGER NOT NULL)"
+        )
+        con.executemany(
+            "INSERT INTO consumos VALUES(?,?,?,?,?)",
+            [
+                ("0" * 32, 9, 8, PROOF, NOW),
+                ("1" * 32, 9, 10, PROOF, NOW),
+            ],
+        )
+    ledger.chmod(0o600)
+    _, ticket = sample()
+    with pytest.raises(AutorizacionDenegada):
+        consumir_ticket_una_vez(
+            ticket, KEY, ledger, expected_medio=9,
+            expected_download=8, expected_proof=PROOF, now=NOW + 1,
+        )
+    with sqlite3.connect(ledger) as con:
+        assert con.execute("SELECT COUNT(*) FROM consumos").fetchone()[0] == 2
+        assert con.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='index' "
+            "AND name='consumos_medio_unico_0044'"
+        ).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("index_ddl", (
+    "CREATE INDEX consumos_medio_unico_0044 ON consumos(medio_id)",
+    "CREATE UNIQUE INDEX consumos_medio_unico_0044 "
+    "ON consumos(medio_id) WHERE medio_id=999",
+    "CREATE UNIQUE INDEX consumos_medio_unico_0044 ON consumos(descarga_id)",
+))
+def test_0044_indice_suplantado_no_permita_consumir_firma(
+    tmp_path, index_ddl,
+):
+    import sqlite3
+
+    own = tmp_path / "admin-once"
+    own.mkdir(mode=0o700)
+    ledger = own / "consumos.db"
+    with sqlite3.connect(ledger) as db:
+        db.execute(
+            "CREATE TABLE consumos("
+            "nonce TEXT PRIMARY KEY,medio_id INTEGER NOT NULL,"
+            "descarga_id INTEGER NOT NULL,prueba_sha256 TEXT NOT NULL,"
+            "consumido_epoch INTEGER NOT NULL)"
+        )
+        db.execute(index_ddl)
+    ledger.chmod(0o600)
+    _, ticket = sample()
+    with pytest.raises(AutorizacionDenegada):
+        consumir_ticket_una_vez(
+            ticket, KEY, ledger, expected_medio=9,
+            expected_download=8, expected_proof=PROOF, now=NOW + 1,
+        )
+    with sqlite3.connect(ledger) as db:
+        assert db.execute("SELECT COUNT(*) FROM consumos").fetchone()[0] == 0
