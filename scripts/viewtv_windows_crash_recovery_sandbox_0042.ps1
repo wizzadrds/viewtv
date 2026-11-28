@@ -2,7 +2,7 @@
 # Solo dos nombres FICTICIOS en TEMP GUID. NO tiene modo de produccion.
 [CmdletBinding()]
 param(
-    [ValidateSet('Test','Crash','Recover','KillNative','RecoverNative','Finish')][string]$Mode='Test',
+    [ValidateSet('Test','TestAfterBoth','Crash','Recover','KillNative','RecoverNative','Finish','KillBoth','ReconcileBoth')][string]$Mode='Test',
     [ValidatePattern('^[a-f0-9]{32}$')][string]$RunId=''
 )
 Set-StrictMode -Version Latest
@@ -35,7 +35,7 @@ public static class ViewtvKillCrash0042 {
 }
 '@
 }
-if($Mode -ceq 'Test') {
+if($Mode -in @('Test','TestAfterBoth')) {
     if($RunId){throw 'Test no acepta GUID externo.'}
     $RunId=[Guid]::NewGuid().ToString('N')
 } elseif(-not $RunId){throw 'Modo hijo exige GUID.'}
@@ -128,7 +128,7 @@ function Assert-Pair($Proof) {
 function Child([string]$Action) {
     # .NET evita que STDERR del hijo denegado provoque ErrorAction=Stop
     # en el padre. Solo se observa el codigo, nunca se reemite su texto.
-    if($Action -cnotin @('Crash','Recover','KillNative','RecoverNative','Finish')){
+    if($Action -cnotin @('Crash','Recover','KillNative','RecoverNative','Finish','KillBoth','ReconcileBoth')){
         throw 'Subproceso no permitido.'
     }
     $exe=Join-Path $PSHOME 'powershell.exe'
@@ -167,7 +167,7 @@ function Native-Id($Handle) {
         $Handle,[ref]$info)){throw 'Identidad nativa ilegible.'}
     return $info
 }
-if($Mode -ceq 'Test') {
+if($Mode -in @('Test','TestAfterBoth')) {
     if([IO.Directory]::Exists($root) -or [IO.File]::Exists($root)){
         throw 'GUID ocupado.'
     }
@@ -240,14 +240,51 @@ if($Mode -ceq 'Test') {
         throw 'Se escribio commit sin handles.'
     }
     Write-Output 'LECTOR_PREABIERTO_BLOQUEA_COMMIT=PASS'
-    if((Child 'Finish') -ne 0 -or (Child 'Finish') -ne 0){
-        throw 'Finalizacion nativa o repetida fallo.'
+    if($Mode -ceq 'TestAfterBoth'){
+        if((Child 'KillBoth') -eq 0){
+            throw 'El segundo unlink no interrumpio al hijo.'
+        }
+        $null=Read-Phase $committing 'COMMIT_PREPARADO'
+        if([IO.File]::Exists($done) -or
+           [IO.File]::Exists($original) -or
+           [IO.File]::Exists($published)){
+            throw 'El crash post-commit no dejo ambos nombres ausentes.'
+        }
+        Write-Output 'KILL_REAL_POST_SEGUNDO_UNLINK_NATIVE=PASS'
+        # Otra identidad de archivo que ocupa el nombre impide finalizar.
+        # Este fichero falso pertenece exclusivamente al ensayo TEMP.
+        $intrusion='VIEWTV_0043_NOMBRE_REOCUPADO_'+$RunId
+        Write-Once $original $intrusion
+        if((Child 'ReconcileBoth') -eq 0){
+            throw 'Se acepto nombre reocupado por otro File ID.'
+        }
+        if([IO.File]::Exists($done) -or
+           [IO.File]::ReadAllText($original) -cne $intrusion){
+            throw 'Conciliacion insegura modifico fichero ajeno de prueba.'
+        }
+        [IO.File]::Delete($original)
+        Write-Output 'NOMBRE_REOCUPADO_BLOQUEA_RECONCILIACION=PASS'
+        if((Child 'ReconcileBoth') -ne 0 -or
+           (Child 'ReconcileBoth') -ne 0){
+            throw 'Conciliacion post-commit no fue idempotente.'
+        }
+        $null=Read-Phase $done 'FINALIZADO'
+        if([IO.File]::Exists($original) -or
+           [IO.File]::Exists($published) -or
+           [IO.File]::Exists($third)){
+            throw 'Queda referencia o suplantacion de laboratorio.'
+        }
+        Write-Output 'RECONCILIACION_DOS_UNLINKS_SIN_REPETIR_BORRADO=PASS'
+    } else {
+        if((Child 'Finish') -ne 0 -or (Child 'Finish') -ne 0){
+            throw 'Finalizacion nativa o repetida fallo.'
+        }
+        $null=Read-Phase $done 'FINALIZADO'
+        if([IO.File]::Exists($original) -or
+           [IO.File]::Exists($published) -or
+           [IO.File]::Exists($third)){throw 'Archivo ficticio remanente.'}
+        Write-Output 'DOS_UNLINKS_NATIVOS_Y_REPETICION=PASS'
     }
-    $null=Read-Phase $done 'FINALIZADO'
-    if([IO.File]::Exists($original) -or
-       [IO.File]::Exists($published) -or
-       [IO.File]::Exists($third)){throw 'Archivo ficticio remanente.'}
-    Write-Output 'DOS_UNLINKS_NATIVOS_Y_REPETICION=PASS'
     Assert-Sandbox
     foreach($file in @($done,$committing,$nativeRestored,
         $nativeIntent,$restored,$cut,$intent,$marker)){
@@ -341,6 +378,89 @@ if($Mode -ceq 'Test') {
     Assert-Pair $proof
     Write-Phase $nativeRestored 'WIN32_RECUPERADO' $proof
     Write-Output 'WIN32_RECUPERACION_RESTAURADA=PASS'
+} elseif($Mode -ceq 'KillBoth') {
+    # Posible muerte REAL entre el segundo unlink Win32 y su acuse duradero.
+    # Nunca se ejecuta sobre ficheros ajenos al sandbox marcado.
+    $null=Read-Phase $intent 'PREPARADO'
+    $null=Read-Phase $cut 'CORTE_PREPARADO'
+    $null=Read-Phase $restored 'RECUPERADO'
+    $null=Read-Phase $nativeIntent 'PRIMER_UNLINK_NATIVO_PREPARADO'
+    $proof=Read-Phase $nativeRestored 'WIN32_RECUPERADO'
+    if([IO.File]::Exists($committing) -or [IO.File]::Exists($done)){
+        throw 'Commit anterior encontrado.'
+    }
+    Assert-Pair $proof
+    $one=$null
+    $two=$null
+    try {
+        $one=Open-Delete $original
+        $two=Open-Delete $published
+        $a=Native-Id $one
+        $b=Native-Id $two
+        if($a.VolumeSerial -ne $b.VolumeSerial -or
+           $a.IndexHigh -ne $b.IndexHigh -or
+           $a.IndexLow -ne $b.IndexLow -or
+           $a.Links -ne 2 -or $b.Links -ne 2 -or
+           ($a.Attributes -band 0x400) -ne 0 -or
+           ($b.Attributes -band 0x400) -ne 0 -or
+           $a.VolumeSerial -ne $proof.volume -or
+           $a.IndexHigh -ne $proof.high -or
+           $a.IndexLow -ne $proof.low){
+            throw 'Los dos handles no equivalen al File ID certificado.'
+        }
+        Write-Phase $committing 'COMMIT_PREPARADO' $proof
+        $disp=[ViewtvKillCrash0042+Disposition]::new()
+        $disp.Flags=[uint32]3
+        if(-not [ViewtvKillCrash0042]::SetFileInformationByHandle(
+            $one,21,[ref]$disp,[uint32]4)){
+            throw 'Primer unlink de commit fallido.'
+        }
+        if(-not [ViewtvKillCrash0042]::SetFileInformationByHandle(
+            $two,21,[ref]$disp,[uint32]4)){
+            throw 'Segundo unlink de commit fallido.'
+        }
+        # Terminar sin cerrar handles, ni comprobar ausencia desde el hijo,
+        # ni escribir FINALIZADO: fuerza reconciliacion tras la muerte.
+        [ViewtvKillCrash0042]::TerminateProcess(
+            [ViewtvKillCrash0042]::GetCurrentProcess(),[uint32]79)|Out-Null
+        throw 'Kill posterior a segundo unlink no terminado.'
+    } finally {
+        if($null -ne $two){$two.Dispose()}
+        if($null -ne $one){$one.Dispose()}
+    }
+} elseif($Mode -ceq 'ReconcileBoth') {
+    # No repetir NINGUN unlink tras un commit incierto. Solo corroborar
+    # dos nombres ausentes y cierre de fases del laboratorio aislado.
+    $null=Read-Phase $intent 'PREPARADO'
+    $null=Read-Phase $cut 'CORTE_PREPARADO'
+    $null=Read-Phase $restored 'RECUPERADO'
+    $null=Read-Phase $nativeIntent 'PRIMER_UNLINK_NATIVO_PREPARADO'
+    $proof=Read-Phase $nativeRestored 'WIN32_RECUPERADO'
+    $commit=Read-Phase $committing 'COMMIT_PREPARADO'
+    if(
+        $commit.volume -ne $proof.volume -or
+        $commit.high -ne $proof.high -or
+        $commit.low -ne $proof.low -or
+        $commit.sha256 -cne $proof.sha256 -or
+        [IO.File]::Exists($original) -or
+        [IO.File]::Exists($published) -or
+        [IO.File]::Exists($third)
+    ){
+        throw 'No se confirma ausencia o identidad del commit.'
+    }
+    if([IO.File]::Exists($done)){
+        $last=Read-Phase $done 'FINALIZADO'
+        if(
+            $last.volume -ne $proof.volume -or
+            $last.high -ne $proof.high -or
+            $last.low -ne $proof.low -or
+            $last.sha256 -cne $proof.sha256
+        ){throw 'Diario final incompatible.'}
+        Write-Output 'RECONCILIACION_REPETIDA_SIN_UNLINK=PASS'
+        return
+    }
+    Write-Phase $done 'FINALIZADO' $proof
+    Write-Output 'RECONCILIACION_SIN_UNLINK=PASS'
 } else {
     $null=Read-Phase $intent 'PREPARADO'
     $null=Read-Phase $cut 'CORTE_PREPARADO'

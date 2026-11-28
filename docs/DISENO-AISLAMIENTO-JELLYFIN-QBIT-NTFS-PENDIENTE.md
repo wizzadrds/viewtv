@@ -29,3 +29,7 @@ Transición durable `libre → cerrando admisión → drenando → quiescente ve
 - Una revisión futura de red y operaciones deberá demostrar **desde dispositivo** que la reproducción habitual sigue funcionando.
 
 **Fuera de cobertura hoy:** redes alternativas y clientes directos Jellyfin; qBittorrent que no comparte mutex; lectores y handles NTFS externos; tokens HLS actuales transferibles. **No ejecutar retirada** aunque el publicador 0030 ya esté actualizado.
+
+## Hito 0043 — postcommit NTFS tras muerte real del proceso (sin despliegue)
+
+El [informe 0043](AVANCE-RECUPERACION-POSTCOMMIT-0043-20261128.md) prueba en Windows la muerte de un proceso después de **dos** `SetFileInformationByHandle(FileDispositionInfoEx)` y **antes** del diario FINALIZADO. El reconciliador de otro proceso **no reintenta unlink**: solo exige las fases persistidas y los dos nombres ausentes. También aborta si otro archivo ocupa uno de esos nombres. Ensayo en TEMP con GUID **2/2 PASS** y regresión del 0042 **2/2 PASS**. No se prueba ni se debe afirmar liberación física del espacio, ausencia de terceros enlaces fuera de TEMP, resistencia a pérdida eléctrica, credenciales Windows/ACL reales o autorización administrativa. **El borrado productivo permanece deshabilitado.**
