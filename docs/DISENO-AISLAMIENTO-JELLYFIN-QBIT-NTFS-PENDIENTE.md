@@ -53,3 +53,7 @@ La prueba [0047](AVANCE-PIPE-BROKER-SID-0047-20261128.md) creó una **tubería W
 ## Hito 0048 — no confiar en SID enviado por el cliente
 
 [Informe 0048](AVANCE-PEER-WIN32-PROTOCOLO-0048-20261128.md): el servidor de tubería Windows ficticia ahora verifica la identidad del peer mediante `RunAsClient` + `WindowsIdentity.GetCurrent(true)`, sin leer ni confiar en un SID dentro del mensaje. Pruebas locales de formato, hash específico, denegación de `START all` y nonce repetido **no ejecutan qBit ni admiten borrado**. El token del ensayo continúa perteneciendo al mismo operador; los nonces no sobreviven al reinicio ni hay control de GUI/WebUI. La identidad broker no interactiva, su DACL kernel, el cierre de accesos alternativos y una autoridad durable única **siguen pendientes** de ventana de mantenimiento autorizada.
+
+## Hito 0049 — nonce antirrepetición durable ensayado en TEMP
+
+El [informe 0049](AVANCE-NONCE-IPC-DURABLE-0049-20261128.md) demuestra una reserva atómica y write-through por nonce de un comando ficticio, con `TerminateProcess` real antes de efectos mock y verificación de la bitácora tras reinicio. Cuatro procesos concurrentes dejan un solo ganador, y todas las demás lecturas se deniegan, aunque el ganador todavía esté escribiendo. **El ledger 0049 es independiente del IPC 0048**: todavía no se han conectado autenticación Windows `RunAsClient`, autoridad persistente y exclusión real de WebUI/GUI qBit en un broker con SID propio. No desplegar ni autorizar unlink hasta verificar esa integración y los controles de producción del 0041.
